@@ -32,6 +32,11 @@ Tauri 2, sqlx (SQLite), specta/tauri-specta, Tailwind v4, shadcn + 8bitcn. Zusta
 - Parser do lançamento rápido em Rust (`domain/quick_log.rs`); banca reconhecida por lista fixa.
 - Fonte `Press Start 2P` empacotada (@fontsource), classe `.retro`; só títulos curtos/números.
 - Tema único escuro quente em `src/index.css` (`:root`), `<html class="dark">`.
+- Timer (pomodoro/cronômetro) vive no Rust (`TimerState` + `spawn_ticker` 1 s), máquina de estados pura em `domain/timer.rs`. Front faz polling de `timer_status` 1 s.
+- Tooltip da bandeja mostra o timer (Windows não tem título de tray).
+- Pomodoro: foco concluído grava `time_sessions` (estudo, source=pomodoro) + 10 XP + notificação; cancelar descarta. Cronômetro grava ao parar se ≥ 60 s.
+- Config do pomodoro em `settings` (`pomodoro_focus_min`/`pomodoro_break_min`, padrão 25/5).
+- Datas no SQLite em UTC `YYYY-MM-DD HH:MM:SS` via `datetime(?, 'unixepoch')` (sem chrono).
 
 ## Convenções
 - Sem `unwrap()` fora de testes; sem `any` no TS.

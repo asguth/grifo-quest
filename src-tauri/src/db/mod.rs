@@ -1,4 +1,6 @@
 pub mod logs;
+pub mod player;
+pub mod sessions;
 pub mod settings;
 pub mod subjects;
 

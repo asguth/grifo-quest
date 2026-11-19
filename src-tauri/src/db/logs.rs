@@ -19,10 +19,7 @@ pub async fn insert_with_xp(
         .bind(correct)
         .execute(&mut *tx)
         .await?;
-    sqlx::query("UPDATE player SET xp = xp + ? WHERE id = 1")
-        .bind(xp)
-        .execute(&mut *tx)
-        .await?;
+    super::player::add_xp(&mut tx, xp).await?;
     tx.commit().await?;
     Ok(())
 }

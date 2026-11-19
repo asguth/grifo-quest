@@ -15,11 +15,27 @@ export const commands = {
 	setTopicStatus: (id: number, status: TopicStatus, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_topic_status", { id, status }, options),
 	deleteTopic: (id: number, options?: InvokeOptions) => __TAURI_INVOKE<null>("delete_topic", { id }, options),
 	quickLog: (text: string, options?: InvokeOptions) => __TAURI_INVOKE<QuickLogResult_Serialize>("quick_log", { text }, options),
+	timerStatus: (options?: InvokeOptions) => __TAURI_INVOKE<TimerView_Serialize>("timer_status", undefined, options),
+	startPomodoro: (subjectId: number | null, options?: InvokeOptions) => __TAURI_INVOKE<TimerView_Serialize>("start_pomodoro", { subjectId }, options),
+	startStopwatch: (kind: Kind, subjectId: number | null, options?: InvokeOptions) => __TAURI_INVOKE<TimerView_Serialize>("start_stopwatch", { kind, subjectId }, options),
+	/**  Para o cronômetro gravando a sessão; num pomodoro, cancela sem gravar. */
+	stopTimer: (options?: InvokeOptions) => __TAURI_INVOKE<TimerView_Serialize>("stop_timer", undefined, options),
+	getPomodoroConfig: (options?: InvokeOptions) => __TAURI_INVOKE<PomodoroConfig>("get_pomodoro_config", undefined, options),
+	setPomodoroConfig: (config: PomodoroConfig, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_pomodoro_config", { config }, options),
 };
 
 /* Types */
 /**  Erro que atravessa a fronteira Tauri; o front recebe só a mensagem. */
 export type AppError = { kind: "Db"; message: string } | { kind: "Invalid"; message: string };
+
+export type Kind = "estudo" | "trabalho";
+
+export type Phase = "focus" | "break";
+
+export type PomodoroConfig = {
+	focus_min: number,
+	break_min: number,
+};
 
 export type QuickLogResult = QuickLogResult_Serialize | QuickLogResult_Deserialize;
 
@@ -51,6 +67,12 @@ export type SubjectInput = {
 	color: string,
 	exam_weight: number | null,
 };
+
+export type TimerView = TimerView_Serialize | TimerView_Deserialize;
+
+export type TimerView_Deserialize = { mode: "idle" } | { mode: "pomodoro"; phase: Phase; subject_id?: number | null; remaining: number; total: number } | { mode: "stopwatch"; kind: Kind; subject_id?: number | null; elapsed: number };
+
+export type TimerView_Serialize = { mode: "idle" } | { mode: "pomodoro"; phase: Phase; subject_id: number | null; remaining: number; total: number } | { mode: "stopwatch"; kind: Kind; subject_id: number | null; elapsed: number };
 
 export type Topic = {
 	id: number,

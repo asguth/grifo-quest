@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/8bit/button";
 import SubjectsScreen from "@/features/subjects/SubjectsScreen";
 import SettingsScreen from "@/features/settings/SettingsScreen";
+import FocusScreen from "@/features/focus/FocusScreen";
 
 const SLOTS = [
   { id: "diario", label: "Diário" },
@@ -22,7 +23,7 @@ function Soon({ what }: { what: string }) {
 }
 
 export default function App() {
-  const [slot, setSlot] = useState<SlotId>("materias");
+  const [slot, setSlot] = useState<SlotId>("foco");
 
   // Atalhos 1–5 da hotbar (ignorados enquanto digita).
   useEffect(() => {
@@ -38,7 +39,7 @@ export default function App() {
     <div className="flex h-screen flex-col">
       <main className="flex-1 overflow-y-auto p-6">
         {slot === "diario" && <Soon what="O Diário (painel)" />}
-        {slot === "foco" && <Soon what="O Pomodoro" />}
+        {slot === "foco" && <FocusScreen />}
         {slot === "sala" && <Soon what="A Sala de aula" />}
         {slot === "materias" && <SubjectsScreen />}
         {slot === "config" && <SettingsScreen />}

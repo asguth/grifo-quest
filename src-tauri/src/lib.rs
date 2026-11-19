@@ -13,7 +13,7 @@ use tauri_specta::collect_commands;
 type SetupResult = Result<(), Box<dyn std::error::Error>>;
 
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
-    use commands::{log, subjects};
+    use commands::{log, subjects, timer};
     tauri_specta::Builder::<tauri::Wry>::new().commands(collect_commands![
         subjects::list_subjects,
         subjects::create_subject,
@@ -24,6 +24,12 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         subjects::set_topic_status,
         subjects::delete_topic,
         log::quick_log,
+        timer::timer_status,
+        timer::start_pomodoro,
+        timer::start_stopwatch,
+        timer::stop_timer,
+        timer::get_pomodoro_config,
+        timer::set_pomodoro_config,
     ])
 }
 
@@ -96,8 +102,10 @@ fn setup(app: &mut tauri::App) -> SetupResult {
         Ok::<_, Box<dyn std::error::Error>>(pool)
     })?;
     app.manage(pool);
+    app.manage(commands::timer::TimerState::default());
     setup_tray(app)?;
     setup_shortcut(app)?;
+    commands::timer::spawn_ticker(app.handle().clone());
     Ok(())
 }
 
@@ -114,6 +122,7 @@ pub fn run() {
     let result = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_window(app, "main")))
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(builder.invoke_handler())
         .on_window_event(|window, event| {
             // Fechar a janela só esconde: o app vive na bandeja.

@@ -7,9 +7,10 @@ App desktop (Tauri 2 + React), dados locais em SQLite. Windows é o alvo princip
 
 ![Diário](docs/screenshot-diario.png) <!-- placeholder -->
 
-## Recursos (fase 1)
+## Recursos
 - Vive na bandeja do sistema e abre com o Windows (desligável em Config).
 - **Ctrl+Alt+Q** abre o lançamento rápido: digite `30 15 lgpd fgv` (total, certas, matéria, banca) e Enter.
+- **Foco**: pomodoro (25/5 configurável) com notificação, e cronômetro de Estudo/Trabalho. O tempo aparece no tooltip da bandeja.
 - Cadastro de matérias (cor, peso no edital) e tópicos (cole a lista do edital, um por linha).
 
 ## Setup
