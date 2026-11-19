@@ -1,0 +1,17 @@
+/* ponytail: font bundled locally (offline desktop app) instead of Google Fonts */
+@import "@fontsource/press-start-2p";
+
+.retro {
+  font-family:
+    "Press Start 2P",
+    system-ui,
+    -apple-system,
+    sans-serif;
+  line-height: 1.5;
+  letter-spacing: 0.5px;
+}
+
+.pixelated {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}

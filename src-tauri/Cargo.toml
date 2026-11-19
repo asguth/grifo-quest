@@ -1,0 +1,35 @@
+[package]
+name = "grifo-quest"
+version = "0.1.0"
+description = "Monitor de estudos para concursos"
+authors = ["Grifo Quest contributors"]
+license = "MIT"
+edition = "2024"
+
+[lib]
+name = "grifo_quest_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "sqlite", "migrate", "macros"] }
+specta = { version = "=2.0.0-rc.28", features = ["derive"] }
+specta-typescript = "0.0.15"
+tauri-specta = { version = "=2.0.0-rc.29", features = ["derive", "typescript"] }
+thiserror = "2"
+strsim = "0.11"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true
