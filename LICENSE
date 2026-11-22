@@ -1,21 +1,47 @@
-MIT License
+Grifo Quest — Licença de Código Visível (todos os direitos reservados)
+Copyright (c) 2026 Alberto Guth (GT Design). Todos os direitos reservados.
+SPDX-License-Identifier: LicenseRef-GrifoQuest-Proprietary
 
-Copyright (c) 2026 Grifo Quest contributors
+O código-fonte deste repositório está publicado apenas para consulta. Publicar o código
+não concede nenhuma licença de uso além das permissões listadas abaixo.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+1. PERMITIDO
+   a) Ler e estudar o código-fonte neste repositório.
+   b) Baixar o instalador oficial publicado em
+      https://github.com/asguth/grifo-quest/releases e usá-lo para fins pessoais e não
+      comerciais, em computadores seus.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+2. PROIBIDO, sem autorização prévia e por escrito do titular
+   a) Copiar, modificar, adaptar, traduzir ou criar obras derivadas do código, do design,
+      do mascote, dos ícones ou dos textos.
+   b) Distribuir, publicar, sublicenciar, vender, alugar ou disponibilizar o app, o código
+      ou partes dele, com ou sem alterações, inclusive como serviço (SaaS) ou dentro de
+      outro produto.
+   c) Usar o app ou o código para fins comerciais, inclusive em cursos, cursinhos e
+      plataformas de estudo.
+   d) Remover ou alterar avisos de direitos autorais, de licença ou de marca.
+   e) Usar o código, no todo ou em parte, para treinar ou avaliar modelos de
+      inteligência artificial.
+   f) Usar o nome "Grifo Quest", o mascote "Grifinho" ou o logotipo de forma que sugira
+      vínculo com o projeto.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+   Forks feitos pela interface do GitHub ficam sujeitos aos Termos de Serviço do GitHub e
+   a esta licença: não dão direito a usar, alterar ou distribuir o código.
+
+3. COMPONENTES DE TERCEIROS E DO MESMO AUTOR
+   Esta licença não se aplica aos componentes listados abaixo, que seguem as próprias
+   licenças:
+   - a skill do Grifo em `src-tauri/resources/grifo/` (MIT + CC BY 4.0, veja o LICENSE da
+     pasta);
+   - as dependências de código aberto (crates Rust e pacotes npm), cada uma na sua licença;
+   - o whisper.cpp e o modelo de voz, baixados sob demanda pelo app (MIT).
+
+4. SEM GARANTIA
+   O SOFTWARE É FORNECIDO "NO ESTADO EM QUE SE ENCONTRA", SEM GARANTIA DE NENHUM TIPO,
+   EXPRESSA OU IMPLÍCITA. EM NENHUMA HIPÓTESE O TITULAR SERÁ RESPONSÁVEL POR DANOS DE
+   QUALQUER NATUREZA DECORRENTES DO USO OU DA IMPOSSIBILIDADE DE USO DO SOFTWARE.
+
+5. ENCERRAMENTO
+   Qualquer violação encerra automaticamente as permissões do item 1.
+
+Pedidos de autorização: abra uma issue em https://github.com/asguth/grifo-quest/issues.

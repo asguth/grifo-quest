@@ -1,64 +1,131 @@
-import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/8bit/button";
-import SubjectsScreen from "@/features/subjects/SubjectsScreen";
-import SettingsScreen from "@/features/settings/SettingsScreen";
-import FocusScreen from "@/features/focus/FocusScreen";
+import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { LevelUpOverlay } from "@/components/LevelUp";
+import Scenery from "@/components/Scenery";
+import { Toaster } from "@/components/toast";
+import { commands, events } from "@/lib/bindings";
+import { useAppEvent } from "@/lib/bus";
+import { digitsClaimed, useKey, useTauriEvent } from "@/lib/hooks";
+import { useTheme } from "@/lib/theme";
+import { warn } from "@/lib/utils";
+import { SLOTS, toSlot, type SlotId } from "./nav";
+import { Sidebar } from "./Sidebar";
+import { PageTransition, ScreenSkeleton } from "./transitions";
 
-const SLOTS = [
-  { id: "diario", label: "Diário" },
-  { id: "foco", label: "Foco" },
-  { id: "sala", label: "Sala" },
-  { id: "materias", label: "Matérias" },
-  { id: "config", label: "Config" },
-] as const;
+// Cada tela num chunk próprio: a janela abre rápido e só baixa o que for usado.
+const DiaryScreen = lazy(() => import("@/features/diary/DiaryScreen"));
+const StudyScreen = lazy(() => import("@/features/study/StudyScreen"));
+const ClassroomScreen = lazy(() => import("@/features/classroom/ClassroomScreen"));
+const SubjectsScreen = lazy(() => import("@/features/subjects/SubjectsScreen"));
+const WorldScreen = lazy(() => import("@/features/world/WorldScreen"));
+const SettingsScreen = lazy(() => import("@/features/settings/SettingsScreen"));
+const Onboarding = lazy(() => import("@/features/onboarding/Onboarding"));
 
-type SlotId = (typeof SLOTS)[number]["id"];
-
-function isTyping(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement && target.matches("input, textarea, select, [contenteditable]");
-}
-
-function Soon({ what }: { what: string }) {
-  return <p className="text-muted-foreground">{what} chega nas próximas fases.</p>;
+/** Erro numa tela não derruba o app: mostra o aviso e deixa tentar de novo. */
+class ScreenBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null };
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div className="mx-auto mt-16 max-w-md space-y-3 rounded-2xl border border-border bg-card p-6 text-center shadow-soft">
+        <p className="font-semibold">Esta tela tropeçou.</p>
+        <p className="text-sm text-muted-foreground">{this.state.error.message}</p>
+        <button className="text-sm text-primary underline-offset-4 hover:underline" onClick={() => this.setState({ error: null })}>
+          Tentar de novo
+        </button>
+      </div>
+    );
+  }
 }
 
 export default function App() {
-  const [slot, setSlot] = useState<SlotId>("foco");
+  const [slot, setSlot] = useState<SlotId>("diario");
+  const { motion: motionOn } = useTheme();
+  const [onboarding, setOnboarding] = useState<boolean | null>(null);
 
-  // Atalhos 1–5 da hotbar (ignorados enquanto digita).
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const i = Number(e.key) - 1;
-      if (!isTyping(e.target) && !e.ctrlKey && !e.altKey && SLOTS[i]) setSlot(SLOTS[i].id);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    commands.getProfile().then(
+      (p) => setOnboarding(!p.onboarded),
+      (e) => {
+        warn("ler o perfil", e);
+        setOnboarding(false);
+      },
+    );
   }, []);
+  useAppEvent("onboarding", () => setOnboarding(true));
+  // Boas-vindas do Windows pedem uma tela ("foco" = Estudo).
+  useTauriEvent(events.navigateTo, (s) => {
+    const target = toSlot(s);
+    if (target) setSlot(target);
+  });
 
+  useKey((e) => {
+    const target = SLOTS[Number(e.key) - 1];
+    if (target && !digitsClaimed()) setSlot(target.id);
+  });
+
+  if (onboarding === null) return null;
+  if (onboarding) {
+    return (
+      <>
+        <Suspense fallback={null}>
+          <Onboarding
+            onDone={() => {
+              setOnboarding(false);
+              setSlot("diario");
+            }}
+          />
+        </Suspense>
+        <Toaster />
+      </>
+    );
+  }
+
+  const scenery = slot === "diario" && motionOn;
   return (
-    <div className="flex h-screen flex-col">
-      <main className="flex-1 overflow-y-auto p-6">
-        {slot === "diario" && <Soon what="O Diário (painel)" />}
-        {slot === "foco" && <FocusScreen />}
-        {slot === "sala" && <Soon what="A Sala de aula" />}
-        {slot === "materias" && <SubjectsScreen />}
-        {slot === "config" && <SettingsScreen />}
-      </main>
+    <>
+      <div className="flex h-screen overflow-hidden">
+        <Sidebar slot={slot} go={setSlot} />
 
-      <nav aria-label="Navegação" className="flex justify-center gap-4 border-t border-border bg-card px-4 py-4">
-        {SLOTS.map((s, i) => (
-          <Button
-            key={s.id}
-            variant={slot === s.id ? "default" : "secondary"}
-            aria-current={slot === s.id ? "page" : undefined}
-            onClick={() => setSlot(s.id)}
-            className="h-12 min-w-24 flex-col gap-0.5 text-[10px]"
-          >
-            <span className="text-[8px] opacity-60">{i + 1}</span>
-            {s.label}
-          </Button>
-        ))}
-      </nav>
-    </div>
+        <main className="relative flex-1 overflow-y-auto">
+          <AnimatePresence>
+            {scenery && (
+              <motion.div
+                key="scenery"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.5 }}
+                className="absolute inset-x-0 top-0 h-[300px]"
+              >
+                <Scenery className="absolute inset-0" />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className={`relative mx-auto max-w-6xl px-8 pb-7 transition-[padding] duration-500 ${scenery ? "pt-44" : "pt-7"}`}>
+            <Suspense fallback={<ScreenSkeleton />}>
+              <AnimatePresence mode="wait">
+                <PageTransition key={slot}>
+                  <ScreenBoundary>
+                    {slot === "diario" && <DiaryScreen go={setSlot} />}
+                    {slot === "foco" && <StudyScreen />}
+                    {slot === "sala" && <ClassroomScreen />}
+                    {slot === "materias" && <SubjectsScreen />}
+                    {slot === "mundo" && <WorldScreen />}
+                    {slot === "config" && <SettingsScreen />}
+                  </ScreenBoundary>
+                </PageTransition>
+              </AnimatePresence>
+            </Suspense>
+          </div>
+        </main>
+      </div>
+      <Toaster />
+      <LevelUpOverlay />
+    </>
   );
 }

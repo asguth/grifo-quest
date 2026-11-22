@@ -5,11 +5,14 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_notification::NotificationExt;
+use tauri_specta::Event;
 
-use crate::db::{self, sessions::NewSession};
-use crate::domain::timer::{Kind, Phase, Timer, Transition};
+use crate::db::{self, sessions::{NewSession, SessionSource}};
+use crate::domain::timer::{Phase, Timer, TimerKind, Transition};
 use crate::domain::xp;
 use crate::error::{AppError, AppResult};
+use crate::settings::{self, PomodoroConfig};
+use crate::sys;
 
 /// O timer vive no Rust: segue contando com a janela escondida na bandeja.
 #[derive(Default)]
@@ -27,19 +30,17 @@ impl TimerState {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, specta::Type)]
-pub struct PomodoroConfig {
-    pub focus_min: i32,
-    pub break_min: i32,
-}
-
-#[derive(Debug, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "mode", rename_all = "snake_case")]
 pub enum TimerView {
     Idle,
-    Pomodoro { phase: Phase, subject_id: Option<i32>, remaining: i32, total: i32 },
-    Stopwatch { kind: Kind, subject_id: Option<i32>, elapsed: i32 },
+    Pomodoro { phase: Phase, subject_id: Option<i32>, remaining: i32, total: i32, paused: bool },
+    Stopwatch { kind: TimerKind, subject_id: Option<i32>, elapsed: i32, paused: bool },
 }
+
+/// Estado do timer a cada segundo (substitui o polling do front).
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+pub struct TimerTick(pub TimerView);
 
 /// Cronômetro com menos de 1 min é clique acidental: não grava.
 const MIN_SESSION_SECS: i64 = 60;
@@ -49,17 +50,14 @@ fn now() -> i64 {
 }
 
 fn view(t: Timer, now: i64) -> TimerView {
+    let secs = t.seconds(now) as i32;
+    let paused = t.paused();
     match t {
         Timer::Idle => TimerView::Idle,
-        Timer::Pomodoro { phase, subject_id, started, len, .. } => TimerView::Pomodoro {
-            phase,
-            subject_id,
-            remaining: (started + len - now).max(0) as i32,
-            total: len as i32,
-        },
-        Timer::Stopwatch { kind, subject_id, started } => {
-            TimerView::Stopwatch { kind, subject_id, elapsed: (now - started) as i32 }
+        Timer::Pomodoro { phase, subject_id, len, .. } => {
+            TimerView::Pomodoro { phase, subject_id, remaining: secs, total: len as i32, paused }
         }
+        Timer::Stopwatch { kind, subject_id, .. } => TimerView::Stopwatch { kind, subject_id, elapsed: secs, paused },
     }
 }
 
@@ -68,14 +66,6 @@ fn ensure_idle(state: &TimerState) -> AppResult<()> {
         Timer::Idle => Ok(()),
         _ => Err(AppError::Invalid("Já tem um timer rodando".into())),
     }
-}
-
-async fn read_config(pool: &SqlitePool) -> AppResult<PomodoroConfig> {
-    let num = |v: Option<String>, default| v.and_then(|s| s.parse().ok()).unwrap_or(default);
-    Ok(PomodoroConfig {
-        focus_min: num(db::settings::get(pool, "pomodoro_focus_min").await?, 25),
-        break_min: num(db::settings::get(pool, "pomodoro_break_min").await?, 5),
-    })
 }
 
 #[tauri::command]
@@ -92,13 +82,14 @@ pub async fn start_pomodoro(
     subject_id: Option<i32>,
 ) -> AppResult<TimerView> {
     ensure_idle(&state)?;
-    let cfg = read_config(&pool).await?;
+    let cfg: PomodoroConfig = settings::load(&pool).await?;
     let t = Timer::Pomodoro {
         phase: Phase::Focus,
         subject_id,
         started: now(),
         len: i64::from(cfg.focus_min) * 60,
         break_len: i64::from(cfg.break_min) * 60,
+        paused_at: None,
     };
     state.set(t);
     Ok(view(t, now()))
@@ -106,47 +97,39 @@ pub async fn start_pomodoro(
 
 #[tauri::command]
 #[specta::specta]
-pub fn start_stopwatch(state: State<'_, TimerState>, kind: Kind, subject_id: Option<i32>) -> AppResult<TimerView> {
+pub fn start_stopwatch(state: State<'_, TimerState>, kind: TimerKind, subject_id: Option<i32>) -> AppResult<TimerView> {
     ensure_idle(&state)?;
-    let subject_id = if kind == Kind::Estudo { subject_id } else { None };
-    let t = Timer::Stopwatch { kind, subject_id, started: now() };
+    let subject_id = if kind == TimerKind::Estudo { subject_id } else { None };
+    let t = Timer::Stopwatch { kind, subject_id, started: now(), paused_at: None };
     state.set(t);
     Ok(view(t, now()))
 }
 
-/// Para o cronômetro gravando a sessão; num pomodoro, cancela sem gravar.
-// ponytail: sem pausa; cancelar o foco descarta o tempo. Pausar/gravar parcial se fizer falta.
+/// Para o timer gravando o tempo estudado: cronômetro inteiro ou foco parcial do pomodoro (sem o XP do pomodoro).
 #[tauri::command]
 #[specta::specta]
 pub async fn stop_timer(pool: State<'_, SqlitePool>, state: State<'_, TimerState>) -> AppResult<TimerView> {
     let previous = state.get();
-    state.set(Timer::Idle);
-    if let Timer::Stopwatch { kind, subject_id, started } = previous {
-        let ended = now();
-        if ended - started >= MIN_SESSION_SECS {
-            let session =
-                NewSession { kind: kind.as_str(), subject_id, started, ended, source: "manual", xp: 0 };
-            db::sessions::insert(&pool, session).await?;
-        }
+    if let Some(p) = previous.stop(now())
+        && p.ended - p.started >= MIN_SESSION_SECS
+    {
+        // Pomodoro interrompido vira estudo manual: missão e sequência contam só pomodoro concluído.
+        let session =
+            NewSession { kind: p.kind, subject_id: p.subject_id, started: p.started, ended: p.ended, source: SessionSource::Manual, xp: 0 };
+        db::player::award(&pool, async || db::sessions::insert(&pool, session).await).await?;
     }
+    state.set(Timer::Idle);
     Ok(TimerView::Idle)
 }
 
+/// Pausa ou retoma o timer que estiver rodando.
 #[tauri::command]
 #[specta::specta]
-pub async fn get_pomodoro_config(pool: State<'_, SqlitePool>) -> AppResult<PomodoroConfig> {
-    read_config(&pool).await
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn set_pomodoro_config(pool: State<'_, SqlitePool>, config: PomodoroConfig) -> AppResult<()> {
-    if !(1..=180).contains(&config.focus_min) || !(1..=60).contains(&config.break_min) {
-        return Err(AppError::Invalid("Foco entre 1 e 180 min, pausa entre 1 e 60 min".into()));
-    }
-    db::settings::set(&pool, "pomodoro_focus_min", &config.focus_min.to_string()).await?;
-    db::settings::set(&pool, "pomodoro_break_min", &config.break_min.to_string()).await?;
-    Ok(())
+pub fn toggle_pause(state: State<'_, TimerState>) -> TimerView {
+    let now = now();
+    let mut t = state.lock();
+    if t.paused() { t.resume(now) } else { t.pause(now) }
+    view(*t, now)
 }
 
 /// Loop de 1 s: avança o pomodoro, grava/notifica nas viradas de fase e atualiza o tooltip da bandeja.
@@ -157,17 +140,21 @@ pub fn spawn_ticker(app: AppHandle) {
             tokio::time::sleep(Duration::from_secs(1)).await;
             let now = now();
             let state = app.state::<TimerState>();
-            let (transition, label) = {
+            let (transition, label, current) = {
                 let mut timer = state.lock();
-                (timer.tick(now), timer.label(now))
+                (timer.tick(now), timer.label(now), *timer)
             };
+            // Só emite enquanto algo roda (e uma vez ao voltar a parado, para o front limpar).
+            if current != Timer::Idle || last_label.is_some() {
+                let _ = TimerTick(view(current, now)).emit(&app);
+            }
             if let Some(tr) = transition
                 && let Err(e) = on_transition(&app, tr).await
             {
                 eprintln!("timer: {e}");
             }
             if label != last_label {
-                if let Some(tray) = app.tray_by_id("main") {
+                if let Some(tray) = app.tray_by_id(sys::TRAY) {
                     let _ = tray.set_tooltip(Some(label.as_deref().unwrap_or("Grifo Quest")));
                 }
                 last_label = label;
@@ -181,9 +168,11 @@ async fn on_transition(app: &AppHandle, tr: Transition) -> AppResult<()> {
         Transition::FocusDone { subject_id, started, ended } => {
             let pool = app.state::<SqlitePool>();
             let session =
-                NewSession { kind: "estudo", subject_id, started, ended, source: "pomodoro", xp: xp::POMODORO };
-            db::sessions::insert(&pool, session).await?;
-            notify(app, &format!("Pomodoro concluído! +{} XP", xp::POMODORO), "Hora da pausa.");
+                NewSession { kind: TimerKind::Estudo, subject_id, started, ended, source: SessionSource::Pomodoro, xp: xp::POMODORO };
+            let ((), outcome) = db::player::award(&pool, async || db::sessions::insert(&pool, session).await).await?;
+            let mission_xp = outcome.mission_xp;
+            let bonus = if mission_xp > 0 { format!(" Missão concluída: +{mission_xp} XP!") } else { String::new() };
+            notify(app, &format!("Pomodoro concluído! +{} XP", xp::POMODORO), &format!("Hora da pausa.{bonus}"));
         }
         Transition::BreakDone => notify(app, "Pausa encerrada", "Bora para o próximo pomodoro?"),
     }

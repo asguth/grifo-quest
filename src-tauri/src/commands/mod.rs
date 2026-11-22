@@ -1,3 +1,14 @@
+pub mod classroom;
+pub mod config;
+pub mod diary;
+pub mod integrations;
 pub mod log;
+pub mod material;
+pub mod planner;
+pub mod study;
 pub mod subjects;
 pub mod timer;
+pub mod updater;
+pub mod voice;
+pub mod window;
+pub mod world;

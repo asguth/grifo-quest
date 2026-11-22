@@ -1,0 +1,743 @@
+/* =====================================================================
+   GRIFO-SKILL — design system editorial (CC BY 4.0: mantenha o rodapé com o crédito)
+   Apostilas A4 imprimíveis e legíveis em preto e branco.
+
+   PALETA ÚNICA (Educational Editorial Design System):
+     Navy  #243B53  títulos, cabeçalhos de seção/tabela, estrutura
+     Blue  #2F6B8A  apoio, relações entre conceitos, destaque de termo
+     Amber #A85D00  exceções, condições importantes, pontos que confundem
+     Red   #B42318  proibições, interpretações erradas, pegadinhas
+     Green #237A57  permitido, procedimento válido, alternativa correta
+     Slate #596579  referências, notas, metadados
+   O padrão é neutro; cor só quando comunica significado, e sempre com
+   ícone + rótulo (nunca só a cor). Se a cor sai sem perder sentido, tire.
+   ===================================================================== */
+
+:root {
+  /* primárias */
+  --navy: #243B53;  --azul: #2F6B8A;  --azul-claro: #E6F0F5;
+  /* semânticas (texto/borda) e fundos pálidos */
+  --ambar: #A85D00; --ambar-claro: #FDF3E6;
+  --verm: #B42318;  --verm-claro: #FDECEA;
+  --verde: #237A57; --verde-claro: #E8F4EE;
+  --slate: #596579;
+  /* neutros */
+  --tinta: #202A35; --tinta-2: #596579; --papel: #FFFFFF;
+  --sup: #F4F6F8;   --sup-2: #E7EDF2;   --linha: #CBD2DA; --mesa: #E7EDF2;
+
+  /* papéis (os componentes usam estes nomes) */
+  --disc: var(--navy); --disc-claro: var(--sup-2); --disc-2: var(--azul);
+  --regra: var(--navy);
+  --excecao: var(--ambar);   --excecao-claro: var(--ambar-claro);
+  --pegadinha: var(--verm);  --pegadinha-claro: var(--verm-claro);
+  --dica: var(--verde);      --dica-claro: var(--verde-claro);
+  --lei: var(--slate);       --lei-claro: var(--sup);
+  --exemplo: var(--azul);    --exemplo-claro: var(--azul-claro);
+
+  /* ilustrações: paleta própria, mais viva (só nos desenhos, nunca em texto ou caixas) */
+  --il-1: #3D7CC9; --il-2: #F2875F; --il-claro: #DCEAF7;
+
+  /* marca-texto: amarelo = decore (é o "grifo"); vermelho pálido = a banca troca */
+  --mt-chave: #FFE45C;
+  --mt-troca: #F7C9C3;
+
+  /* matizes de tópico (estilos colorido e pastel): forte · claro · pálido.
+     Nenhum é vermelho, verde ou âmbar: essas cores continuam só semânticas. */
+  --m1: #1F5F99; --m1-claro: #E1ECF7; --m1-palido: #F2F7FC;   /* azul */
+  --m2: #0B6767; --m2-claro: #DDF0EE; --m2-palido: #F1F9F8;   /* petróleo */
+  --m3: #5B3A9B; --m3-claro: #EBE4F6; --m3-palido: #F7F4FC;   /* roxo */
+  --m4: #9A2C68; --m4-claro: #F6E2EC; --m4-palido: #FCF3F7;   /* vinho */
+  --m5: #34459A; --m5-claro: #E3E6F6; --m5-palido: #F4F5FC;   /* índigo */
+  --m6: #3E4A59; --m6-claro: #E5E8EC; --m6-palido: #F5F6F8;   /* grafite */
+  --h: var(--navy); --h-claro: var(--sup-2); --h-palido: var(--sup);
+
+  /* textos gerados pelo CSS (traduzidos por :lang() no fim do arquivo) */
+  --txt-incidencia: "Incidência "; --txt-verificar: "[VERIFICAR] "; --txt-atencao: "ATENÇÃO: ";
+  --txt-aviso-ia: "gerado com IA: confira nas fontes"; --txt-feito-com: "Feito com ";
+
+  --fonte-titulo: "Poppins", "Montserrat", "Segoe UI", system-ui, sans-serif;
+  --fonte-corpo: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --raio: 6px;
+}
+
+/* ===================== base ===================== */
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+/* hifenização só no corpo de texto; títulos e rótulos quebram só em &shy; */
+html[lang] { -webkit-hyphens: auto; hyphens: auto; hyphenate-limit-chars: 8 4 4; }
+body {
+  margin: 0; background: var(--mesa); color: var(--tinta);
+  font-family: var(--fonte-corpo); font-size: 9.5pt; line-height: 1.34;
+}
+h1, h2, h3, h4 { font-family: var(--fonte-titulo); margin: 0; line-height: 1.15; }
+p { margin: .25em 0 .45em; text-wrap: pretty; }
+ul, ol { margin: .2em 0 .4em; padding-left: 1.2em; }
+li { margin: .12em 0; text-wrap: pretty; }
+b, strong { font-weight: 700; }
+a { color: var(--azul); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; overflow-wrap: anywhere; }
+sub, sup { font-size: max(.75em, 8pt); line-height: 0; }
+code { font-size: max(.92em, 8pt); background: var(--lei-claro); padding: 0 .25em; border-radius: 3px; }
+
+/* ===================== folha A4 ===================== */
+@page { size: A4; margin: 0; }
+.folha {
+  width: 210mm; min-height: 297mm; margin: 10mm auto; padding: 11mm 12mm 14mm;
+  background: var(--papel); box-shadow: 0 1px 6px rgba(32,42,53,.12);
+  position: relative; display: flex; flex-direction: column; gap: 3.2mm;
+}
+@media print {
+  body { background: #fff; }
+  .folha { margin: 0; box-shadow: none; break-after: page; }
+  .folha:last-child { break-after: auto; }
+  .nao-imprimir { display: none !important; }
+}
+.rodape-folha {
+  position: absolute; bottom: 6mm; left: 12mm; right: 12mm;
+  display: flex; justify-content: space-between;
+  font-size: 8pt; color: var(--tinta-2); border-top: 1px solid var(--linha); padding-top: 1.5mm;
+}
+
+/* ===================== cabeçalho ===================== */
+.cabecalho {
+  display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 2mm 4mm;
+  border-bottom: 3px solid var(--disc); padding-bottom: 2.5mm;
+}
+.cabecalho .disciplina {
+  grid-column: 1 / -1; justify-self: start;
+  background: var(--disc); color: #fff; font-family: var(--fonte-titulo);
+  font-weight: 700; font-size: 8pt; letter-spacing: .08em; text-transform: uppercase;
+  padding: 1mm 3mm; border-radius: 3px;
+}
+.cabecalho h1 {
+  font-size: 21pt; font-weight: 800; text-transform: uppercase; color: var(--disc);
+  letter-spacing: -.01em;
+}
+.cabecalho .fonte { font-size: 8.5pt; color: var(--tinta-2); margin-top: 1mm; }
+.cabecalho .meta { text-align: right; font-size: 8pt; color: var(--tinta-2); }
+
+/* incidência em prova: .incidencia[data-n="1..3"] */
+.incidencia { font-size: 11pt; letter-spacing: 1px; color: var(--disc); white-space: nowrap; }
+.incidencia::before { content: var(--txt-incidencia); font-size: 8pt; color: var(--tinta-2); letter-spacing: 0; }
+.incidencia[data-n="1"]::after { content: "★☆☆"; }
+.incidencia[data-n="2"]::after { content: "★★☆"; }
+.incidencia[data-n="3"]::after { content: "★★★"; }
+
+/* títulos de seção */
+.secao {
+  display: flex; align-items: center; gap: 2.5mm;
+  font-family: var(--fonte-titulo); font-weight: 800; font-size: 11.5pt;
+  text-transform: uppercase; color: var(--disc); margin-top: 1mm;
+}
+.secao::after { content: ""; flex: 1; height: 2px; background: var(--disc-claro); }
+.secao .num {
+  background: var(--disc); color: #fff; border-radius: 50%;
+  width: 6.2mm; height: 6.2mm; display: grid; place-items: center; font-size: 9pt;
+}
+
+/* ===================== grids ===================== */
+.colunas-2 { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 3mm; }
+.colunas-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; }
+.colunas-2-1 { display: grid; grid-template-columns: 2fr 1fr; gap: 3mm; }
+.inteira { grid-column: 1 / -1; }
+
+/* ===================== caixas semânticas ===================== */
+.caixa {
+  border: 1.5px solid var(--c, var(--disc)); border-radius: var(--raio);
+  background: var(--papel); break-inside: avoid; overflow: hidden;
+}
+.caixa > .rotulo {
+  background: var(--c, var(--disc)); color: #fff;
+  font-family: var(--fonte-titulo); font-weight: 700; font-size: 8.8pt;
+  text-transform: uppercase; letter-spacing: .04em; padding: 1mm 2.5mm;
+  display: flex; align-items: center; gap: 1.5mm;
+}
+.caixa > .rotulo::before { content: var(--icone, "■"); font-size: 9.5pt; }
+.caixa > .corpo { padding: 2mm 2.8mm; background: var(--fundo, #fff); }
+
+.caixa.regra      { --c: var(--disc);      --fundo: #fff;                   --icone: "◆"; }
+.caixa.excecao    { --c: var(--excecao);   --fundo: var(--excecao-claro);   --icone: "⚠"; }
+.caixa.pegadinha  { --c: var(--pegadinha); --fundo: var(--pegadinha-claro); --icone: "✘"; }
+.caixa.dica       { --c: var(--dica);      --fundo: var(--dica-claro);      --icone: "✔"; }
+.caixa.exemplo    { --c: var(--exemplo);   --fundo: var(--exemplo-claro);   --icone: "▶"; }
+.caixa.lei        { --c: var(--lei);       --fundo: var(--lei-claro);       --icone: "§"; }
+.caixa.conceito   { --c: var(--disc);      --fundo: var(--disc-claro);      --icone: "◆"; }
+
+/* lei seca: citação com borda lateral e numeração do dispositivo */
+.lei-seca {
+  border-left: 4px solid var(--lei); background: var(--lei-claro);
+  padding: 1.6mm 2.5mm; font-size: 9.6pt; border-radius: 0 4px 4px 0; break-inside: avoid;
+}
+.lei-seca .disp { font-weight: 800; color: var(--lei); margin-right: 1mm; }
+.lei-seca + .lei-seca { margin-top: 1.2mm; }
+
+/* ===================== marca-texto e destaques ===================== */
+mark, .mt { background: linear-gradient(transparent 38%, var(--mt-chave) 38%, var(--mt-chave) 92%, transparent 92%); color: inherit; padding: 0 .1em; }
+mark.troca, .mt-troca { background: linear-gradient(transparent 38%, var(--mt-troca) 38%, var(--mt-troca) 92%, transparent 92%); }
+.cor { color: var(--disc); font-weight: 700; }
+.vermelho { color: var(--pegadinha); font-weight: 700; }
+.verde { color: var(--dica); font-weight: 700; }
+.laranja { color: var(--excecao); font-weight: 700; }
+.riscado { text-decoration: line-through; text-decoration-color: var(--pegadinha); text-decoration-thickness: 2px; }
+.caps { text-transform: uppercase; letter-spacing: .03em; font-weight: 700; }
+.pequeno { font-size: 8.5pt; color: var(--tinta-2); }
+
+/* chips (desinências, siglas, termos curtos) */
+.chip {
+  display: inline-block; border: 1.5px solid var(--disc); color: var(--disc);
+  border-radius: 999px; padding: 0 2mm; font-size: 8.5pt; font-weight: 700; line-height: 1.6;
+  background: #fff; white-space: nowrap;
+}
+.chip.cheio { background: var(--disc); color: #fff; }
+.chip.sim { border-color: var(--dica); color: var(--dica); }
+.chip.nao { border-color: var(--pegadinha); color: var(--pegadinha); }
+
+/* selos */
+.selo {
+  display: inline-block; transform: rotate(-3deg); border: 2px solid var(--ambar);
+  color: var(--ambar); font-family: var(--fonte-titulo); font-weight: 800;
+  font-size: 8pt; text-transform: uppercase; padding: .3mm 1.8mm; border-radius: 3px; letter-spacing: .05em;
+}
+.selo.cai-muito { border-color: var(--ambar); color: var(--ambar); }
+.selo.novidade  { border-color: var(--exemplo); color: var(--exemplo); }
+.selo.decore    { border-color: var(--dica); color: var(--dica); }
+
+/* ===================== CHAVE (classificação em árvore) =====================
+   <div class="chave">
+     <div class="raiz">PASSADO<small>ontem</small></div>
+     <div class="ramos">
+       <div class="ramo"><div class="no">Perfeito</div><div class="desc">...</div></div>
+     </div>
+   </div>                                                                      */
+.chave { display: grid; grid-template-columns: min-content minmax(0,1fr); align-items: center; gap: 0; break-inside: avoid; }
+.chave > .raiz {
+  background: var(--disc); color: #fff; font-family: var(--fonte-titulo); font-weight: 800;
+  text-transform: uppercase; font-size: 9.5pt; padding: 2mm 3mm; border-radius: var(--raio);
+  text-align: center; min-width: 22mm; max-width: 30mm; position: relative; z-index: 1;
+}
+.chave > .raiz small { display: block; font-weight: 500; text-transform: none; font-size: 8pt; opacity: .9; }
+.chave > .ramos {
+  display: flex; flex-direction: column; gap: 1.6mm;
+  border-left: 2.5px solid var(--disc); margin-left: 4mm; padding: 1mm 0 1mm 0;
+}
+.chave .ramo { display: grid; grid-template-columns: max-content minmax(0,1fr); gap: 2.5mm; align-items: center; position: relative; padding-left: 5mm; }
+.chave .ramo::before {
+  content: ""; position: absolute; left: 0; top: 50%; width: 5mm; border-top: 2.5px solid var(--disc);
+}
+.chave .ramo::after {
+  content: ""; position: absolute; left: 3.3mm; top: calc(50% - 1.5mm);
+  border: 1.5mm solid transparent; border-left-color: var(--disc); border-right: 0;
+}
+.chave .no {
+  background: var(--disc-claro); border: 1.5px solid var(--disc); color: var(--disc);
+  font-weight: 800; font-size: 9pt; text-transform: uppercase; padding: 1mm 2.5mm; border-radius: 4px;
+  text-align: center; min-width: 20mm; overflow-wrap: break-word;
+}
+.chave .no small { display: block; text-transform: none; font-weight: 600; font-size: 8pt; color: var(--tinta-2); }
+.chave .desc { font-size: 9.4pt; overflow-wrap: break-word; }
+.chave .desc b:first-child { color: var(--disc); }
+
+/* ===================== FLUXO (processo/rito) =====================
+   <div class="fluxo"> <div class="passo">..</div> <div class="passo">..</div> </div>
+   .fluxo.vertical para empilhar; .passo.decisao para pergunta (sim/não)        */
+.fluxo { display: flex; align-items: stretch; flex-wrap: wrap; gap: 5mm; break-inside: avoid; }
+.fluxo > .passo {
+  flex: 1 1 0; min-width: 0; position: relative;
+  border: 2px solid var(--disc); border-radius: var(--raio); background: #fff;
+  padding: 1.4mm 1.2mm; font-size: 8.6pt; text-align: center; overflow-wrap: break-word;
+}
+.fluxo > .passo .t { display: block; overflow-wrap: break-word; font-weight: 800; color: var(--disc); text-transform: uppercase; font-size: 8pt; letter-spacing: -.01em; }
+.fluxo > .passo:not(:last-child)::after {
+  content: "➜"; position: absolute; right: -4.6mm; top: 50%; transform: translateY(-50%);
+  color: var(--disc); font-size: 12pt; font-weight: 900;
+}
+.fluxo > .passo.decisao { border-style: dashed; background: var(--disc-claro); }
+.fluxo > .passo.decisao .t::before { content: "? "; }
+.fluxo > .passo.fim { background: var(--disc); color: #fff; }
+.fluxo > .passo.fim .t { color: #fff; }
+.fluxo.vertical { flex-direction: column; gap: 5mm; }
+.fluxo.vertical > .passo:not(:last-child)::after {
+  content: "▼"; right: auto; left: 50%; top: auto; bottom: -4.6mm; transform: translateX(-50%); font-size: 9pt;
+}
+
+/* ===================== LINHA DO TEMPO ===================== */
+.linha-tempo { position: relative; display: flex; justify-content: space-between; gap: 2mm; padding-top: 7mm; break-inside: avoid; }
+.linha-tempo::before {
+  content: ""; position: absolute; top: 3mm; left: 2mm; right: 2mm; height: 3px; background: var(--disc);
+}
+.linha-tempo .marco { flex: 1; text-align: center; position: relative; font-size: 8.8pt; }
+.linha-tempo .marco::before {
+  content: ""; position: absolute; top: -5.5mm; left: 50%; transform: translateX(-50%);
+  width: 3.5mm; height: 3.5mm; border-radius: 50%; background: #fff; border: 3px solid var(--disc);
+}
+.linha-tempo .marco .quando { display: block; font-weight: 800; color: var(--disc); }
+
+/* ===================== COMPARATIVO ===================== */
+table.comparativo {
+  width: 100%; border-collapse: separate; border-spacing: 0; font-size: 8.5pt;
+  border: 2px solid var(--disc); border-radius: var(--raio); overflow: hidden; break-inside: avoid;
+}
+table.comparativo th {
+  background: var(--disc); color: #fff; font-family: var(--fonte-titulo);
+  font-size: 8.6pt; text-transform: uppercase; padding: 1.3mm 2mm; text-align: left;
+}
+table.comparativo td { padding: .8mm 1.8mm; border-top: 1px solid var(--linha); vertical-align: top; }
+table.comparativo td + td, table.comparativo th + th { border-left: 1px solid var(--linha); }
+table.comparativo tr:nth-child(even) td { background: var(--sup); }
+table.comparativo td.criterio { font-weight: 700; color: var(--disc); background: var(--disc-claro) !important; white-space: nowrap; }
+table.comparativo td.sim, table.comparativo td.nao { text-align: center; font-weight: 800; font-size: 10.5pt; }
+table.comparativo td.sim { color: var(--dica); }
+table.comparativo td.nao { color: var(--pegadinha); }
+table.comparativo td.sim::before { content: "✔"; }
+table.comparativo td.nao::before { content: "✘"; }
+table.comparativo tr.destaque td { background: var(--pegadinha-claro) !important; }
+
+/* ===================== SIGLA / MNEMÔNICO =====================
+   <div class="sigla"><div class="letra"><b>L</b><span>Livre</span></div>...</div> */
+.sigla { display: flex; gap: 1.2mm; justify-content: center; flex-wrap: nowrap; break-inside: avoid; }
+.sigla .letra { display: flex; flex-direction: column; align-items: center; flex: 0 1 18mm; min-width: 0; }
+.sigla .letra b {
+  width: 11mm; height: 11mm; display: grid; place-items: center;
+  background: var(--disc); color: #fff; font-family: var(--fonte-titulo);
+  font-size: 17pt; font-weight: 800; border-radius: 4px;
+}
+.sigla .letra span { font-size: 8pt; font-weight: 700; margin-top: .8mm; text-align: center; line-height: 1.15; }
+
+/* ===================== PIRÂMIDE / HIERARQUIA ===================== */
+.piramide { display: flex; flex-direction: column; align-items: center; gap: 1mm; break-inside: avoid; }
+.piramide .nivel {
+  background: var(--disc); color: #fff; text-align: center; font-weight: 700; font-size: 9pt;
+  padding: 1.4mm 4mm; clip-path: polygon(6% 0, 94% 0, 100% 100%, 0 100%);
+}
+.piramide .nivel:nth-child(1) { width: 35%; clip-path: polygon(50% 0, 50% 0, 100% 100%, 0 100%); padding-top: 4mm; }
+.piramide .nivel:nth-child(2) { width: 50%; opacity: .92; }
+.piramide .nivel:nth-child(3) { width: 65%; opacity: .84; }
+.piramide .nivel:nth-child(4) { width: 80%; opacity: .76; }
+.piramide .nivel:nth-child(5) { width: 95%; opacity: .7; }
+
+/* ===================== QUESTÕES ===================== */
+.questao { border: 1.5px solid var(--linha); border-radius: var(--raio); padding: 2mm 2.6mm; break-inside: avoid; font-size: 9.2pt; }
+.questao .cab { display: flex; gap: 2mm; align-items: center; margin-bottom: 1mm; font-size: 8pt; color: var(--tinta-2); }
+.questao .cab .n { background: var(--tinta); color: #fff; font-weight: 800; border-radius: 3px; padding: 0 1.6mm; }
+.questao .cab .estilo { border: 1px solid var(--tinta-2); border-radius: 3px; padding: 0 1.3mm; text-transform: uppercase; font-weight: 700; }
+.questao ol.alternativas { list-style: none; padding-left: 0; margin: 1mm 0 0; counter-reset: alt; }
+.questao ol.alternativas li { counter-increment: alt; padding-left: 6mm; position: relative; }
+.questao ol.alternativas li::before {
+  content: "(" counter(alt, upper-alpha) ")"; position: absolute; left: 0; font-weight: 800;
+}
+.questao .ce { display: inline-flex; gap: 2mm; margin-top: 1mm; font-weight: 800; font-size: 8.5pt; }
+.questao .ce span { border: 1.5px solid var(--tinta-2); border-radius: 3px; padding: 0 1.8mm; }
+
+.gabarito { border-top: 2px dashed var(--linha); padding-top: 2mm; font-size: 9pt; color: var(--tinta); break-inside: avoid; }
+.gabarito h4 { font-size: 8.5pt; text-transform: uppercase; color: var(--tinta); margin-bottom: 1mm; }
+/* recuo pendente: 2ª linha alinha com o texto depois de "00 — " (2,85em em Inter 700) */
+.gabarito .item { margin: .6mm 0; padding-left: 2.85em; text-indent: -2.85em; }
+.gabarito .item b { color: var(--tinta); }
+
+/* ===================== FLASHCARDS (recorte) ===================== */
+.flashcards { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px dashed var(--slate); }
+.flashcards .card {
+  /* bloco (não flex): <mark> e <b> seguem no fluxo do texto; centraliza com align-content */
+  min-height: 29mm; padding: 6mm 4mm 3mm; border: 1px dashed var(--slate); display: block; align-content: center;
+  text-align: center; break-inside: avoid; position: relative;
+}
+.flashcards .card .lado { position: absolute; top: 2mm; left: 3mm; font-size: 8pt; color: var(--tinta-2); text-transform: uppercase; letter-spacing: .08em; }
+.flashcards .card.frente { font-family: var(--fonte-titulo); font-size: 12pt; font-weight: 700; color: var(--disc); }
+.flashcards .card.verso { font-size: 9.6pt; background: var(--disc-claro); }
+.flashcards-instrucao { font-size: 8pt; color: var(--tinta-2); text-align: center; }
+
+/* ===================== EDITAL VERTICALIZADO ===================== */
+table.edital { width: 100%; border-collapse: collapse; font-size: 8.8pt; }
+table.edital th { background: var(--disc); color: #fff; text-align: left; padding: 1.2mm 1.6mm; font-size: 8pt; text-transform: uppercase; }
+table.edital td { border-bottom: 1px solid var(--linha); padding: 1mm 1.6mm; vertical-align: top; }
+table.edital td.check { width: 7mm; text-align: center; }
+table.edital td.check::before { content: "☐"; font-size: 11pt; }
+table.edital tr.materia td { background: var(--disc-claro); font-weight: 800; color: var(--disc); text-transform: uppercase; }
+table.edital td.peso { text-align: center; white-space: nowrap; }
+
+/* ===================== CAPA / SUMÁRIO ===================== */
+/* capa no estilo do banner do repositório (docs/marca/social.png): fundo claro,
+   mascote à esquerda, título em navy à direita, selos e faixa navy no pé. */
+.capa {
+  justify-content: center; align-items: stretch; gap: 0; background: var(--sup);
+  border-bottom: 9mm solid var(--navy); padding: 16mm 14mm 14mm;
+}
+.capa .marca-capa {
+  position: absolute; top: 12mm; left: 14mm; right: 14mm; display: flex; align-items: baseline; gap: 2.4mm;
+  font-family: var(--fonte-titulo); font-weight: 900; font-size: 13pt; color: var(--navy); letter-spacing: -.01em;
+  border-bottom: 1px solid var(--linha); padding-bottom: 2mm;
+}
+.capa .marca-capa small { font-family: var(--fonte-corpo); font-weight: 600; font-size: 9pt; color: var(--tinta-2); letter-spacing: 0; }
+.capa .banner-capa { display: flex; align-items: center; gap: 8mm; }
+.capa .mascote-capa { width: 62mm; height: 62mm; flex: none; }
+.capa .texto-capa { flex: 1; min-width: 0; }
+.capa .titulo-capa {
+  color: var(--navy); font-family: var(--fonte-titulo); font-size: 32pt; font-weight: 900;
+  line-height: 1.04; letter-spacing: -.015em; text-wrap: balance;
+  /* não hifenizar palavras curtas ("Microe-conomia"); só as muito longas */
+  hyphenate-limit-chars: 14 7 7; overflow-wrap: break-word;
+}
+.capa .sub-capa { color: var(--tinta); font-size: 14pt; font-weight: 600; margin-top: 4mm; line-height: 1.25; }
+.capa .selos-capa { display: flex; flex-wrap: wrap; gap: 2mm; margin-top: 6mm; }
+.capa .selos-capa span {
+  font-weight: 700; font-size: 9.5pt; color: var(--navy); border: 1.4px solid var(--navy);
+  border-radius: 999px; padding: .8mm 3.2mm;
+}
+.capa .rodape-folha, .capa .info-capa { left: 14mm; right: 14mm; }
+.capa .info-capa { position: absolute; bottom: 14mm; font-size: 9pt; color: var(--tinta-2); }
+.sumario ol { counter-reset: s; list-style: none; padding: 0; }
+.sumario li { display: flex; gap: 2mm; border-bottom: 1px dotted var(--linha); padding: 1.2mm 0; }
+.sumario li::before { counter-increment: s; content: counter(s, decimal-leading-zero); font-weight: 800; color: var(--disc); }
+.sumario li .pg { margin-left: auto; color: var(--tinta-2); }
+
+/* ===================== SVG: classes utilitárias =====================
+   Use em diagramas SVG inline para herdar a paleta. */
+svg .s-disc   { stroke: var(--disc); }
+svg .f-disc   { fill: var(--disc); }
+svg .f-claro  { fill: var(--disc-claro); }
+svg .f-branco { fill: #fff; }
+svg .s-linha  { stroke: var(--linha); }
+svg .t-disc   { fill: var(--disc); font-family: var(--fonte-titulo); font-weight: 800; }
+svg .t-corpo  { fill: var(--tinta); font-family: var(--fonte-corpo); }
+svg .t-branco { fill: #fff; font-family: var(--fonte-titulo); font-weight: 700; }
+svg .f-peg    { fill: var(--pegadinha); } svg .s-peg { stroke: var(--pegadinha); }
+svg .f-dica   { fill: var(--dica); }      svg .s-dica { stroke: var(--dica); }
+svg .f-exc    { fill: var(--excecao); }   svg .s-exc { stroke: var(--excecao); }
+
+/* ===================== verificação ===================== */
+.verificar {
+  background: var(--ambar-claro); border: 1.5px dashed var(--ambar);
+  padding: 0 1mm; border-radius: 3px; font-weight: 700;
+}
+.verificar::before { content: var(--txt-verificar); color: var(--ambar); font-size: .85em; }
+
+/* =====================================================================
+   LAYOUT APOSTILA: cabeçalho corrido, 2 colunas, faixas de seção.
+   ===================================================================== */
+
+/* cabeçalho corrido: logo + versão | DISCIPLINA | nº página.
+   --versao é definido pelo montar.py a partir do SKILL.md (metadata.version). */
+.topo {
+  display: grid; grid-template-columns: 24mm 1fr 24mm; align-items: center;
+  border-bottom: 2px solid var(--navy); padding-bottom: 1.6mm; margin-bottom: 1mm;
+}
+.topo .logo { display: flex; align-items: flex-end; gap: 1mm; height: 11mm; }
+.topo .logo svg { width: 11mm; height: 11mm; flex: none; }
+.topo .logo::after {
+  content: var(--versao, ""); font-family: var(--fonte-corpo); font-size: 8pt;
+  font-weight: 600; color: var(--slate); line-height: 1; padding-bottom: .4mm;
+}
+.topo .titulo-topo {
+  text-align: center; font-family: var(--fonte-titulo); font-weight: 800;
+  font-size: 13pt; text-transform: uppercase; color: var(--tinta); letter-spacing: .02em;
+}
+.topo .titulo-topo small { display: block; font-size: 8pt; font-weight: 600; color: var(--tinta-2); letter-spacing: .06em; }
+.topo .pag {
+  justify-self: end; background: var(--navy); color: #fff; font-family: var(--fonte-titulo);
+  font-weight: 800; font-size: 13pt; width: 11mm; height: 11mm; display: grid; place-items: center; border-radius: 2px;
+}
+
+/* título de tópico grande, letra contornada (capa de assunto) */
+.titulo-topico {
+  text-align: center; font-family: var(--fonte-titulo); font-weight: 900; font-size: 26pt;
+  text-transform: uppercase; line-height: 1.02; color: var(--navy);
+  margin: 1mm 0 2mm;
+}
+
+/* duas colunas com cabeçalho escuro de coluna */
+.apostila-colunas { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 4mm; align-items: start; }
+.apostila-colunas > .coluna { display: flex; flex-direction: column; gap: 2.6mm; }
+.coluna-cab {
+  background: var(--navy); color: #fff; text-align: center; font-family: var(--fonte-titulo);
+  font-weight: 800; font-size: 9.5pt; text-transform: uppercase; padding: 1.4mm 2mm; letter-spacing: .03em;
+}
+
+/* bloco: faixa + corpo cinza */
+.bloco { break-inside: avoid; }
+.bloco > .faixa {
+  background: var(--sup-2); color: var(--navy); border-left: 3px solid var(--navy); font-family: var(--fonte-titulo); font-weight: 800;
+  font-size: 9.2pt; text-transform: uppercase; padding: 1.2mm 2.5mm; letter-spacing: .02em;
+}
+.bloco.primaria > .faixa { background: var(--navy); color: #fff; }
+.bloco.escura > .faixa { background: var(--slate); color: #fff; border-left-color: var(--slate); }
+.bloco > .faixa.arredondada, .bloco.pill > .faixa { border-radius: 999px; text-align: center; }
+.bloco > .corpo { background: var(--sup); padding: 1.8mm 2.4mm; font-size: 8.9pt; }
+/* respiro igual em cima e embaixo dentro de qualquer corpo de bloco/caixa */
+.corpo > :first-child { margin-top: 0; }
+.corpo > :last-child { margin-bottom: 0; }
+.tag-caixa > p:last-child, .com-ilustra > :last-child { margin-bottom: 0; }
+.bloco.contorno > .corpo { background: #fff; border: 1.5px solid var(--disc); border-top: 0; }
+
+/* subtítulo sublinhado colorido (dentro do bloco) */
+.sub {
+  font-family: var(--fonte-titulo); font-weight: 800; font-size: 8.8pt; text-transform: uppercase;
+  color: var(--disc); text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 2px;
+  margin: 1mm 0 .6mm;
+}
+
+/* lista com ✔ em caixinha */
+ul.check { list-style: none; padding-left: 0; }
+ul.check li { position: relative; padding-left: 5.5mm; }
+ul.check li::before {
+  content: "✔"; position: absolute; left: 0; top: .15em; top: calc((1lh - 3.6mm) / 2); width: 3.6mm; height: 3.6mm;
+  border: 1.4px solid var(--disc); border-radius: 2px; color: var(--disc);
+  font-size: 7pt; font-weight: 900; display: grid; place-items: center; line-height: 1;
+}
+ul.check.verde li::before { background: var(--dica); border-color: var(--dica); color: #fff; border-radius: 50%; }
+
+/* destaques no estilo das apostilas: vermelho escuro negrito */
+.chave-v { color: var(--azul); font-weight: 800; }
+.atencao-txt { color: var(--ambar); font-weight: 800; font-style: italic; }
+.atencao-txt::before { content: var(--txt-atencao); }
+
+/* tags: IMPORTANTE (círculo com !), DICA (pílula) */
+.tag {
+  display: inline-flex; align-items: center; gap: 1.5mm; font-family: var(--fonte-titulo);
+  font-weight: 800; font-size: 8.5pt; text-transform: uppercase; letter-spacing: .04em;
+  border: 1.6px solid var(--ambar); color: var(--ambar); border-radius: 999px; padding: .4mm 3mm .4mm .5mm; background: #fff;
+}
+.tag::before {
+  content: var(--tag-ico, "!"); width: 5mm; height: 5mm; border-radius: 50%; background: var(--ambar); color: #fff;
+  display: grid; place-items: center; font-size: 9pt;
+}
+.tag.dica { border-color: var(--verde); color: var(--verde); --tag-ico: "★"; }
+.tag.dica::before { background: var(--verde); }
+.tag.atencao { --tag-ico: "⚠"; }
+.tag-caixa { border: 1.5px solid var(--ambar); border-radius: var(--raio); padding: 3mm 2.6mm 2mm; position: relative; margin-top: 3mm; break-inside: avoid; }
+.tag-caixa.dica { border-color: var(--verde); }
+.tag-caixa > .tag { position: absolute; top: -3mm; left: 50%; transform: translateX(-50%); }
+
+/* texto + ilustração lado a lado */
+/* a ilustração nunca encolhe nem empurra o texto: coluna de texto minmax(0,1fr) */
+.com-ilustra { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 2mm; align-items: center; }
+.com-ilustra.esq { grid-template-columns: auto minmax(0,1fr); }
+.com-ilustra > * { min-width: 0; overflow-wrap: break-word; }
+.com-ilustra > .ilustra { flex: none; align-self: center; justify-self: center; min-width: auto; }
+.ilustra { width: 18mm; height: 18mm; display: block; }
+.ilustra.p { width: 12mm; height: 12mm; }
+.ilustra.g { width: 26mm; height: 26mm; }
+.ilustra.gg { width: 36mm; height: 36mm; }
+.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* relação A ➜ B (norma superior → fundante) */
+.relacao { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); gap: 2mm; align-items: center; margin: 1mm 0; }
+.relacao .de { border: 1.5px solid var(--tinta); padding: .8mm 2mm; font-weight: 700; font-size: 8.6pt; text-transform: uppercase; text-align: center; }
+.relacao .seta { color: var(--tinta); font-weight: 900; }
+.relacao > div { overflow-wrap: break-word; }
+.relacao .para { background: var(--navy); color: #fff; padding: .8mm 2mm; font-weight: 800; font-size: 8.6pt; text-transform: uppercase; text-align: center; }
+
+/* tabela rótulo|conteúdo (estilo "Constituição rígida | que dá fundamento...") */
+table.rotulada { width: 100%; border-collapse: collapse; font-size: 9pt; break-inside: avoid; }
+table.rotulada td { border: 1px solid var(--linha); padding: 1.2mm 2mm; vertical-align: middle; }
+table.rotulada td:first-child { background: var(--sup-2); color: var(--navy); font-weight: 800; text-transform: uppercase; text-align: center; font-size: 8.2pt; width: 36%; }
+
+/* pirâmide com legenda lateral */
+.piramide-legenda { display: grid; grid-template-columns: 30mm 1fr; gap: 3mm; align-items: center; break-inside: avoid; }
+.piramide-legenda svg { width: 30mm; height: auto; }
+.piramide-legenda ol { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 1.2mm; font-size: 8.8pt; font-weight: 700; }
+.piramide-legenda li { display: flex; gap: 1.5mm; align-items: center; }
+.piramide-legenda li i { width: 3mm; height: 3mm; border-radius: 50%; flex: none; }
+
+/* ===================== quebras e títulos (v1.1) =====================
+   títulos, faixas, chips e TABELAS: sem hifenização automática (em célula de
+   tabela ela encolhe a largura mínima e o navegador espreme as colunas);
+   títulos com linhas equilibradas (nada de palavra sozinha na última linha). */
+h1, h2, h3, h4, .faixa, .coluna-cab, .titulo-topico, .titulo-topo, .secao, .sub,
+.rotulo, .tag, .chip, .selo, th, td, .chave .no, .chave .raiz,
+.fluxo .passo .t, .relacao > div, .linha-tempo .quando {
+  -webkit-hyphens: manual; hyphens: manual;
+}
+.faixa, .coluna-cab, .titulo-topico, .secao, th, .rotulo { text-wrap: balance; }
+
+/* ===================== FÓRMULA (RLM, estatística, financeira) =====================
+   <div class="formula"><span class="rot">Probabilidade</span>
+     P(A) = <span class="frac"><span>favoráveis</span><span>possíveis</span></span></div> */
+.formula {
+  font-family: "STIX Two Math", "Cambria Math", Cambria, Georgia, "Times New Roman", serif;
+  font-size: 11.5pt; text-align: center; background: var(--disc-claro);
+  border: 1.5px solid var(--disc); border-radius: var(--raio); padding: 2mm 3mm; margin: 1mm 0;
+  break-inside: avoid; line-height: 1.5;
+}
+.formula .rot {
+  display: block; font-family: var(--fonte-titulo); font-size: 8pt; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .05em; color: var(--disc); margin-bottom: .5mm;
+}
+.formula i, .formula var { font-style: italic; }
+.formula .frac { display: inline-flex; flex-direction: column; vertical-align: middle; text-align: center; margin: 0 .2em; }
+.formula .frac > span { padding: 0 .3em; }
+.formula .frac > span:first-child { border-bottom: 1.2px solid currentColor; }
+.formula .frac > span:last-child { font-size: .95em; }
+
+/* ===================== TABELA-VERDADE =====================
+   <table class="verdade"><tr><th>p</th><th>q</th><th>p ∧ q</th></tr>
+     <tr><td class="v">V</td><td class="f">F</td><td class="f res">F</td></tr></table>
+   V verde, F vermelho e a coluna de resultado (.res) sombreada; a letra
+   V/F continua escrita, então funciona em P&B. */
+table.verdade {
+  border-collapse: separate; border-spacing: 0; margin: 1mm auto; font-size: 9.5pt;
+  border: 2px solid var(--disc); border-radius: var(--raio); overflow: hidden; break-inside: avoid;
+}
+table.verdade th {
+  background: var(--disc); color: #fff; font-family: var(--fonte-corpo); font-weight: 800;
+  padding: 1mm 2mm; text-align: center; white-space: nowrap;
+}
+table.verdade td { text-align: center; font-weight: 800; padding: .6mm 2mm; border-top: 1px solid var(--linha); }
+table.verdade td + td, table.verdade th + th { border-left: 1px solid var(--linha); }
+table.verdade td.v { color: var(--dica); }
+table.verdade td.f { color: var(--pegadinha); }
+table.verdade td.res { background: var(--disc-claro); }
+table.verdade th.res { background: var(--disc-2); }
+table.verdade tr.destaque td { background: var(--mt-chave); }
+
+/* ===================== CÓDIGO (TI: SQL, pseudocódigo) =====================
+   <pre class="codigo"><span class="rot">SQL</span>SELECT …</pre>  — sem syntax highlight */
+.codigo {
+  font-family: "JetBrains Mono", "Cascadia Mono", Consolas, "Courier New", monospace;
+  font-size: 8.5pt; line-height: 1.45; background: var(--lei-claro); color: var(--tinta);
+  border-left: 4px solid var(--lei); border-radius: 0 4px 4px 0; padding: 2mm 3mm; margin: 1mm 0;
+  white-space: pre-wrap; overflow-wrap: anywhere; hyphens: none; position: relative; break-inside: avoid;
+}
+.codigo .rot {
+  position: absolute; top: 0; right: 0; background: var(--lei); color: #fff;
+  font-family: var(--fonte-titulo); font-size: 8pt; font-weight: 700; text-transform: uppercase;
+  padding: .2mm 2mm; border-radius: 0 0 0 3px; letter-spacing: .05em;
+}
+.codigo b { color: var(--disc); }
+
+/* ===================== EXEMPLO-FRASE (Português: análise) =====================
+   <p class="exemplo-frase"><span class="termo" data-funcao="sujeito">Os candidatos</span> …</p>
+   Trecho analisado sublinhado; função sintática em rótulo acima. */
+.exemplo-frase { font-size: 10.5pt; line-height: 1.3; margin: 1mm 0 2mm; }
+/* rótulo no fluxo (não absoluto): o termo fica tão largo quanto o rótulo e
+   os rótulos vizinhos nunca se sobrepõem */
+.exemplo-frase .termo {
+  display: inline-flex; flex-direction: column; align-items: center; vertical-align: bottom;
+  margin: 1mm .15em 0; font-weight: 600;
+  text-decoration: underline 2.2px var(--disc); text-underline-offset: 3px; text-decoration-skip-ink: none;
+}
+.exemplo-frase .termo::before {
+  content: attr(data-funcao); margin-bottom: .8mm; font-family: var(--fonte-titulo); font-size: 8pt;
+  font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: #fff; background: var(--disc);
+  padding: 0 1.4mm; border-radius: 2px; white-space: nowrap; line-height: 1.5; text-decoration: none;
+}
+.exemplo-frase .termo.destaque { background: linear-gradient(transparent 62%, var(--mt-chave) 62%); }
+.exemplo-frase .termo.erro { text-decoration-color: var(--pegadinha); }
+.exemplo-frase .termo.erro::before { background: var(--pegadinha); }
+
+/* ===================== ÍCONES LUCIDE (ISC) =====================
+   <svg class="ico"><use href="#l-scale"/></svg>   nomes: assets/lucide/nomes.txt
+   Traço na cor do texto (currentColor): .ico.vermelho / .verde / .laranja só
+   quando o ícone carrega significado. Grande ao lado de bloco: class="ilustra g ico". */
+.ico {
+  width: 6mm; height: 6mm; flex: none; vertical-align: -.2em; color: var(--navy);
+  fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+.ico.p { width: 4.5mm; height: 4.5mm; }
+.ico.inline { width: 1.1em; height: 1.1em; }
+.ilustra.ico { stroke-width: 1.5; }
+
+/* =====================================================================
+   ESTILOS DE COR — <html lang="…" data-tema="sobrio|colorido|pastel|pb">
+   sobrio (padrão): navy em tudo, cor só semântica.
+   colorido: cada coluna e cada bloco ganha um matiz (rotação automática).
+   pastel: igual ao colorido, com faixas e corpos em tons pálidos.
+   pb: tons de cinza (impressão P&B; os rótulos e ícones carregam o sentido).
+   Cor fixa por tópico (ex.: "Cardiologia" sempre roxo): class="cor-3" na
+   .folha, .coluna, .bloco ou .caixa — vale em qualquer estilo e vence a rotação.
+   Vermelho, verde e âmbar continuam reservados ao significado (§1 do design.md).
+   ===================================================================== */
+.cor-1 { --h: var(--m1); --h-claro: var(--m1-claro); --h-palido: var(--m1-palido); }
+.cor-2 { --h: var(--m2); --h-claro: var(--m2-claro); --h-palido: var(--m2-palido); }
+.cor-3 { --h: var(--m3); --h-claro: var(--m3-claro); --h-palido: var(--m3-palido); }
+.cor-4 { --h: var(--m4); --h-claro: var(--m4-claro); --h-palido: var(--m4-palido); }
+.cor-5 { --h: var(--m5); --h-claro: var(--m5-claro); --h-palido: var(--m5-palido); }
+.cor-6 { --h: var(--m6); --h-claro: var(--m6-claro); --h-palido: var(--m6-palido); }
+
+/* rotação: coluna 1 começa no matiz 1, coluna 2 no 4; blocos seguem o ciclo */
+:is([data-tema="colorido"], [data-tema="pastel"]) .apostila-colunas > .coluna:nth-child(odd):not(:is(.cor-1,.cor-2,.cor-3,.cor-4,.cor-5,.cor-6)) {
+  --h: var(--m1); --h-claro: var(--m1-claro); --h-palido: var(--m1-palido); }
+:is([data-tema="colorido"], [data-tema="pastel"]) .apostila-colunas > .coluna:nth-child(even):not(:is(.cor-1,.cor-2,.cor-3,.cor-4,.cor-5,.cor-6)) {
+  --h: var(--m4); --h-claro: var(--m4-claro); --h-palido: var(--m4-palido); }
+:is([data-tema="colorido"], [data-tema="pastel"]) .coluna > .bloco:not(:is(.cor-1,.cor-2,.cor-3,.cor-4,.cor-5,.cor-6)) { --h: var(--hb1); --h-claro: var(--hb1-claro); --h-palido: var(--hb1-palido); }
+:is([data-tema="colorido"], [data-tema="pastel"]) .coluna > .bloco:nth-child(3n+2 of .bloco) { --hb1: var(--hb2); --hb1-claro: var(--hb2-claro); --hb1-palido: var(--hb2-palido); }
+:is([data-tema="colorido"], [data-tema="pastel"]) .coluna > .bloco:nth-child(3n+3 of .bloco) { --hb1: var(--hb3); --hb1-claro: var(--hb3-claro); --hb1-palido: var(--hb3-palido); }
+:is([data-tema="colorido"], [data-tema="pastel"]) .apostila-colunas > .coluna:nth-child(odd) {
+  --hb1: var(--m1); --hb1-claro: var(--m1-claro); --hb1-palido: var(--m1-palido);
+  --hb2: var(--m2); --hb2-claro: var(--m2-claro); --hb2-palido: var(--m2-palido);
+  --hb3: var(--m3); --hb3-claro: var(--m3-claro); --hb3-palido: var(--m3-palido); }
+:is([data-tema="colorido"], [data-tema="pastel"]) .apostila-colunas > .coluna:nth-child(even) {
+  --hb1: var(--m4); --hb1-claro: var(--m4-claro); --hb1-palido: var(--m4-palido);
+  --hb2: var(--m5); --hb2-claro: var(--m5-claro); --hb2-palido: var(--m5-palido);
+  --hb3: var(--m2); --hb3-claro: var(--m2-claro); --hb3-palido: var(--m2-palido); }
+/* bloco dentro de coluna com cor fixa herda a cor da coluna */
+:is([data-tema="colorido"], [data-tema="pastel"]) :is(.cor-1,.cor-2,.cor-3,.cor-4,.cor-5,.cor-6) .bloco:not(:is(.cor-1,.cor-2,.cor-3,.cor-4,.cor-5,.cor-6)) {
+  --h: inherit; --h-claro: inherit; --h-palido: inherit; }
+
+/* o matiz vira a cor estrutural do elemento (faixa, cabeçalho, chave, fluxo, tabela…) */
+:is([data-tema="colorido"], [data-tema="pastel"]) :is(.coluna, .bloco),
+:is(.cor-1,.cor-2,.cor-3,.cor-4,.cor-5,.cor-6) {
+  --navy: var(--h); --disc: var(--h); --azul: var(--h); --disc-2: var(--h);
+  --disc-claro: var(--h-claro); --sup-2: var(--h-claro);
+  --exemplo: var(--h); --exemplo-claro: var(--h-claro);
+}
+[data-tema="pastel"] :is(.coluna, .bloco),
+[data-tema="pastel"] :is(.cor-1,.cor-2,.cor-3,.cor-4,.cor-5,.cor-6) { --sup: var(--h-palido); }
+/* pastel: faixas e cabeçalhos claros com texto no matiz, em vez de barras cheias */
+[data-tema="pastel"] .coluna-cab { background: var(--h-claro); color: var(--h); border-bottom: 2px solid var(--h); }
+[data-tema="pastel"] .bloco.primaria > .faixa { background: var(--h-claro); color: var(--h); border-left: 3px solid var(--h); }
+[data-tema="pastel"] .bloco > .corpo { border: 1px solid var(--h-claro); border-top: 0; }
+[data-tema="pastel"] table.comparativo th, [data-tema="pastel"] table.verdade th { background: var(--h-claro); color: var(--h); }
+/* colorido: barra do bloco cheia no matiz, corpo neutro (cor marca o tópico, não o texto) */
+[data-tema="colorido"] .bloco > .faixa { background: var(--h); color: #fff; border-left-color: var(--h); }
+[data-tema="colorido"] .bloco > .corpo { border-left: 3px solid var(--h-claro); }
+
+/* pb: tudo em cinza, inclusive as ilustrações */
+[data-tema="pb"] {
+  --navy: #262626; --azul: #3A3A3A; --azul-claro: #EDEDED; --slate: #555555;
+  --ambar: #4A4A4A; --ambar-claro: #F2F2F2; --verm: #1F1F1F; --verm-claro: #EBEBEB;
+  --verde: #3A3A3A; --verde-claro: #F0F0F0; --tinta-2: #555555;
+  --sup: #F3F3F3; --sup-2: #E4E4E4; --linha: #C8C8C8; --mesa: #E4E4E4;
+  --il-1: #6E6E6E; --il-2: #A8A8A8; --il-claro: #E6E6E6;
+  --mt-chave: #DCDCDC; --mt-troca: #C9C9C9;
+  --disc: var(--navy); --disc-claro: var(--sup-2); --disc-2: var(--azul);
+}
+[data-tema="pb"] .ilustra:not(.ico), [data-tema="pb"] .figura svg { filter: grayscale(1); }
+
+/* ===================== FIGURA (acervo aberto ou gerada a partir de dados) =====================
+   <figure class="figura aberta"> <img src="figuras/x.jpg" alt="…">
+     <figcaption>O que mostra. <span class="credito">Imagem: autor, Commons, CC BY 4.0.</span></figcaption> </figure>
+   Imagem sem rótulos + chamadas numeradas: <div class="sobre"><img …><b class="marca" style="left:31%;top:42%">1</b>…</div>
+   e <ol class="legenda"> com a mesma ordem. .figura.lado = imagem | legenda. Guia: references/ilustracoes.md */
+.figura { margin: 1mm 0; break-inside: avoid; display: grid; gap: 1.5mm; }
+.figura.lado { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: center; }
+.figura.lado.larga { grid-template-columns: minmax(0, 2.1fr) minmax(0, 1fr); }  /* imagem com rótulos pequenos */
+.figura > svg, .figura > img, .figura .sobre > img { width: 100%; height: auto; display: block; }
+.figura > img, .figura .sobre > img { max-height: var(--fig-max, 125mm); object-fit: contain; margin: 0 auto; }
+.figura.aberta > img, .figura.aberta .sobre { border: 1px solid var(--linha); border-radius: 3px; background: #fff; }
+.figura .sobre { position: relative; }
+.figura .sobre .marca {
+  position: absolute; transform: translate(-50%, -50%); width: 4.8mm; height: 4.8mm; border-radius: 50%;
+  background: var(--disc); color: #fff; border: 1.2px solid #fff; box-shadow: 0 0 0 .6px var(--tinta);
+  font: 800 8pt/1 var(--fonte-corpo); display: grid; place-items: center; font-style: normal;
+}
+.figura figcaption { grid-column: 1 / -1; font-size: 8pt; color: var(--tinta-2); text-align: center; font-style: italic; }
+.figura .credito { display: block; font-style: normal; font-size: 8pt; color: var(--tinta-2); margin-top: .4mm; }
+.figura .credito a { color: inherit; }
+.figura ol.legenda { list-style: none; counter-reset: leg; margin: 0; padding: 0; font-size: 8.6pt; columns: var(--leg-col, 1); column-gap: 3mm; }
+.figura ol.legenda li { counter-increment: leg; position: relative; padding-left: 5.4mm; margin: 0 0 .7mm; break-inside: avoid; }
+.figura ol.legenda li::before {
+  content: counter(leg); position: absolute; left: 0; top: .2mm; width: 4mm; height: 4mm; border-radius: 50%;
+  background: var(--disc); color: #fff; font-weight: 800; font-size: 7.6pt; display: grid; place-items: center; line-height: 1;
+}
+.figura.legenda-2 { --leg-col: 2; }
+[data-tema="pb"] .figura img { filter: grayscale(1); }
+
+/* atribuição (CC BY 4.0) e aviso de IA no rodapé de toda folha (traduzidos por :lang() abaixo) */
+.rodape-folha > span:first-child::before { content: var(--txt-feito-com); }
+.rodape-folha > span:first-child::after { content: " · " var(--txt-aviso-ia); }
+
+/* ===================== IDIOMAS: textos gerados pelo CSS ===================== */
+:root:lang(en) { --txt-feito-com: "Made with "; --txt-aviso-ia: "AI-generated: check the sources"; --txt-incidencia: "Exam frequency "; --txt-verificar: "[VERIFY] "; --txt-atencao: "WATCH OUT: "; }
+:root:lang(es) { --txt-feito-com: "Hecho con "; --txt-aviso-ia: "generado con IA: verifique las fuentes"; --txt-incidencia: "Incidencia "; --txt-verificar: "[VERIFICAR] "; --txt-atencao: "ATENCIÓN: "; }
+:root:lang(fr) { --txt-feito-com: "Réalisé avec "; --txt-aviso-ia: "généré par IA : vérifiez les sources"; --txt-incidencia: "Fréquence "; --txt-verificar: "[À VÉRIFIER] "; --txt-atencao: "ATTENTION : "; }
+:root:lang(it) { --txt-feito-com: "Realizzato con "; --txt-aviso-ia: "generato con IA: verifica le fonti"; --txt-incidencia: "Frequenza "; --txt-verificar: "[DA VERIFICARE] "; --txt-atencao: "ATTENZIONE: "; }
+:root:lang(de) { --txt-feito-com: "Erstellt mit "; --txt-aviso-ia: "KI-generiert: Quellen prüfen"; --txt-incidencia: "Prüfungsrelevanz "; --txt-verificar: "[PRÜFEN] "; --txt-atencao: "ACHTUNG: "; }

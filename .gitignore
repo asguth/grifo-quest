@@ -22,3 +22,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Rust (workspace)
+/target
+
+# binário do MCP copiado pelo scripts/sidecar.mjs
+src-tauri/binaries/
+
+# executável solto (gerado)
+portatil/

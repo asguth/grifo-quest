@@ -2,8 +2,8 @@
 name = "grifo-quest"
 version = "0.1.0"
 description = "Monitor de estudos para concursos"
-authors = ["Grifo Quest contributors"]
-license = "MIT"
+authors = ["Alberto Guth"]
+license-file = "../LICENSE"
 edition = "2024"
 
 [lib]
@@ -19,19 +19,20 @@ tauri-plugin-global-shortcut = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-notification = "2"
-tokio = { version = "1", features = ["time"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "sqlite", "migrate", "macros"] }
+tokio = { workspace = true, features = ["time", "process", "io-util", "sync"] }
+tauri-plugin-opener = "2"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+feed-rs = "3"
+futures-util = "0.3"
+serde.workspace = true
+serde_json.workspace = true
+sqlx = { workspace = true, features = ["migrate", "macros"] }
 specta = { version = "=2.0.0-rc.28", features = ["derive"] }
 specta-typescript = "0.0.15"
 tauri-specta = { version = "=2.0.0-rc.29", features = ["derive", "typescript"] }
 thiserror = "2"
 strsim = "0.11"
-
-[profile.release]
-codegen-units = 1
-lto = true
-opt-level = 3
-panic = "abort"
-strip = true
+pdf-extract = "0.9"
+base64 = "0.22"
+cpal = "0.18"
+tauri-plugin-updater = "2"

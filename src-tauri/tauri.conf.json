@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "dev.grifoquest.app",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "node scripts/sidecar.mjs && pnpm dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "node scripts/sidecar.mjs && pnpm build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -20,7 +20,8 @@
         "minHeight": 520,
         "visible": false,
         "center": true,
-        "backgroundColor": "#1b1a17"
+        "backgroundColor": "#1b1a17",
+        "dragDropEnabled": false
       },
       {
         "label": "quick",
@@ -42,13 +43,44 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": [
+      "nsis"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "resources": {
+      "resources/grifo/": "grifo/"
+    },
+    "externalBin": [
+      "binaries/grifo-quest-mcp"
+    ],
+    "createUpdaterArtifacts": true,
+    "publisher": "Alberto Guth",
+    "copyright": "© 2026 Alberto Guth. Todos os direitos reservados.",
+    "shortDescription": "Monitor de estudos para concursos",
+    "windows": {
+      "nsis": {
+        "languages": [
+          "PortugueseBR"
+        ],
+        "installMode": "currentUser"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQ0QkU4NUFFODc0QTg3QjAKUldTd2gwcUhyb1crMU9vbFFUWnYxYmZOcW5aUUhjZ1lWOTdIdUJHdk8yYkl2LzBRTTJ0bFB3QWMK",
+      "endpoints": [
+        "https://github.com/asguth/grifo-quest/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

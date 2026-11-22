@@ -13,6 +13,8 @@ pub struct QuickLogResult {
     pub correct: i32,
     pub banca: Option<String>,
     pub xp_gained: i32,
+    /// XP de missões concluídas por este lançamento.
+    pub mission_xp: i32,
 }
 
 #[tauri::command]
@@ -27,13 +29,16 @@ pub async fn quick_log(pool: State<'_, SqlitePool>, text: String) -> AppResult<Q
     let subject = &subjects[parsed.subject_index];
     let gained = xp::for_questions(parsed.total, parsed.correct);
 
-    db::logs::insert_with_xp(&pool, subject.id, parsed.banca.as_deref(), parsed.total, parsed.correct, gained)
-        .await?;
+    let ((), outcome) = db::player::award(&pool, async || {
+        db::logs::insert_with_xp(&pool, subject.id, parsed.banca.as_deref(), parsed.total, parsed.correct, gained).await
+    })
+    .await?;
     Ok(QuickLogResult {
         subject: subject.name.clone(),
         total: parsed.total,
         correct: parsed.correct,
         banca: parsed.banca,
         xp_gained: gained,
+        mission_xp: outcome.mission_xp,
     })
 }

@@ -1,0 +1,36 @@
+<!--
+  GRIFO-SKILL - sprite do mascote (CC BY 4.0)
+  So o mascote mora aqui. Nao ha biblioteca de ilustracoes prontas: icones vem do
+  Lucide (assets/lucide) e figuras didaticas de acervos abertos ou de geradores a
+  partir de dados (references/ilustracoes.md, scripts/figura.py).
+
+  REGRA DO SPRITE: toda classe usada dentro de um <symbol> precisa estar no
+  <style> deste arquivo, SEM seletor de ancestral (".amarelo{}" funciona;
+  "svg .amarelo{}" nao atravessa a shadow tree do <use>).
+  Verificacao (repositorio): ferramentas/verificar_ilustracoes.py
+-->
+<svg xmlns="http://www.w3.org/2000/svg" class="sprite" aria-hidden="true">
+  <defs>
+    <style>
+      .kf{stroke:#1C2430;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+      .amarelo{fill:#FFE45C}.verm{fill:#B42318}
+    </style>
+  </defs>
+
+  <!-- MASCOTE: o Grifo (CC BY 4.0). Raster em assets/mascote/grifo.webp, embutido como data URI
+       pelo montar.py. As poses reaproveitam o mesmo <image> e só acrescentam o selo vetorial. -->
+  <symbol id="i-grifo" viewBox="0 0 240 240">
+    <image href="mascote/grifo.webp" x="0" y="0" width="240" height="240" preserveAspectRatio="xMidYMid meet"/>
+  </symbol>
+  <symbol id="i-grifo-dica" viewBox="0 0 240 240">
+    <use href="#i-grifo"/>
+    <circle class="amarelo" cx="204" cy="40" r="30" style="stroke:#1C2430;stroke-width:5"/>
+    <path class="kf" style="fill:#1C2430;stroke-width:3" d="M204 20 L210 33 L224 34 L213 43 L217 57 L204 49 L191 57 L195 43 L184 34 L198 33 Z"/>
+  </symbol>
+  <symbol id="i-grifo-alerta" viewBox="0 0 240 240">
+    <use href="#i-grifo"/>
+    <circle class="verm" cx="204" cy="40" r="30" style="stroke:#1C2430;stroke-width:5"/>
+    <path d="M204 24 L204 44" style="fill:none;stroke:#fff;stroke-width:9;stroke-linecap:round"/>
+    <circle cx="204" cy="58" r="5" fill="#fff"/>
+  </symbol>
+</svg>

@@ -1,0 +1,17 @@
+[workspace]
+members = ["src-tauri", "mcp-server"]
+resolver = "3"
+
+# Os dois crates leem o mesmo banco: mesmas versões.
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "sqlite"] }
+tokio = { version = "1", features = ["macros"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true

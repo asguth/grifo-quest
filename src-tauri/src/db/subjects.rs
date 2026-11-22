@@ -9,6 +9,9 @@ pub struct Subject {
     pub name: String,
     pub color: String,
     pub exam_weight: f64,
+    pub topic_count: i32,
+    /// Edital verticalizado concluído, 0–1: cada tópico vale teoria + questões + 3 revisões.
+    pub progress: f64,
 }
 
 #[derive(Debug, Deserialize, specta::Type)]
@@ -23,20 +26,20 @@ pub struct Topic {
     pub id: i32,
     pub subject_id: i32,
     pub name: String,
-    pub status: TopicStatus,
-}
-
-#[derive(Debug, Serialize, Deserialize, specta::Type, sqlx::Type, Clone, Copy)]
-#[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "TEXT", rename_all = "snake_case")]
-pub enum TopicStatus {
-    NaoVisto,
-    Estudando,
-    Dominado,
+    /// Edital verticalizado: teoria vista, questões feitas, revisões (0–3).
+    pub theory: bool,
+    pub practice: bool,
+    pub reviews: i32,
 }
 
 pub async fn list(pool: &SqlitePool) -> AppResult<Vec<Subject>> {
-    Ok(sqlx::query_as("SELECT id, name, color, exam_weight FROM subjects ORDER BY name COLLATE NOCASE")
+    Ok(sqlx::query_as(
+        "SELECT s.id, s.name, s.color, s.exam_weight,
+                COUNT(t.id) AS topic_count,
+                COALESCE(AVG((t.theory + t.practice + t.reviews) / 5.0), 0.0) AS progress
+         FROM subjects s LEFT JOIN topics t ON t.subject_id = s.id
+         GROUP BY s.id ORDER BY s.name COLLATE NOCASE",
+    )
         .fetch_all(pool)
         .await?)
 }
@@ -69,7 +72,7 @@ pub async fn delete(pool: &SqlitePool, id: i32) -> AppResult<()> {
 }
 
 pub async fn topics(pool: &SqlitePool, subject_id: i32) -> AppResult<Vec<Topic>> {
-    Ok(sqlx::query_as("SELECT id, subject_id, name, status FROM topics WHERE subject_id = ? ORDER BY id")
+    Ok(sqlx::query_as("SELECT id, subject_id, name, theory, practice, reviews FROM topics WHERE subject_id = ? ORDER BY id")
         .bind(subject_id)
         .fetch_all(pool)
         .await?)
@@ -88,13 +91,19 @@ pub async fn add_topics(pool: &SqlitePool, subject_id: i32, names: &[&str]) -> A
     Ok(())
 }
 
-pub async fn set_topic_status(pool: &SqlitePool, id: i32, status: TopicStatus) -> AppResult<()> {
-    sqlx::query("UPDATE topics SET status = ? WHERE id = ?")
-        .bind(status)
+pub async fn set_topic_checks(pool: &SqlitePool, id: i32, theory: bool, practice: bool, reviews: i32) -> AppResult<()> {
+    sqlx::query("UPDATE topics SET theory = ?, practice = ?, reviews = ? WHERE id = ?")
+        .bind(theory)
+        .bind(practice)
+        .bind(reviews.clamp(0, 3))
         .bind(id)
         .execute(pool)
         .await?;
     Ok(())
+}
+
+pub async fn topic_names(pool: &SqlitePool, subject_id: i32) -> AppResult<Vec<String>> {
+    Ok(sqlx::query_scalar("SELECT name FROM topics WHERE subject_id = ?").bind(subject_id).fetch_all(pool).await?)
 }
 
 pub async fn delete_topic(pool: &SqlitePool, id: i32) -> AppResult<()> {

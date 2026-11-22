@@ -1,65 +1,154 @@
+#[macro_use]
+mod wire;
+
+mod ai;
+mod claude;
 mod commands;
 mod db;
 mod domain;
 mod error;
+mod grifo;
+mod ollama;
+mod settings;
+mod sys;
 
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, WindowEvent};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
-use tauri_specta::collect_commands;
+use tauri_specta::{collect_commands, collect_events};
 
 type SetupResult = Result<(), Box<dyn std::error::Error>>;
 
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
-    use commands::{log, subjects, timer};
-    tauri_specta::Builder::<tauri::Wry>::new().commands(collect_commands![
+    use commands::{classroom, config, diary, integrations, log, material, planner, study, subjects, timer, updater, voice, window, world};
+    tauri_specta::Builder::<tauri::Wry>::new()
+        .events(collect_events![classroom::ClassEvent, material::GrifoEvent, sys::IntegrationEvent, planner::PlannerEvent, timer::TimerTick, study::StudyEvent, window::NavigateTo, voice::VoiceLevel, updater::UpdateReady])
+        .commands(collect_commands![
         subjects::list_subjects,
         subjects::create_subject,
         subjects::update_subject,
         subjects::delete_subject,
         subjects::list_topics,
         subjects::add_topics,
-        subjects::set_topic_status,
+        subjects::set_topic_checks,
         subjects::delete_topic,
         log::quick_log,
         timer::timer_status,
         timer::start_pomodoro,
         timer::start_stopwatch,
         timer::stop_timer,
-        timer::get_pomodoro_config,
-        timer::set_pomodoro_config,
+        timer::toggle_pause,
+        config::get_pomodoro_config,
+        config::set_pomodoro_config,
+        diary::get_dashboard,
+        diary::nav_badges,
+        config::get_config,
+        config::set_config,
+        config::get_ui_pref,
+        config::set_ui_pref,
+        window::open_main,
+        window::show_welcome,
+        voice::voice_start,
+        voice::voice_stop,
+        voice::install_voice,
+        classroom::open_classes,
+        classroom::class_state,
+        classroom::discard_class,
+        world::list_exams,
+        world::create_exam,
+        world::delete_exam,
+        world::list_feeds,
+        world::add_feed,
+        world::set_feed_active,
+        world::delete_feed,
+        world::list_news,
+        world::set_news_read,
+        world::mark_all_news_read,
+        world::summarize_news,
+        world::refresh_news,
+        world::list_contests,
+        world::set_contest_followed,
+        world::delete_contest,
+        world::search_contests_with_claude,
+        classroom::list_students,
+        classroom::list_all_topics,
+        classroom::get_topic_material,
+        classroom::set_topic_material,
+        classroom::start_class,
+        classroom::send_explanation,
+        classroom::finish_class,
+        classroom::list_class_reports,
+        classroom::generate_apostila,
+        classroom::open_material,
+        classroom::open_link,
+        material::list_materials,
+        material::material_view,
+        material::delete_material,
+        material::open_material_file,
+        material::cancel_material,
+        material::generate_material,
+        integrations::integrations_status,
+        integrations::install_ollama,
+        integrations::start_ollama,
+        integrations::pull_model,
+        integrations::test_ollama,
+        integrations::install_claude,
+        integrations::claude_login,
+        integrations::test_claude,
+        integrations::connect_mcp,
+        config::get_profile,
+        config::set_profile,
+        planner::plan_from_role,
+        planner::pdf_text,
+        planner::plan_from_edital,
+        planner::apply_plan,
+        study::study_home,
+        study::start_session,
+        study::next_question,
+        study::answer_question,
+        study::finish_session,
+        study::explain_question,
+        study::cards_due,
+        study::review_card,
+        study::cards_from_material,
+        study::card_from_question,
+        study::list_cards,
+        study::create_card,
+        study::update_card,
+        study::delete_card,
+        study::error_list,
+        study::remove_error,
+        study::report_question,
+        study::performance,
+        updater::update_status,
+        updater::check_update,
+        updater::install_update,
     ])
-}
-
-fn show_window(app: &AppHandle, label: &str) {
-    if let Some(w) = app.get_webview_window(label) {
-        let _ = w.unminimize();
-        let _ = w.show();
-        let _ = w.set_focus();
-    }
 }
 
 fn setup_tray(app: &tauri::App) -> SetupResult {
     let open = MenuItem::with_id(app, "open", "Abrir Grifo Quest", true, None::<&str>)?;
+    let quick = MenuItem::with_id(app, "quick", "Lançar questões (Ctrl+Alt+Q)", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Sair", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &quit])?;
+    let menu = Menu::with_items(app, &[&open, &quick, &quit])?;
     let icon = app.default_window_icon().cloned().ok_or("ícone padrão ausente")?;
 
-    TrayIconBuilder::with_id("main")
+    TrayIconBuilder::with_id(sys::TRAY)
         .icon(icon)
         .tooltip("Grifo Quest")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
-            "open" => show_window(app, "main"),
+            "open" => sys::show_window(app, sys::MAIN),
+            "quick" => sys::show_window(app, sys::QUICK),
             "quit" => app.exit(0),
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
             if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
-                show_window(tray.app_handle(), "main");
+                sys::show_window(tray.app_handle(), sys::MAIN);
             }
         })
         .build(app)?;
@@ -72,43 +161,74 @@ fn setup_shortcut(app: &tauri::App) -> SetupResult {
         tauri_plugin_global_shortcut::Builder::new()
             .with_handler(move |app, shortcut, event| {
                 if shortcut == &quick && event.state() == ShortcutState::Pressed {
-                    show_window(app, "quick");
+                    sys::show_window(app, sys::QUICK);
                 }
             })
             .build(),
     )?;
-    app.global_shortcut().register(quick)?;
+    // Atalho ocupado por outro programa (ou outra cópia do app) não pode impedir o app de abrir.
+    if let Err(e) = app.global_shortcut().register(quick) {
+        eprintln!("atalho Ctrl+Alt+Q indisponível ({e}); o lançamento rápido segue pela bandeja");
+    }
     Ok(())
 }
+
+/// Argumento que o Windows passa quando abre o app no login (distingue de abrir na mão).
+const AUTOSTART_ARG: &str = "--autostart";
 
 /// Autostart ligado por padrão só na primeira execução; depois respeita o toggle das Configurações.
 async fn autostart_first_run(app: &AppHandle, pool: &sqlx::SqlitePool) -> SetupResult {
     // ponytail: em dev não registra o binário de debug no boot do Windows.
-    if cfg!(debug_assertions) || db::settings::get(pool, "autostart_initialized").await?.is_some() {
+    if cfg!(debug_assertions) {
         return Ok(());
     }
-    app.autolaunch().enable()?;
-    db::settings::set(pool, "autostart_initialized", "1").await?;
+    if db::settings::get(pool, "autostart_initialized").await?.is_none() {
+        app.autolaunch().enable()?;
+        db::settings::set(pool, "autostart_initialized", "1").await?;
+    } else if app.autolaunch().is_enabled()? {
+        // Reescreve o registro para incluir o `--autostart` de versões antigas.
+        app.autolaunch().enable()?;
+    }
+    Ok(())
+}
+
+/// Ao ligar o PC: janela compacta de boas-vindas (a não ser que o usuário tenha desligado).
+async fn welcome_on_boot(app: &AppHandle, pool: &sqlx::SqlitePool) -> SetupResult {
+    let booted = std::env::args().any(|a| a == AUTOSTART_ARG);
+    let off = settings::ui_pref(pool, settings::UiKey::WelcomeOnBoot).await?.as_deref() == Some("off");
+    if booted && !off {
+        commands::window::open_welcome(app)?;
+    }
     Ok(())
 }
 
 fn setup(app: &mut tauri::App) -> SetupResult {
     let dir = app.path().app_data_dir()?;
     std::fs::create_dir_all(&dir)?;
-    let handle = app.handle().clone();
-    let pool = tauri::async_runtime::block_on(async move {
-        let pool = db::open(&dir.join("grifo.db")).await?;
-        autostart_first_run(&handle, &pool).await?;
-        Ok::<_, Box<dyn std::error::Error>>(pool)
-    })?;
-    app.manage(pool);
+    let pool = tauri::async_runtime::block_on(db::open(&dir.join(sys::DB_FILE)))?;
+    app.manage(pool.clone());
     app.manage(commands::timer::TimerState::default());
+    app.manage(commands::material::GrifoJobs::default());
+    app.manage(commands::study::StudyState::default());
+    app.manage(commands::voice::VoiceState::default());
+    app.manage(commands::updater::PendingUpdate::default());
+    // Depois do `manage`: a janela de boas-vindas já chama comandos que usam esse estado.
+    let handle = app.handle().clone();
+    tauri::async_runtime::block_on(async move {
+        if let Err(e) = autostart_first_run(&handle, &pool).await {
+            eprintln!("autostart: {e}");
+        }
+        welcome_on_boot(&handle, &pool).await
+    })?;
     setup_tray(app)?;
     setup_shortcut(app)?;
     commands::timer::spawn_ticker(app.handle().clone());
+    commands::world::spawn_news_refresher(app.handle().clone());
+    commands::updater::spawn_update_checker(app.handle().clone());
     Ok(())
 }
 
+#[cfg(debug_assertions)]
 const BINDINGS: &str = "../src/lib/bindings.ts";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -120,18 +240,25 @@ pub fn run() {
     }
 
     let result = tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_window(app, "main")))
-        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| sys::show_window(app, sys::MAIN)))
+        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec![AUTOSTART_ARG])))
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(builder.invoke_handler())
         .on_window_event(|window, event| {
-            // Fechar a janela só esconde: o app vive na bandeja.
-            if let WindowEvent::CloseRequested { api, .. } = event {
+            // Fechar a janela só esconde (o app vive na bandeja); as boas-vindas fecham de verdade.
+            if let WindowEvent::CloseRequested { api, .. } = event
+                && window.label() != sys::WELCOME
+            {
                 api.prevent_close();
                 let _ = window.hide();
             }
         })
-        .setup(setup)
+        .setup(move |app| {
+            builder.mount_events(app);
+            setup(app)
+        })
         .run(tauri::generate_context!());
 
     if let Err(e) = result {

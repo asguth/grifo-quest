@@ -2,6 +2,7 @@
 
 import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 import type { InvokeOptions } from "@tauri-apps/api/core";
+import * as __TAURI_EVENT from "@tauri-apps/api/event";
 
 /** Commands */
 export const commands = {
@@ -12,29 +13,843 @@ export const commands = {
 	listTopics: (subjectId: number, options?: InvokeOptions) => __TAURI_INVOKE<Topic[]>("list_topics", { subjectId }, options),
 	/**  Aceita a lista colada do edital: um tópico por linha, linhas vazias ignoradas. */
 	addTopics: (subjectId: number, text: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("add_topics", { subjectId, text }, options),
-	setTopicStatus: (id: number, status: TopicStatus, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_topic_status", { id, status }, options),
+	/**  Edital verticalizado: teoria, questões e revisões (0–3) de um tópico. */
+	setTopicChecks: (id: number, theory: boolean, practice: boolean, reviews: number, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_topic_checks", { id, theory, practice, reviews }, options),
 	deleteTopic: (id: number, options?: InvokeOptions) => __TAURI_INVOKE<null>("delete_topic", { id }, options),
 	quickLog: (text: string, options?: InvokeOptions) => __TAURI_INVOKE<QuickLogResult_Serialize>("quick_log", { text }, options),
 	timerStatus: (options?: InvokeOptions) => __TAURI_INVOKE<TimerView_Serialize>("timer_status", undefined, options),
 	startPomodoro: (subjectId: number | null, options?: InvokeOptions) => __TAURI_INVOKE<TimerView_Serialize>("start_pomodoro", { subjectId }, options),
-	startStopwatch: (kind: Kind, subjectId: number | null, options?: InvokeOptions) => __TAURI_INVOKE<TimerView_Serialize>("start_stopwatch", { kind, subjectId }, options),
-	/**  Para o cronômetro gravando a sessão; num pomodoro, cancela sem gravar. */
+	startStopwatch: (kind: TimerKind, subjectId: number | null, options?: InvokeOptions) => __TAURI_INVOKE<TimerView_Serialize>("start_stopwatch", { kind, subjectId }, options),
+	/**  Para o timer gravando o tempo estudado: cronômetro inteiro ou foco parcial do pomodoro (sem o XP do pomodoro). */
 	stopTimer: (options?: InvokeOptions) => __TAURI_INVOKE<TimerView_Serialize>("stop_timer", undefined, options),
-	getPomodoroConfig: (options?: InvokeOptions) => __TAURI_INVOKE<PomodoroConfig>("get_pomodoro_config", undefined, options),
-	setPomodoroConfig: (config: PomodoroConfig, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_pomodoro_config", { config }, options),
+	/**  Pausa ou retoma o timer que estiver rodando. */
+	togglePause: (options?: InvokeOptions) => __TAURI_INVOKE<TimerView_Serialize>("toggle_pause", undefined, options),
+	getPomodoroConfig: (options?: InvokeOptions) => __TAURI_INVOKE<PomodoroConfig_Serialize>("get_pomodoro_config", undefined, options),
+	setPomodoroConfig: (config: PomodoroConfig_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_pomodoro_config", { config }, options),
+	/**  Tudo que o Diário precisa numa chamada só. */
+	getDashboard: (options?: InvokeOptions) => __TAURI_INVOKE<Dashboard_Serialize>("get_dashboard", undefined, options),
+	/**  Contadores do menu lateral (consulta leve, sem gerar missões). */
+	navBadges: (options?: InvokeOptions) => __TAURI_INVOKE<NavBadges>("nav_badges", undefined, options),
+	getConfig: (options?: InvokeOptions) => __TAURI_INVOKE<AppConfig_Serialize>("get_config", undefined, options),
+	setConfig: (config: AppConfig_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_config", { config }, options),
+	getUiPref: (key: UiKey, options?: InvokeOptions) => __TAURI_INVOKE<string | null>("get_ui_pref", { key }, options),
+	setUiPref: (key: UiKey, value: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_ui_pref", { key, value }, options),
+	/**  Mostra a janela principal (opcionalmente numa tela) e fecha as boas-vindas. */
+	openMain: (slot: string | null, options?: InvokeOptions) => __TAURI_INVOKE<void>("open_main", { slot }, options),
+	/**  Mostra a janela de boas-vindas agora (botão "Testar" em Config). */
+	showWelcome: (options?: InvokeOptions) => __TAURI_INVOKE<null>("show_welcome", undefined, options),
+	voiceStart: (options?: InvokeOptions) => __TAURI_INVOKE<null>("voice_start", undefined, options),
+	/**  Para de gravar e transcreve. Devolve o texto (vazio se não entendeu nada). */
+	voiceStop: (options?: InvokeOptions) => __TAURI_INVOKE<string>("voice_stop", undefined, options),
+	/**  Um clique: baixa o whisper.cpp oficial (zip) e o modelo em português. */
+	installVoice: (options?: InvokeOptions) => __TAURI_INVOKE<null>("install_voice", undefined, options),
+	/**  Aulas que ficaram abertas (o app fechou no meio): dá para continuar de onde parou. */
+	openClasses: (options?: InvokeOptions) => __TAURI_INVOKE<OpenClassInfo[]>("open_classes", undefined, options),
+	/**  Falas e quadro de uma aula aberta, para continuar. */
+	classState: (classId: number, options?: InvokeOptions) => __TAURI_INVOKE<ClassState_Serialize>("class_state", { classId }, options),
+	discardClass: (classId: number, options?: InvokeOptions) => __TAURI_INVOKE<null>("discard_class", { classId }, options),
+	listExams: (options?: InvokeOptions) => __TAURI_INVOKE<Exam_Serialize[]>("list_exams", undefined, options),
+	createExam: (input: ExamInput_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<null>("create_exam", { input }, options),
+	deleteExam: (id: number, options?: InvokeOptions) => __TAURI_INVOKE<null>("delete_exam", { id }, options),
+	listFeeds: (options?: InvokeOptions) => __TAURI_INVOKE<Feed[]>("list_feeds", undefined, options),
+	addFeed: (name: string, url: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("add_feed", { name, url }, options),
+	setFeedActive: (id: number, active: boolean, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_feed_active", { id, active }, options),
+	deleteFeed: (id: number, options?: InvokeOptions) => __TAURI_INVOKE<null>("delete_feed", { id }, options),
+	listNews: (limit: number, options?: InvokeOptions) => __TAURI_INVOKE<NewsItem_Serialize[]>("list_news", { limit }, options),
+	/**  Marca/desmarca como lida (o check do card). */
+	setNewsRead: (id: number, read: boolean, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_news_read", { id, read }, options),
+	markAllNewsRead: (options?: InvokeOptions) => __TAURI_INVOKE<number>("mark_all_news_read", undefined, options),
+	/**  Resumo/etiquetas de uma notícia agora (botão do leitor). Usa a rota de tarefas (pode cair no Claude). */
+	summarizeNews: (id: number, options?: InvokeOptions) => __TAURI_INVOKE<NewsItem_Serialize>("summarize_news", { id }, options),
+	/**
+	 *  Baixa todos os feeds ativos e, em segundo plano, busca capas e classifica com a IA local.
+	 *  Devolve quantas notícias novas entraram.
+	 */
+	refreshNews: (options?: InvokeOptions) => __TAURI_INVOKE<number>("refresh_news", undefined, options),
+	listContests: (options?: InvokeOptions) => __TAURI_INVOKE<Contest_Serialize[]>("list_contests", undefined, options),
+	setContestFollowed: (id: number, followed: boolean, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_contest_followed", { id, followed }, options),
+	deleteContest: (id: number, options?: InvokeOptions) => __TAURI_INVOKE<null>("delete_contest", { id }, options),
+	/**  Pede ao Claude (CLI headless + WebSearch) concursos da área configurada. Devolve quantos novos. */
+	searchContestsWithClaude: (options?: InvokeOptions) => __TAURI_INVOKE<number>("search_contests_with_claude", undefined, options),
+	listStudents: (options?: InvokeOptions) => __TAURI_INVOKE<StudentInfo[]>("list_students", undefined, options),
+	listAllTopics: (options?: InvokeOptions) => __TAURI_INVOKE<TopicRef_Serialize[]>("list_all_topics", undefined, options),
+	getTopicMaterial: (topicId: number, options?: InvokeOptions) => __TAURI_INVOKE<TopicMaterial_Serialize>("get_topic_material", { topicId }, options),
+	setTopicMaterial: (topicId: number, text: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_topic_material", { topicId, text }, options),
+	startClass: (topicId: number, options?: InvokeOptions) => __TAURI_INVOKE<number>("start_class", { topicId }, options),
+	/**  Um bloco de explicação: avalia, escolhe o aluno, transmite a pergunta. Eventos chegam em `ClassEvent`. */
+	sendExplanation: (classId: number, text: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("send_explanation", { classId, text }, options),
+	/**  Encerra a aula: boletim com nota de cobertura, XP e reaula agendada (1/7/30 dias). */
+	finishClass: (classId: number, options?: InvokeOptions) => __TAURI_INVOKE<ClassReport_Serialize>("finish_class", { classId }, options),
+	listClassReports: (topicId: number | null, options?: InvokeOptions) => __TAURI_INVOKE<ClassReport_Serialize[]>("list_class_reports", { topicId }, options),
+	/**  Roda a skill do Grifo pelo Claude CLI e anexa o resultado ao tópico como material de referência. */
+	generateApostila: (topicId: number, options?: InvokeOptions) => __TAURI_INVOKE<TopicMaterial_Serialize>("generate_apostila", { topicId }, options),
+	openMaterial: (topicId: number, options?: InvokeOptions) => __TAURI_INVOKE<null>("open_material", { topicId }, options),
+	openLink: (url: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("open_link", { url }, options),
+	listMaterials: (topicId: number, options?: InvokeOptions) => __TAURI_INVOKE<Material_Serialize[]>("list_materials", { topicId }, options),
+	materialView: (id: number, options?: InvokeOptions) => __TAURI_INVOKE<MaterialView_Serialize>("material_view", { id }, options),
+	deleteMaterial: (id: number, options?: InvokeOptions) => __TAURI_INVOKE<null>("delete_material", { id }, options),
+	/**  Abre o HTML/PDF do material no programa padrão do Windows. */
+	openMaterialFile: (id: number, options?: InvokeOptions) => __TAURI_INVOKE<null>("open_material_file", { id }, options),
+	cancelMaterial: (topicId: number, options?: InvokeOptions) => __TAURI_INVOKE<void>("cancel_material", { topicId }, options),
+	/**  Gera um material. `full = false`: rápido, pelo roteador (Config → IA). `full = true`: apostila do Claude. */
+	generateMaterial: (topicId: number, kind: MaterialKind, full: boolean, options?: InvokeOptions) => __TAURI_INVOKE<Generated_Serialize>("generate_material", { topicId, kind, full }, options),
+	integrationsStatus: (options?: InvokeOptions) => __TAURI_INVOKE<IntegrationsStatus_Serialize>("integrations_status", undefined, options),
+	/**  Instala o Ollama pelo winget (o próprio instalador já deixa ele rodando). */
+	installOllama: (options?: InvokeOptions) => __TAURI_INVOKE<null>("install_ollama", undefined, options),
+	/**  Sobe o servidor do Ollama em segundo plano (fica rodando depois que o app fecha). */
+	startOllama: (options?: InvokeOptions) => __TAURI_INVOKE<null>("start_ollama", undefined, options),
+	/**  Baixa um modelo com barra de progresso (eventos `model`). */
+	pullModel: (model: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("pull_model", { model }, options),
+	testOllama: (options?: InvokeOptions) => __TAURI_INVOKE<string>("test_ollama", undefined, options),
+	/**  Instalador oficial do Claude Code. Se o `claude` não estiver no PATH depois, aponta a config pro exe novo. */
+	installClaude: (options?: InvokeOptions) => __TAURI_INVOKE<null>("install_claude", undefined, options),
+	/**  Abre um terminal com o `claude` para o login (a assinatura é sua: o app não vê a senha). */
+	claudeLogin: (options?: InvokeOptions) => __TAURI_INVOKE<null>("claude_login", undefined, options),
+	testClaude: (options?: InvokeOptions) => __TAURI_INVOKE<string>("test_claude", undefined, options),
+	/**
+	 *  Registra o servidor MCP do Grifo Quest no Claude Code (`claude mcp add`) ou no Claude Desktop (JSON, com backup).
+	 *  O caminho do banco vai como argumento: o servidor não precisa adivinhar a pasta de dados.
+	 */
+	connectMcp: (target: McpTarget, options?: InvokeOptions) => __TAURI_INVOKE<string>("connect_mcp", { target }, options),
+	getProfile: (options?: InvokeOptions) => __TAURI_INVOKE<Profile_Serialize>("get_profile", undefined, options),
+	setProfile: (profile: Profile_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_profile", { profile }, options),
+	/**  Matérias e tópicos do edital mais recente do cargo, pesquisados na web pelo Claude. */
+	planFromRole: (role: string, banca: string | null, options?: InvokeOptions) => __TAURI_INVOKE<PlanSubject[]>("plan_from_role", { role, banca }, options),
+	/**  Texto de um PDF (vindo do front em base64). Roda fora do async: o parser pode ser lento ou entrar em pânico. */
+	pdfText: (dataBase64: string, options?: InvokeOptions) => __TAURI_INVOKE<string>("pdf_text", { dataBase64 }, options),
+	/**  Matérias e tópicos a partir do texto do edital, pela IA de tarefas (Ollama no automático), em fatias. */
+	planFromEdital: (text: string, role: string | null, options?: InvokeOptions) => __TAURI_INVOKE<PlanSubject[]>("plan_from_edital", { text, role }, options),
+	/**
+	 *  Salva o plano revisado: cria as matérias novas e acrescenta só os tópicos que ainda não existem.
+	 *  Devolve quantos tópicos entraram.
+	 */
+	applyPlan: (plan: PlanSubject[], options?: InvokeOptions) => __TAURI_INVOKE<number>("apply_plan", { plan }, options),
+	studyHome: (options?: InvokeOptions) => __TAURI_INVOKE<StudyHome_Serialize>("study_home", undefined, options),
+	startSession: (kind: SessionKind, topicId: number | null, n: number | null, subjectId: number | null, options?: InvokeOptions) => __TAURI_INVOKE<SessionInfo_Serialize>("start_session", { kind, topicId, n, subjectId }, options),
+	/**  Próxima questão (gera se o banco do tópico estiver vazio). `None` = sessão acabou. */
+	nextQuestion: (sessionId: number, options?: InvokeOptions) => __TAURI_INVOKE<QuestionView_Serialize | null>("next_question", { sessionId }, options),
+	answerQuestion: (sessionId: number | null, questionId: number, answer: string, seconds: number, options?: InvokeOptions) => __TAURI_INVOKE<AnswerResult_Serialize>("answer_question", { sessionId, questionId, answer, seconds }, options),
+	finishSession: (sessionId: number, options?: InvokeOptions) => __TAURI_INVOKE<SessionReport>("finish_session", { sessionId }, options),
+	/**  Explicação mais detalhada de uma questão (Markdown), pela IA de tarefas. */
+	explainQuestion: (questionId: number, userAnswer: string, options?: InvokeOptions) => __TAURI_INVOKE<string>("explain_question", { questionId, userAnswer }, options),
+	cardsDue: (limit: number, options?: InvokeOptions) => __TAURI_INVOKE<CardRow_Serialize[]>("cards_due", { limit }, options),
+	reviewCard: (cardId: number, grade: Grade, options?: InvokeOptions) => __TAURI_INVOKE<number>("review_card", { cardId, grade }, options),
+	/**  Copia os cartões de um material de flashcards do Grifo para o baralho. Devolve quantos novos. */
+	cardsFromMaterial: (materialId: number, options?: InvokeOptions) => __TAURI_INVOKE<number>("cards_from_material", { materialId }, options),
+	/**  Vira flashcard uma questão (geralmente a que você errou). */
+	cardFromQuestion: (questionId: number, options?: InvokeOptions) => __TAURI_INVOKE<number>("card_from_question", { questionId }, options),
+	listCards: (options?: InvokeOptions) => __TAURI_INVOKE<DeckCard_Serialize[]>("list_cards", undefined, options),
+	/**  Cartão escrito por você. Devolve 0 se já existia um com a mesma frente. */
+	createCard: (topicId: number | null, front: string, back: string, options?: InvokeOptions) => __TAURI_INVOKE<number>("create_card", { topicId, front, back }, options),
+	updateCard: (id: number, front: string, back: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("update_card", { id, front, back }, options),
+	deleteCard: (id: number, options?: InvokeOptions) => __TAURI_INVOKE<null>("delete_card", { id }, options),
+	errorList: (options?: InvokeOptions) => __TAURI_INVOKE<ErrorEntry_Serialize[]>("error_list", undefined, options),
+	/**  Tira do caderno (você já domina). */
+	removeError: (questionId: number, options?: InvokeOptions) => __TAURI_INVOKE<null>("remove_error", { questionId }, options),
+	/**  Gabarito errado, texto-base faltando etc.: a questão some das sessões (o histórico fica). */
+	reportQuestion: (questionId: number, options?: InvokeOptions) => __TAURI_INVOKE<null>("report_question", { questionId }, options),
+	performance: (options?: InvokeOptions) => __TAURI_INVOKE<Performance>("performance", undefined, options),
+	/**  Atualização baixada esperando instalação (o front pergunta ao abrir). */
+	updateStatus: (options?: InvokeOptions) => __TAURI_INVOKE<UpdateInfo_Serialize | null>("update_status", undefined, options),
+	/**  "Procurar atualizações" em Config. */
+	checkUpdate: (options?: InvokeOptions) => __TAURI_INVOKE<UpdateInfo_Serialize | null>("check_update", undefined, options),
+	/**  Instala a versão baixada e reinicia o app. */
+	installUpdate: (options?: InvokeOptions) => __TAURI_INVOKE<null>("install_update", undefined, options),
+};
+
+/** Events */
+export const events = {
+	classEvent: makeEvent<ClassEvent_Serialize, ClassEvent_Deserialize>("class-event"),
+	grifoEvent: makeEvent<GrifoEvent, GrifoEvent>("grifo-event"),
+	integrationEvent: makeEvent<IntegrationEvent_Serialize, IntegrationEvent_Deserialize>("integration-event"),
+	navigateTo: makeEvent<NavigateTo, NavigateTo>("navigate-to"),
+	plannerEvent: makeEvent<PlannerEvent_Serialize, PlannerEvent_Deserialize>("planner-event"),
+	studyEvent: makeEvent<StudyEvent, StudyEvent>("study-event"),
+	timerTick: makeEvent<TimerTick_Serialize, TimerTick_Deserialize>("timer-tick"),
+	updateReady: makeEvent<UpdateReady_Serialize, UpdateReady_Deserialize>("update-ready"),
+	voiceLevel: makeEvent<VoiceLevel, VoiceLevel>("voice-level"),
 };
 
 /* Types */
+export type AnswerResult = AnswerResult_Serialize | AnswerResult_Deserialize;
+
+export type AnswerResult_Deserialize = {
+	correct: boolean,
+	answer: string,
+	explanation: string,
+	xp_gained: number,
+	mission_xp: number,
+	/**  Novo nível, se subiu agora. */
+	level_up?: number | null,
+};
+
+export type AnswerResult_Serialize = {
+	correct: boolean,
+	answer: string,
+	explanation: string,
+	xp_gained: number,
+	mission_xp: number,
+	/**  Novo nível, se subiu agora. */
+	level_up: number | null,
+};
+
+/**  Configuração usada pelo backend (IA, rastreador). */
+export type AppConfig = AppConfig_Serialize | AppConfig_Deserialize;
+
+/**  Configuração usada pelo backend (IA, rastreador). */
+export type AppConfig_Deserialize = {
+	interest_area?: string,
+	keywords?: string[],
+	claude_cli?: string,
+	ollama_url?: string,
+	student_model?: string,
+	evaluator_model?: string,
+	evaluator?: Route,
+	/**  Modelo do Ollama para tarefas de texto (materiais do Grifo, resumos). */
+	task_model?: string,
+	/**  Onde rodam os materiais rápidos do Grifo (resumo, questões, flashcards…). */
+	material_route?: Route,
+};
+
+/**  Configuração usada pelo backend (IA, rastreador). */
+export type AppConfig_Serialize = {
+	interest_area: string,
+	keywords: string[],
+	claude_cli: string,
+	ollama_url: string,
+	student_model: string,
+	evaluator_model: string,
+	evaluator: Route,
+	/**  Modelo do Ollama para tarefas de texto (materiais do Grifo, resumos). */
+	task_model: string,
+	/**  Onde rodam os materiais rápidos do Grifo (resumo, questões, flashcards…). */
+	material_route: Route,
+};
+
 /**  Erro que atravessa a fronteira Tauri; o front recebe só a mensagem. */
 export type AppError = { kind: "Db"; message: string } | { kind: "Invalid"; message: string };
 
-export type Kind = "estudo" | "trabalho";
+export type CardRow = CardRow_Serialize | CardRow_Deserialize;
+
+export type CardRow_Deserialize = {
+	id: number,
+	front: string,
+	back: string,
+	topic?: string | null,
+	source: string,
+};
+
+export type CardRow_Serialize = {
+	id: number,
+	front: string,
+	back: string,
+	topic: string | null,
+	source: string,
+};
+
+export type ClassEvent = ClassEvent_Serialize | ClassEvent_Deserialize;
+
+export type ClassEvent_Deserialize = { type: "evaluating"; class_id: number } | { type: "board"; class_id: number; evaluation: Evaluation_Deserialize } | { type: "asking"; class_id: number; student: Student } | { type: "token"; class_id: number; student: Student; text: string } | { type: "done"; class_id: number; student: Student; text: string };
+
+export type ClassEvent_Serialize = { type: "evaluating"; class_id: number } | { type: "board"; class_id: number; evaluation: Evaluation_Serialize } | { type: "asking"; class_id: number; student: Student } | { type: "token"; class_id: number; student: Student; text: string } | { type: "done"; class_id: number; student: Student; text: string };
+
+export type ClassReport = ClassReport_Serialize | ClassReport_Deserialize;
+
+export type ClassReport_Deserialize = {
+	id: number,
+	topic_id: number,
+	topic: string,
+	subject: string,
+	held_at: string,
+	coverage_score: number | null,
+	evaluation: Evaluation_Deserialize,
+	/**  Próxima reaula em dias (`None` = ciclo de revisão concluído). */
+	next_review_days?: number | null,
+};
+
+export type ClassReport_Serialize = {
+	id: number,
+	topic_id: number,
+	topic: string,
+	subject: string,
+	held_at: string,
+	coverage_score: number | null,
+	evaluation: Evaluation_Serialize,
+	/**  Próxima reaula em dias (`None` = ciclo de revisão concluído). */
+	next_review_days: number | null,
+};
+
+export type ClassState = ClassState_Serialize | ClassState_Deserialize;
+
+export type ClassState_Deserialize = {
+	lines: Line_Deserialize[],
+	evaluation?: Evaluation_Deserialize | null,
+};
+
+export type ClassState_Serialize = {
+	lines: Line_Serialize[],
+	evaluation: Evaluation_Serialize | null,
+};
+
+export type Contest = Contest_Serialize | Contest_Deserialize;
+
+export type Contest_Deserialize = {
+	id: number,
+	title: string,
+	org?: string | null,
+	banca?: string | null,
+	status?: string | null,
+	vacancies?: string | null,
+	salary?: string | null,
+	deadline?: string | null,
+	url: string,
+	summary?: string | null,
+	source: string,
+	followed: boolean,
+	found_at: string,
+};
+
+export type Contest_Serialize = {
+	id: number,
+	title: string,
+	org: string | null,
+	banca: string | null,
+	status: string | null,
+	vacancies: string | null,
+	salary: string | null,
+	deadline: string | null,
+	url: string,
+	summary: string | null,
+	source: string,
+	followed: boolean,
+	found_at: string,
+};
+
+export type CycleSubject = {
+	id: number,
+	name: string,
+	color: string,
+};
+
+export type Dashboard = Dashboard_Serialize | Dashboard_Deserialize;
+
+export type Dashboard_Deserialize = {
+	xp: number,
+	level: LevelProgress,
+	streak: Streak,
+	missions: Mission[],
+	exams: Exam_Deserialize[],
+	accuracy: SubjectAccuracy[],
+	week_hours: DayHours[],
+	activity: DayActivity[],
+	reviews: ReviewItem[],
+};
+
+export type Dashboard_Serialize = {
+	xp: number,
+	level: LevelProgress,
+	streak: Streak,
+	missions: Mission[],
+	exams: Exam_Serialize[],
+	accuracy: SubjectAccuracy[],
+	week_hours: DayHours[],
+	activity: DayActivity[],
+	reviews: ReviewItem[],
+};
+
+export type DayActivity = {
+	day: string,
+	questions: number,
+	study_minutes: number,
+};
+
+export type DayCount = {
+	/**  AAAA-MM-DD (local). */
+	day: string,
+	answered: number,
+	correct: number,
+};
+
+export type DayHours = {
+	day: string,
+	kind: string,
+	minutes: number,
+};
+
+export type DeckCard = DeckCard_Serialize | DeckCard_Deserialize;
+
+export type DeckCard_Deserialize = {
+	id: number,
+	front: string,
+	back: string,
+	topic_id?: number | null,
+	topic?: string | null,
+	subject_id?: number | null,
+	subject?: string | null,
+	color?: string | null,
+	/**  grifo | erro | manual */
+	source: string,
+	due_at: string,
+	interval_days: number,
+	reps: number,
+};
+
+export type DeckCard_Serialize = {
+	id: number,
+	front: string,
+	back: string,
+	topic_id: number | null,
+	topic: string | null,
+	subject_id: number | null,
+	subject: string | null,
+	color: string | null,
+	/**  grifo | erro | manual */
+	source: string,
+	due_at: string,
+	interval_days: number,
+	reps: number,
+};
+
+export type ErrorEntry = ErrorEntry_Serialize | ErrorEntry_Deserialize;
+
+export type ErrorEntry_Deserialize = {
+	question_id: number,
+	topic_id: number,
+	topic: string,
+	subject: string,
+	color: string,
+	banca?: string | null,
+	/**  ce | ae */
+	format: string,
+	statement: string,
+	/**  JSON das alternativas. */
+	options: string,
+	answer: string,
+	explanation: string,
+	/**  Acertos seguidos desde o último erro (sai do caderno no 3º). */
+	streak: number,
+	due_at: string,
+	/**  Última resposta dada. */
+	last_answer?: string | null,
+	misses: number,
+};
+
+export type ErrorEntry_Serialize = {
+	question_id: number,
+	topic_id: number,
+	topic: string,
+	subject: string,
+	color: string,
+	banca: string | null,
+	/**  ce | ae */
+	format: string,
+	statement: string,
+	/**  JSON das alternativas. */
+	options: string,
+	answer: string,
+	explanation: string,
+	/**  Acertos seguidos desde o último erro (sai do caderno no 3º). */
+	streak: number,
+	due_at: string,
+	/**  Última resposta dada. */
+	last_answer: string | null,
+	misses: number,
+};
+
+/**  Saída do avaliador oculto. Cada item é um TEMA curto, sem a resposta. */
+export type Evaluation = Evaluation_Serialize | Evaluation_Deserialize;
+
+/**  Saída do avaliador oculto. Cada item é um TEMA curto, sem a resposta. */
+export type Evaluation_Deserialize = {
+	cobertos?: string[],
+	omitidos?: string[],
+	erros?: string[],
+	rasos?: string[],
+};
+
+/**  Saída do avaliador oculto. Cada item é um TEMA curto, sem a resposta. */
+export type Evaluation_Serialize = {
+	cobertos: string[],
+	omitidos: string[],
+	erros: string[],
+	rasos: string[],
+};
+
+export type Exam = Exam_Serialize | Exam_Deserialize;
+
+export type ExamInput = ExamInput_Serialize | ExamInput_Deserialize;
+
+export type ExamInput_Deserialize = {
+	name: string,
+	exam_date: string,
+	banca?: string | null,
+	role?: string | null,
+};
+
+export type ExamInput_Serialize = {
+	name: string,
+	exam_date: string,
+	banca: string | null,
+	role: string | null,
+};
+
+export type Exam_Deserialize = {
+	id: number,
+	name: string,
+	exam_date: string,
+	banca?: string | null,
+	role?: string | null,
+	/**  Dias até a prova (negativo = já passou). */
+	days_left: number,
+};
+
+export type Exam_Serialize = {
+	id: number,
+	name: string,
+	exam_date: string,
+	banca: string | null,
+	role: string | null,
+	/**  Dias até a prova (negativo = já passou). */
+	days_left: number,
+};
+
+export type Feed = {
+	id: number,
+	name: string,
+	url: string,
+	active: boolean,
+};
+
+export type Generated = Generated_Serialize | Generated_Deserialize;
+
+export type Generated_Deserialize = {
+	material: Material_Deserialize,
+	/**  Aviso para o usuário (ex.: caiu no Claude porque o Ollama estava fora do ar). */
+	note?: string | null,
+};
+
+export type Generated_Serialize = {
+	material: Material_Serialize,
+	/**  Aviso para o usuário (ex.: caiu no Claude porque o Ollama estava fora do ar). */
+	note: string | null,
+};
+
+export type Grade = "again" | "hard" | "good" | "easy";
+
+/**  O que o Grifo está fazendo agora (modo completo narra cada passo do Claude). */
+export type GrifoEvent = {
+	topic_id: number,
+	text: string,
+};
+
+/**  Linha de progresso de uma ação longa (instalação, download de modelo). */
+export type IntegrationEvent = IntegrationEvent_Serialize | IntegrationEvent_Deserialize;
+
+/**  Linha de progresso de uma ação longa (instalação, download de modelo). */
+export type IntegrationEvent_Deserialize = {
+	/**  ollama | model | claude | voice */
+	target: string,
+	text: string,
+	/**  0–1 quando se sabe. */
+	progress?: number | null,
+};
+
+/**  Linha de progresso de uma ação longa (instalação, download de modelo). */
+export type IntegrationEvent_Serialize = {
+	/**  ollama | model | claude | voice */
+	target: string,
+	text: string,
+	/**  0–1 quando se sabe. */
+	progress: number | null,
+};
+
+export type IntegrationsStatus = IntegrationsStatus_Serialize | IntegrationsStatus_Deserialize;
+
+export type IntegrationsStatus_Deserialize = {
+	ollama_installed: boolean,
+	ollama_running: boolean,
+	/**  Modelos já baixados. */
+	ollama_models: string[],
+	/**  Modelos que a configuração usa (alunos, avaliador, tarefas), sem repetição. */
+	wanted_models: string[],
+	claude_version?: string | null,
+	grifo_version: string,
+	mcp_built: boolean,
+	mcp_code: boolean,
+	mcp_desktop: boolean,
+	/**  whisper.cpp + modelo de voz baixados. */
+	voice_installed: boolean,
+};
+
+export type IntegrationsStatus_Serialize = {
+	ollama_installed: boolean,
+	ollama_running: boolean,
+	/**  Modelos já baixados. */
+	ollama_models: string[],
+	/**  Modelos que a configuração usa (alunos, avaliador, tarefas), sem repetição. */
+	wanted_models: string[],
+	claude_version: string | null,
+	grifo_version: string,
+	mcp_built: boolean,
+	mcp_code: boolean,
+	mcp_desktop: boolean,
+	/**  whisper.cpp + modelo de voz baixados. */
+	voice_installed: boolean,
+};
+
+export type LevelProgress = {
+	level: number,
+	/**  XP acumulado dentro do nível atual. */
+	current: number,
+	/**  XP que o nível atual exige até o próximo. */
+	needed: number,
+};
+
+export type Line = Line_Serialize | Line_Deserialize;
+
+export type Line_Deserialize = {
+	role: Speaker,
+	student?: Student | null,
+	text: string,
+};
+
+export type Line_Serialize = {
+	role: Speaker,
+	student: Student | null,
+	text: string,
+};
+
+export type Material = Material_Serialize | Material_Deserialize;
+
+/**  O nome de cada variante é o comando da skill (`/resumo`, `/questoes`…). */
+export type MaterialKind = "resumo" | "questoes" | "flashcards" | "mnemonico" | "pegadinhas";
+
+export type MaterialView = MaterialView_Serialize | MaterialView_Deserialize;
+
+export type MaterialView_Deserialize = {
+	material: Material_Deserialize,
+	markdown?: string | null,
+	/**  HTML autocontido do modo completo. */
+	html?: string | null,
+};
+
+export type MaterialView_Serialize = {
+	material: Material_Serialize,
+	markdown: string | null,
+	/**  HTML autocontido do modo completo. */
+	html: string | null,
+};
+
+export type Material_Deserialize = {
+	id: number,
+	topic_id: number,
+	/**  resumo | questoes | flashcards | mnemonico | pegadinhas */
+	kind: string,
+	/**  ollama | claude */
+	provider: string,
+	full: boolean,
+	path?: string | null,
+	created_at: string,
+};
+
+export type Material_Serialize = {
+	id: number,
+	topic_id: number,
+	/**  resumo | questoes | flashcards | mnemonico | pegadinhas */
+	kind: string,
+	/**  ollama | claude */
+	provider: string,
+	full: boolean,
+	path: string | null,
+	created_at: string,
+};
+
+export type McpTarget = "claude_code" | "claude_desktop";
+
+export type Mission = {
+	id: number,
+	description: string,
+	target: number,
+	progress: number,
+	done: boolean,
+	xp_reward: number,
+};
+
+export type NavBadges = {
+	unread_news: number,
+	reviews_due: number,
+	/**  Questões do caderno de erros + flashcards vencidos hoje. */
+	study_due: number,
+};
+
+/**  Pede à janela principal para abrir uma tela (ex.: "foco" a partir das boas-vindas). */
+export type NavigateTo = string;
+
+export type NewsItem = NewsItem_Serialize | NewsItem_Deserialize;
+
+export type NewsItem_Deserialize = {
+	id: number,
+	feed: string,
+	title: string,
+	link: string,
+	published_at?: string | null,
+	read: boolean,
+	image_url?: string | null,
+	/**  Texto do RSS, já sem HTML. */
+	description?: string | null,
+	/**  Resumo de 1–2 frases da IA local. */
+	summary?: string | null,
+	/**  Etiquetas separadas por vírgula ("edital,inscricoes"). */
+	tags?: string | null,
+	/**  0–1: quanto interessa para a sua área. */
+	relevance?: number | null,
+};
+
+export type NewsItem_Serialize = {
+	id: number,
+	feed: string,
+	title: string,
+	link: string,
+	published_at: string | null,
+	read: boolean,
+	image_url: string | null,
+	/**  Texto do RSS, já sem HTML. */
+	description: string | null,
+	/**  Resumo de 1–2 frases da IA local. */
+	summary: string | null,
+	/**  Etiquetas separadas por vírgula ("edital,inscricoes"). */
+	tags: string | null,
+	/**  0–1: quanto interessa para a sua área. */
+	relevance: number | null,
+};
+
+export type OpenClassInfo = {
+	id: number,
+	topic_id: number,
+	topic: string,
+	subject: string,
+	held_at: string,
+	lines: number,
+};
+
+export type Performance = {
+	subjects: SubjectPerf[],
+	simulados: SimuladoRow[],
+	/**  Últimos 30 dias, só os dias com questões. */
+	daily: DayCount[],
+};
 
 export type Phase = "focus" | "break";
 
-export type PomodoroConfig = {
+/**  Uma matéria proposta (ainda não salva): o usuário revisa antes de aplicar. */
+export type PlanSubject = {
+	name: string,
+	/**  Peso no edital (nº de questões ou peso declarado). 1 quando não se sabe. */
+	weight: number | null,
+	topics: string[],
+};
+
+export type PlannerEvent = PlannerEvent_Serialize | PlannerEvent_Deserialize;
+
+export type PlannerEvent_Deserialize = {
+	text: string,
+	progress?: number | null,
+};
+
+export type PlannerEvent_Serialize = {
+	text: string,
+	progress: number | null,
+};
+
+export type PomodoroConfig = PomodoroConfig_Serialize | PomodoroConfig_Deserialize;
+
+export type PomodoroConfig_Deserialize = {
+	focus_min?: number,
+	break_min?: number,
+};
+
+export type PomodoroConfig_Serialize = {
 	focus_min: number,
 	break_min: number,
+};
+
+export type Profile = Profile_Serialize | Profile_Deserialize;
+
+export type Profile_Deserialize = {
+	/**  Como o Grifo te chama. */
+	name?: string,
+	/**  Área de interesse (Policial, Fiscal, Tribunais…). */
+	area?: string,
+	/**  medio | superior */
+	education?: string,
+	hours_per_day?: number | null,
+	/**  Dias de estudo, 0 = domingo … 6 = sábado. */
+	study_days?: number[],
+	/**  Meta de questões por dia (as missões dividem entre as matérias mais fracas). */
+	daily_questions?: number,
+	/**  Já passou pelo assistente de primeira abertura. */
+	onboarded?: boolean,
+};
+
+export type Profile_Serialize = {
+	/**  Como o Grifo te chama. */
+	name: string,
+	/**  Área de interesse (Policial, Fiscal, Tribunais…). */
+	area: string,
+	/**  medio | superior */
+	education: string,
+	hours_per_day: number | null,
+	/**  Dias de estudo, 0 = domingo … 6 = sábado. */
+	study_days: number[],
+	/**  Meta de questões por dia (as missões dividem entre as matérias mais fracas). */
+	daily_questions: number,
+	/**  Já passou pelo assistente de primeira abertura. */
+	onboarded: boolean,
+};
+
+export type Provider = "ollama" | "claude";
+
+/**  C/E (Cebraspe) ou múltipla escolha A–E. */
+export type QuestionFormat = "ce" | "ae";
+
+export type QuestionView = QuestionView_Serialize | QuestionView_Deserialize;
+
+export type QuestionView_Deserialize = {
+	id: number,
+	topic_id: number,
+	topic: string,
+	subject: string,
+	color: string,
+	banca?: string | null,
+	format: QuestionFormat,
+	statement: string,
+	options: string[],
+	difficulty?: string | null,
+	source: Provider,
+	/**  Veio do caderno de erros. */
+	from_errors: boolean,
+	/**  1-based. */
+	position: number,
+	planned: number,
+};
+
+export type QuestionView_Serialize = {
+	id: number,
+	topic_id: number,
+	topic: string,
+	subject: string,
+	color: string,
+	banca: string | null,
+	format: QuestionFormat,
+	statement: string,
+	options: string[],
+	difficulty: string | null,
+	source: Provider,
+	/**  Veio do caderno de erros. */
+	from_errors: boolean,
+	/**  1-based. */
+	position: number,
+	planned: number,
 };
 
 export type QuickLogResult = QuickLogResult_Serialize | QuickLogResult_Deserialize;
@@ -45,6 +860,8 @@ export type QuickLogResult_Deserialize = {
 	correct: number,
 	banca?: string | null,
 	xp_gained: number,
+	/**  XP de missões concluídas por este lançamento. */
+	mission_xp: number,
 };
 
 export type QuickLogResult_Serialize = {
@@ -53,6 +870,95 @@ export type QuickLogResult_Serialize = {
 	correct: number,
 	banca: string | null,
 	xp_gained: number,
+	/**  XP de missões concluídas por este lançamento. */
+	mission_xp: number,
+};
+
+export type ReviewItem = {
+	id: number,
+	topic_id: number,
+	topic: string,
+	subject: string,
+	due_at: string,
+	overdue: boolean,
+};
+
+/**  Escolha do usuário em Config → IA. `Auto` = Ollama, e Claude se o Ollama estiver fora do ar. */
+export type Route = "auto" | "ollama" | "claude";
+
+export type SessionInfo = SessionInfo_Serialize | SessionInfo_Deserialize;
+
+export type SessionInfo_Deserialize = {
+	id: number,
+	kind: SessionKind,
+	planned: number,
+	time_limit_min?: number | null,
+};
+
+export type SessionInfo_Serialize = {
+	id: number,
+	kind: SessionKind,
+	planned: number,
+	time_limit_min: number | null,
+};
+
+export type SessionKind = "diaria" | "reforco" | "simulado" | "topico" | "erros";
+
+export type SessionReport = {
+	total: number,
+	correct: number,
+	seconds: number,
+	xp: number,
+	by_subject: SubjectScore[],
+};
+
+export type SimuladoRow = {
+	id: number,
+	started_at: string,
+	total: number,
+	correct: number,
+	seconds: number,
+};
+
+export type Speaker = "teacher" | "student";
+
+export type Streak = {
+	days: number,
+	/**  Escudo da semana atual ainda disponível. */
+	shield_available: boolean,
+};
+
+export type Student = "curioso" | "literal" | "confuso" | "advogado" | "pragmatico" | "timido";
+
+export type StudentInfo = {
+	id: Student,
+	name: string,
+};
+
+export type StudyEvent = {
+	text: string,
+};
+
+export type StudyHome = StudyHome_Serialize | StudyHome_Deserialize;
+
+export type StudyHome_Deserialize = {
+	daily_goal: number,
+	answered_today: number,
+	errors_due: number,
+	cards_due: number,
+	cycle_next?: CycleSubject | null,
+	weak: WeakTopic_Deserialize[],
+	has_topics: boolean,
+};
+
+export type StudyHome_Serialize = {
+	daily_goal: number,
+	answered_today: number,
+	errors_due: number,
+	cards_due: number,
+	cycle_next: CycleSubject | null,
+	weak: WeakTopic_Serialize[],
+	has_topics: boolean,
 };
 
 export type Subject = {
@@ -60,6 +966,18 @@ export type Subject = {
 	name: string,
 	color: string,
 	exam_weight: number | null,
+	topic_count: number,
+	/**  Edital verticalizado concluído, 0–1: cada tópico vale teoria + questões + 3 revisões. */
+	progress: number | null,
+};
+
+export type SubjectAccuracy = {
+	id: number,
+	name: string,
+	color: string,
+	exam_weight: number | null,
+	total: number,
+	correct: number,
 };
 
 export type SubjectInput = {
@@ -68,17 +986,167 @@ export type SubjectInput = {
 	exam_weight: number | null,
 };
 
+export type SubjectPerf = {
+	id: number,
+	name: string,
+	color: string,
+	weight: number | null,
+	answered: number,
+	correct: number,
+	/**  Últimos 30 dias. */
+	answered_30: number,
+	correct_30: number,
+	/**  De 30 a 60 dias atrás (tendência). */
+	answered_prev: number,
+	correct_prev: number,
+	minutes_30: number | null,
+};
+
+export type SubjectScore = {
+	subject: string,
+	color: string,
+	total: number,
+	correct: number,
+};
+
+export type TimerKind = "estudo" | "trabalho";
+
+/**  Estado do timer a cada segundo (substitui o polling do front). */
+export type TimerTick = TimerTick_Serialize | TimerTick_Deserialize;
+
+/**  Estado do timer a cada segundo (substitui o polling do front). */
+export type TimerTick_Deserialize = TimerView_Deserialize;
+
+/**  Estado do timer a cada segundo (substitui o polling do front). */
+export type TimerTick_Serialize = TimerView_Serialize;
+
 export type TimerView = TimerView_Serialize | TimerView_Deserialize;
 
-export type TimerView_Deserialize = { mode: "idle" } | { mode: "pomodoro"; phase: Phase; subject_id?: number | null; remaining: number; total: number } | { mode: "stopwatch"; kind: Kind; subject_id?: number | null; elapsed: number };
+export type TimerView_Deserialize = { mode: "idle" } | { mode: "pomodoro"; phase: Phase; subject_id?: number | null; remaining: number; total: number; paused: boolean } | { mode: "stopwatch"; kind: TimerKind; subject_id?: number | null; elapsed: number; paused: boolean };
 
-export type TimerView_Serialize = { mode: "idle" } | { mode: "pomodoro"; phase: Phase; subject_id: number | null; remaining: number; total: number } | { mode: "stopwatch"; kind: Kind; subject_id: number | null; elapsed: number };
+export type TimerView_Serialize = { mode: "idle" } | { mode: "pomodoro"; phase: Phase; subject_id: number | null; remaining: number; total: number; paused: boolean } | { mode: "stopwatch"; kind: TimerKind; subject_id: number | null; elapsed: number; paused: boolean };
 
 export type Topic = {
 	id: number,
 	subject_id: number,
 	name: string,
-	status: TopicStatus,
+	/**  Edital verticalizado: teoria vista, questões feitas, revisões (0–3). */
+	theory: boolean,
+	practice: boolean,
+	reviews: number,
 };
 
-export type TopicStatus = "nao_visto" | "estudando" | "dominado";
+export type TopicMaterial = TopicMaterial_Serialize | TopicMaterial_Deserialize;
+
+export type TopicMaterial_Deserialize = {
+	material?: string | null,
+	material_path?: string | null,
+};
+
+export type TopicMaterial_Serialize = {
+	material: string | null,
+	material_path: string | null,
+};
+
+export type TopicRef = TopicRef_Serialize | TopicRef_Deserialize;
+
+export type TopicRef_Deserialize = {
+	id: number,
+	name: string,
+	subject: string,
+	subject_color: string,
+	has_material: boolean,
+	material_path?: string | null,
+};
+
+export type TopicRef_Serialize = {
+	id: number,
+	name: string,
+	subject: string,
+	subject_color: string,
+	has_material: boolean,
+	material_path: string | null,
+};
+
+export type Trend = "melhorando" | "piorando" | "estavel" | "sem_dados";
+
+/**  Preferências da interface (`ui_<nome>` em `settings`). O front usa o tipo gerado nos bindings. */
+export type UiKey = "theme" | "home_layout" | "sound" | "sidebar_collapsed" | "welcome_on_boot" | "class_voice";
+
+export type UpdateInfo = UpdateInfo_Serialize | UpdateInfo_Deserialize;
+
+export type UpdateInfo_Deserialize = {
+	version: string,
+	notes?: string | null,
+};
+
+export type UpdateInfo_Serialize = {
+	version: string,
+	notes: string | null,
+};
+
+/**  Uma versão nova foi baixada e está pronta para instalar. */
+export type UpdateReady = UpdateReady_Serialize | UpdateReady_Deserialize;
+
+/**  Uma versão nova foi baixada e está pronta para instalar. */
+export type UpdateReady_Deserialize = UpdateInfo_Deserialize;
+
+/**  Uma versão nova foi baixada e está pronta para instalar. */
+export type UpdateReady_Serialize = UpdateInfo_Serialize;
+
+/**  Volume do microfone (~15 por segundo) para a onda animada. */
+export type VoiceLevel = number | null;
+
+export type WeakTopic = WeakTopic_Serialize | WeakTopic_Deserialize;
+
+export type WeakTopic_Deserialize = {
+	topic_id: number,
+	topic: string,
+	subject: string,
+	color: string,
+	answered: number,
+	/**  0–1; `None` sem respostas. */
+	accuracy?: number | null,
+	trend: Trend,
+	errors_due: number,
+	score: number | null,
+};
+
+export type WeakTopic_Serialize = {
+	topic_id: number,
+	topic: string,
+	subject: string,
+	color: string,
+	answered: number,
+	/**  0–1; `None` sem respostas. */
+	accuracy: number | null,
+	trend: Trend,
+	errors_due: number,
+	score: number | null,
+};
+
+/* Tauri Specta runtime */
+type EventEmit<T> = [T] extends [null] ? () => Promise<void> : (payload: T) => Promise<void>;
+
+type EventEmitTo<T> = [T] extends [null] ? (target: __TAURI_EVENT.EventTarget | string) => Promise<void> : (target: __TAURI_EVENT.EventTarget | string, payload: T) => Promise<void>;
+
+function makeEvent<TListen, TEmit = TListen>(name: string, serialize?: (payload: TEmit) => unknown, deserialize?: (payload: any) => TListen) {
+    const mapEvent = (cb: __TAURI_EVENT.EventCallback<TListen>) => (event: __TAURI_EVENT.Event<any>) => cb({ ...event, payload: deserialize ? deserialize(event.payload) : event.payload });
+    const mapPayload = (payload: TEmit) => serialize ? serialize(payload) : payload;
+
+    const base = {
+        listen: (cb: __TAURI_EVENT.EventCallback<TListen>) => __TAURI_EVENT.listen(name, mapEvent(cb)),
+        once: (cb: __TAURI_EVENT.EventCallback<TListen>) => __TAURI_EVENT.once(name, mapEvent(cb)),
+        emit: ((payload: TEmit) => __TAURI_EVENT.emit(name, mapPayload(payload)) as unknown) as EventEmit<TEmit>,
+        emitTo: ((to: __TAURI_EVENT.EventTarget | string, payload: TEmit) => __TAURI_EVENT.emitTo(to, name, mapPayload(payload)) as unknown) as EventEmitTo<TEmit>
+    };
+
+    const fn = (target: import("@tauri-apps/api/webview").Webview | import("@tauri-apps/api/window").Window) => ({
+        listen: (cb: __TAURI_EVENT.EventCallback<TListen>) => target.listen(name, mapEvent(cb)),
+        once: (cb: __TAURI_EVENT.EventCallback<TListen>) => target.once(name, mapEvent(cb)),
+        emit: ((payload: TEmit) => target.emit(name, mapPayload(payload)) as unknown) as EventEmit<TEmit>,
+        emitTo: ((to: __TAURI_EVENT.EventTarget | string, payload: TEmit) => target.emitTo(to, name, mapPayload(payload)) as unknown) as EventEmitTo<TEmit>
+    });
+
+    return Object.assign(fn, base);
+}

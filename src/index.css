@@ -3,24 +3,11 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 
+/* index.html fixa class="dark": os `dark:` dos componentes shadcn valem sempre; as cores vêm do tema (theme.ts). */
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-    --font-heading: var(--font-sans);
     --font-sans: 'Geist Variable', sans-serif;
-    --color-sidebar-ring: var(--sidebar-ring);
-    --color-sidebar-border: var(--sidebar-border);
-    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-    --color-sidebar-accent: var(--sidebar-accent);
-    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-    --color-sidebar-primary: var(--sidebar-primary);
-    --color-sidebar-foreground: var(--sidebar-foreground);
-    --color-sidebar: var(--sidebar);
-    --color-chart-5: var(--chart-5);
-    --color-chart-4: var(--chart-4);
-    --color-chart-3: var(--chart-3);
-    --color-chart-2: var(--chart-2);
-    --color-chart-1: var(--chart-1);
     --color-ring: var(--ring);
     --color-input: var(--input);
     --color-border: var(--border);
@@ -46,43 +33,18 @@
     --radius-2xl: calc(var(--radius) * 1.8);
     --radius-3xl: calc(var(--radius) * 2.2);
     --radius-4xl: calc(var(--radius) * 2.6);
+    /* Superfícies derivadas do tema (não editáveis: seguem Fundo/Superfície/Texto). */
+    --color-surface: color-mix(in oklch, var(--card), var(--foreground) 4%);
+    --color-glass: color-mix(in oklch, var(--card) 78%, transparent);
+    --color-xp: var(--primary);
+    --color-success: var(--accent);
+    --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.18), 0 4px 14px -6px rgb(0 0 0 / 0.35);
+    --shadow-lift: 0 2px 4px rgb(0 0 0 / 0.2), 0 14px 32px -12px rgb(0 0 0 / 0.5);
 }
 
-/* Paleta cozy (tema único escuro). ponytail: tema "pergaminho" claro fica para depois → duplicar este bloco em .light */
+/* As cores (--background, --primary…) são escritas por applyTheme (lib/theme.ts) antes da primeira renderização. */
 :root {
-    --background: #1b1a17;
-    --foreground: #efe6d2;
-    --card: #26241f;
-    --card-foreground: #efe6d2;
-    --popover: #26241f;
-    --popover-foreground: #efe6d2;
-    --primary: #e0a84f;
-    --primary-foreground: #1b1a17;
-    --secondary: #33302a;
-    --secondary-foreground: #efe6d2;
-    --muted: #33302a;
-    --muted-foreground: #a99f8b;
-    --accent: #7a9a5b;
-    --accent-foreground: #1b1a17;
-    --destructive: #c8644a;
-    --border: #3d3a33;
-    --input: #3d3a33;
-    --ring: #e0a84f;
-    --chart-1: #e0a84f;
-    --chart-2: #7a9a5b;
-    --chart-3: #c8644a;
-    --chart-4: #8a7fb0;
-    --chart-5: #5f8fa3;
-    --radius: 0.375rem;
-    --sidebar: #26241f;
-    --sidebar-foreground: #efe6d2;
-    --sidebar-primary: #e0a84f;
-    --sidebar-primary-foreground: #1b1a17;
-    --sidebar-accent: #33302a;
-    --sidebar-accent-foreground: #efe6d2;
-    --sidebar-border: #3d3a33;
-    --sidebar-ring: #e0a84f;
-    color-scheme: dark;
+    --radius: 0.625rem;
 }
 
 @layer base {
@@ -98,4 +60,39 @@
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+.reduce-motion *, .reduce-motion *::before, .reduce-motion *::after {
+  animation-duration: 0.01ms !important; transition-duration: 0.01ms !important;
+}
+
+/* Números alinhados (timer, XP, %) sem precisar de fonte mono. */
+.tabular { font-variant-numeric: tabular-nums; }
+
+* { scrollbar-width: thin; scrollbar-color: color-mix(in oklch, var(--foreground) 22%, transparent) transparent; }
+
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.skeleton {
+  background: linear-gradient(90deg, var(--secondary) 0%, color-mix(in oklch, var(--secondary), var(--foreground) 8%) 50%, var(--secondary) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+/* Nuvens da cena de fundo */
+@keyframes drift { from { transform: translateX(-20vw); } to { transform: translateX(110vw); } }
+@keyframes twinkle { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+
+/* Config → Aparência: títulos sem fonte pixel */
+.no-pixel-titles .retro { font-family: inherit; letter-spacing: normal; }
+
+/* Sprites pixel art: sem suavização no zoom. */
+.pixelated { image-rendering: pixelated; shape-rendering: crispEdges; }
+
+/* Modo "Editar início": cartões tremendo de leve, como ícones de celular */
+@keyframes wiggle { 0%, 100% { rotate: -0.5deg; } 50% { rotate: 0.5deg; } }
+.wiggle { animation: wiggle 0.28s ease-in-out infinite; }
+.wiggle:nth-child(2n) { animation-delay: -0.14s; }
+
+/* Foco visível em tudo que é clicável pelo teclado (os componentes shadcn já têm o próprio anel). */
+@layer base {
+  :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 }

@@ -1,5 +1,7 @@
 //! Parser do lançamento rápido: `30 15 lgpd fgv` → total, certas, matéria, banca.
 
+use super::text::fold;
+
 #[derive(Debug, PartialEq)]
 pub struct Parsed {
     pub total: i32,
@@ -88,22 +90,6 @@ fn score(query: &str, name: &str) -> f64 {
 fn words_are_prefixes(q: &str, words: &[&str]) -> bool {
     let mut it = words.iter();
     q.split_whitespace().all(|qw| it.any(|w| w.starts_with(qw)))
-}
-
-/// Minúsculas sem acento.
-fn fold(s: &str) -> String {
-    s.to_lowercase()
-        .chars()
-        .map(|c| match c {
-            'á' | 'à' | 'â' | 'ã' | 'ä' => 'a',
-            'é' | 'è' | 'ê' | 'ë' => 'e',
-            'í' | 'ì' | 'î' | 'ï' => 'i',
-            'ó' | 'ò' | 'ô' | 'õ' | 'ö' => 'o',
-            'ú' | 'ù' | 'û' | 'ü' => 'u',
-            'ç' => 'c',
-            other => other,
-        })
-        .collect()
 }
 
 #[cfg(test)]

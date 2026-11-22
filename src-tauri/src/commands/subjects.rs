@@ -1,7 +1,7 @@
 use sqlx::SqlitePool;
 use tauri::State;
 
-use crate::db::subjects::{self as repo, Subject, SubjectInput, Topic, TopicStatus};
+use crate::db::subjects::{self as repo, Subject, SubjectInput, Topic};
 use crate::error::{AppError, AppResult};
 
 fn validate(input: &SubjectInput) -> AppResult<()> {
@@ -54,10 +54,11 @@ pub async fn add_topics(pool: State<'_, SqlitePool>, subject_id: i32, text: Stri
     repo::add_topics(&pool, subject_id, &names).await
 }
 
+/// Edital verticalizado: teoria, questões e revisões (0–3) de um tópico.
 #[tauri::command]
 #[specta::specta]
-pub async fn set_topic_status(pool: State<'_, SqlitePool>, id: i32, status: TopicStatus) -> AppResult<()> {
-    repo::set_topic_status(&pool, id, status).await
+pub async fn set_topic_checks(pool: State<'_, SqlitePool>, id: i32, theory: bool, practice: bool, reviews: i32) -> AppResult<()> {
+    repo::set_topic_checks(&pool, id, theory, practice, reviews).await
 }
 
 #[tauri::command]

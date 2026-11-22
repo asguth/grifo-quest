@@ -1,3 +1,13 @@
+pub mod audio;
+pub mod classroom;
+pub mod edital;
+pub mod level;
+pub mod missions;
+pub mod news;
 pub mod quick_log;
+pub mod review;
+pub mod streak;
+pub mod text;
+pub mod study;
 pub mod timer;
 pub mod xp;
