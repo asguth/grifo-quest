@@ -2,7 +2,8 @@
 // 1) põe a versão em tauri.conf.json, package.json e nos Cargo.toml;
 // 2) gera o instalador NSIS assinado para o updater (chave em ~/.tauri/grifo-quest.key, fora do repo);
 // 3) monta o latest.json que o app consulta e cria a Release no GitHub com os dois arquivos.
-// Precisa: gh autenticado, commit já enviado (a tag aponta para o HEAD remoto).
+// Precisa: gh autenticado, commit já enviado (a tag aponta para o HEAD remoto) e nenhum
+// grifo-quest-mcp.exe rodando de target/release (o Claude conectado ao MCP trava o build).
 
 import { execFileSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -22,8 +23,9 @@ if (!existsSync(KEY)) {
   process.exit(1);
 }
 
-const run = (cmd, args, env = {}) =>
-  execFileSync(cmd, args, { stdio: "inherit", shell: process.platform === "win32", env: { ...process.env, ...env } });
+// pnpm no Windows é um .cmd e precisa do shell; o gh é .exe e vai sem shell (título com espaço).
+const run = (cmd, args, env = {}, shell = false) =>
+  execFileSync(cmd, args, { stdio: "inherit", shell, env: { ...process.env, ...env } });
 
 function setJsonVersion(path) {
   const json = JSON.parse(readFileSync(path, "utf8"));
@@ -41,10 +43,12 @@ setJsonVersion("package.json");
 setCargoVersion("src-tauri/Cargo.toml");
 setCargoVersion("mcp-server/Cargo.toml");
 
-run("pnpm", ["tauri", "build", "--bundles", "nsis"], {
-  TAURI_SIGNING_PRIVATE_KEY: readFileSync(KEY, "utf8"),
-  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: "",
-});
+run(
+  "pnpm",
+  ["tauri", "build", "--bundles", "nsis"],
+  { TAURI_SIGNING_PRIVATE_KEY: readFileSync(KEY, "utf8"), TAURI_SIGNING_PRIVATE_KEY_PASSWORD: "" },
+  process.platform === "win32",
+);
 
 const bundle = join("target", "release", "bundle", "nsis");
 const built = join(bundle, `Grifo Quest_${version}_x64-setup.exe`);
@@ -70,6 +74,6 @@ writeFileSync(join(outDir, "latest.json"), JSON.stringify(latest, null, 2) + "\n
 run("gh", [
   "release", "create", `v${version}`,
   join(outDir, asset), join(outDir, "latest.json"),
-  "--repo", REPO, "--title", `Grifo Quest ${version}`, "--notes", JSON.stringify(notes), "--latest",
+  "--repo", REPO, "--title", `Grifo Quest ${version}`, "--notes", notes, "--latest",
 ]);
 console.log(`Release v${version} publicada.`);
