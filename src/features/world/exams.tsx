@@ -60,7 +60,9 @@ export function ExamForm({ onCreated }: { onCreated: () => void }) {
   }
 
   return (
-    <form onSubmit={submit} className="grid gap-2 sm:grid-cols-[1.4fr_150px_1fr_1fr_auto]">
+    // container próprio: o formulário também aparece no assistente inicial, fora da área principal
+    <form onSubmit={submit} className="@container">
+      <div className="grid gap-2 @2xl:grid-cols-[1.4fr_150px_1fr_1fr_auto]">
       <Input value={form.name} onChange={set("name")} placeholder="Prova (ex.: TRT-2)" aria-label="Nome da prova" />
       <Input type="date" value={form.exam_date} onChange={set("exam_date")} aria-label="Data da prova" />
       <Input value={form.banca} onChange={set("banca")} placeholder="Banca" aria-label="Banca" />
@@ -68,6 +70,7 @@ export function ExamForm({ onCreated }: { onCreated: () => void }) {
       <Button type="submit" disabled={!form.name || !form.exam_date}>
         Adicionar
       </Button>
+      </div>
     </form>
   );
 }

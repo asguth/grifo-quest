@@ -31,6 +31,15 @@ export const commands = {
 	/**  Contadores do menu lateral (consulta leve, sem gerar missões). */
 	navBadges: (options?: InvokeOptions) => __TAURI_INVOKE<NavBadges>("nav_badges", undefined, options),
 	getConfig: (options?: InvokeOptions) => __TAURI_INVOKE<AppConfig_Serialize>("get_config", undefined, options),
+	/**  Cópia do banco em `Documentos/Grifo Quest/backups/grifo-AAAA-MM-DD-HHMMSS.db` (hora UTC) e abre a pasta. */
+	backupDatabase: (options?: InvokeOptions) => __TAURI_INVOKE<string>("backup_database", undefined, options),
+	/**  Backups da pasta, do mais novo para o mais antigo. */
+	listBackups: (options?: InvokeOptions) => __TAURI_INVOKE<BackupFile[]>("list_backups", undefined, options),
+	/**
+	 *  Restaura um backup da pasta: guarda o estado atual como `…-antes-de-restaurar.db`, fecha o
+	 *  banco, troca o arquivo e reinicia o app.
+	 */
+	restoreBackup: (name: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("restore_backup", { name }, options),
 	setConfig: (config: AppConfig_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_config", { config }, options),
 	getUiPref: (key: UiKey, options?: InvokeOptions) => __TAURI_INVOKE<string | null>("get_ui_pref", { key }, options),
 	setUiPref: (key: UiKey, value: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_ui_pref", { key, value }, options),
@@ -94,6 +103,17 @@ export const commands = {
 	/**  Gera um material. `full = false`: rápido, pelo roteador (Config → IA). `full = true`: apostila do Claude. */
 	generateMaterial: (topicId: number, kind: MaterialKind, full: boolean, options?: InvokeOptions) => __TAURI_INVOKE<Generated_Serialize>("generate_material", { topicId, kind, full }, options),
 	integrationsStatus: (options?: InvokeOptions) => __TAURI_INVOKE<IntegrationsStatus_Serialize>("integrations_status", undefined, options),
+	gpuInfo: (options?: InvokeOptions) => __TAURI_INVOKE<GpuInfo_Serialize>("gpu_info", undefined, options),
+	/**
+	 *  Assistente inicial: ajusta a IA à placa de vídeo. Com placa, os três papéis usam o modelo que
+	 *  cabe na VRAM; sem placa, as rotas vão para o Claude (o Ollama nem é oferecido).
+	 */
+	applyHardwareDefaults: (options?: InvokeOptions) => __TAURI_INVOKE<GpuInfo_Serialize>("apply_hardware_defaults", undefined, options),
+	cloudStatus: (options?: InvokeOptions) => __TAURI_INVOKE<CloudStatus[]>("cloud_status", undefined, options),
+	/**  Grava a chave no cofre do Windows (texto vazio apaga). */
+	setCloudKey: (cloud: Cloud, key: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_cloud_key", { cloud, key }, options),
+	/**  Modelos de texto da conta; serve também para testar a chave. */
+	cloudModels: (cloud: Cloud, options?: InvokeOptions) => __TAURI_INVOKE<string[]>("cloud_models", { cloud }, options),
 	/**  Instala o Ollama pelo winget (o próprio instalador já deixa ele rodando). */
 	installOllama: (options?: InvokeOptions) => __TAURI_INVOKE<null>("install_ollama", undefined, options),
 	/**  Sobe o servidor do Ollama em segundo plano (fica rodando depois que o app fecha). */
@@ -209,6 +229,8 @@ export type AppConfig_Deserialize = {
 	task_model?: string,
 	/**  Onde rodam os materiais rápidos do Grifo (resumo, questões, flashcards…). */
 	material_route?: Route,
+	/**  Modelo de cada IA na nuvem (a chave fica no cofre do Windows, não aqui). */
+	cloud_models?: CloudModels_Deserialize,
 };
 
 /**  Configuração usada pelo backend (IA, rastreador). */
@@ -224,10 +246,18 @@ export type AppConfig_Serialize = {
 	task_model: string,
 	/**  Onde rodam os materiais rápidos do Grifo (resumo, questões, flashcards…). */
 	material_route: Route,
+	/**  Modelo de cada IA na nuvem (a chave fica no cofre do Windows, não aqui). */
+	cloud_models: CloudModels_Serialize,
 };
 
 /**  Erro que atravessa a fronteira Tauri; o front recebe só a mensagem. */
 export type AppError = { kind: "Db"; message: string } | { kind: "Invalid"; message: string };
+
+export type BackupFile = {
+	name: string,
+	/**  Tamanho em KB. */
+	kb: number,
+};
 
 export type CardRow = CardRow_Serialize | CardRow_Deserialize;
 
@@ -289,6 +319,31 @@ export type ClassState_Deserialize = {
 export type ClassState_Serialize = {
 	lines: Line_Serialize[],
 	evaluation: Evaluation_Serialize | null,
+};
+
+export type Cloud = "gemini" | "openai" | "grok";
+
+export type CloudModels = CloudModels_Serialize | CloudModels_Deserialize;
+
+export type CloudModels_Deserialize = {
+	gemini?: string,
+	openai?: string,
+	grok?: string,
+};
+
+export type CloudModels_Serialize = {
+	gemini: string,
+	openai: string,
+	grok: string,
+};
+
+export type CloudStatus = {
+	id: Cloud,
+	label: string,
+	has_key: boolean,
+	model: string,
+	/**  Página onde se cria a chave. */
+	key_page: string,
 };
 
 export type Contest = Contest_Serialize | Contest_Deserialize;
@@ -534,6 +589,39 @@ export type Generated_Serialize = {
 	note: string | null,
 };
 
+/**  O que a tela precisa saber da placa. */
+export type GpuInfo = GpuInfo_Serialize | GpuInfo_Deserialize;
+
+/**  O que a tela precisa saber da placa. */
+export type GpuInfo_Deserialize = {
+	/**  Nome da placa com mais memória, se achou alguma. */
+	name?: string | null,
+	/**  Memória de vídeo dedicada em MB (0 = não achou). */
+	vram_mb: number,
+	/**  Dá para rodar IA local (placa com ≥ 3,5 GB). */
+	local_ai: boolean,
+	/**  Modelo do Ollama que cabe, e o tamanho do download. */
+	model?: string | null,
+	model_size?: string | null,
+	/**  Catálogo para o seletor de Config → IA, com o que cabe nesta placa. */
+	options: ModelOption[],
+};
+
+/**  O que a tela precisa saber da placa. */
+export type GpuInfo_Serialize = {
+	/**  Nome da placa com mais memória, se achou alguma. */
+	name: string | null,
+	/**  Memória de vídeo dedicada em MB (0 = não achou). */
+	vram_mb: number,
+	/**  Dá para rodar IA local (placa com ≥ 3,5 GB). */
+	local_ai: boolean,
+	/**  Modelo do Ollama que cabe, e o tamanho do download. */
+	model: string | null,
+	model_size: string | null,
+	/**  Catálogo para o seletor de Config → IA, com o que cabe nesta placa. */
+	options: ModelOption[],
+};
+
 export type Grade = "again" | "hard" | "good" | "easy";
 
 /**  O que o Grifo está fazendo agora (modo completo narra cada passo do Claude). */
@@ -579,6 +667,10 @@ export type IntegrationsStatus_Deserialize = {
 	mcp_desktop: boolean,
 	/**  whisper.cpp + modelo de voz baixados. */
 	voice_installed: boolean,
+	/**  Placa de vídeo: sem placa dedicada, a IA local nem aparece como opção. */
+	gpu: GpuInfo_Deserialize,
+	/**  Quantas IAs na nuvem (Gemini/GPT/Grok) têm chave salva. */
+	cloud_keys: number,
 };
 
 export type IntegrationsStatus_Serialize = {
@@ -595,6 +687,10 @@ export type IntegrationsStatus_Serialize = {
 	mcp_desktop: boolean,
 	/**  whisper.cpp + modelo de voz baixados. */
 	voice_installed: boolean,
+	/**  Placa de vídeo: sem placa dedicada, a IA local nem aparece como opção. */
+	gpu: GpuInfo_Serialize,
+	/**  Quantas IAs na nuvem (Gemini/GPT/Grok) têm chave salva. */
+	cloud_keys: number,
 };
 
 export type LevelProgress = {
@@ -673,6 +769,14 @@ export type Mission = {
 	progress: number,
 	done: boolean,
 	xp_reward: number,
+};
+
+export type ModelOption = {
+	name: string,
+	/**  Download em Q4 ("8,0 GB"). */
+	size: string,
+	/**  Cabe na VRAM desta placa com folga para o contexto. */
+	fits: boolean,
 };
 
 export type NavBadges = {
@@ -807,7 +911,7 @@ export type Profile_Serialize = {
 	onboarded: boolean,
 };
 
-export type Provider = "ollama" | "claude";
+export type Provider = "ollama" | "claude" | "gemini" | "openai" | "grok";
 
 /**  C/E (Cebraspe) ou múltipla escolha A–E. */
 export type QuestionFormat = "ce" | "ae";
@@ -883,8 +987,11 @@ export type ReviewItem = {
 	overdue: boolean,
 };
 
-/**  Escolha do usuário em Config → IA. `Auto` = Ollama, e Claude se o Ollama estiver fora do ar. */
-export type Route = "auto" | "ollama" | "claude";
+/**
+ *  Escolha do usuário em Config → IA. `Auto` = Ollama, e Claude se o Ollama estiver fora do ar.
+ *  Gemini/GPT/Grok usam a chave de API da pessoa.
+ */
+export type Route = "auto" | "ollama" | "claude" | "gemini" | "openai" | "grok";
 
 export type SessionInfo = SessionInfo_Serialize | SessionInfo_Deserialize;
 
@@ -1071,7 +1178,7 @@ export type TopicRef_Serialize = {
 export type Trend = "melhorando" | "piorando" | "estavel" | "sem_dados";
 
 /**  Preferências da interface (`ui_<nome>` em `settings`). O front usa o tipo gerado nos bindings. */
-export type UiKey = "theme" | "home_layout" | "sound" | "sidebar_collapsed" | "welcome_on_boot" | "class_voice";
+export type UiKey = "theme" | "home_layout" | "sound" | "sidebar_collapsed" | "welcome_on_boot" | "class_voice" | "tour_done" | "sound_volume";
 
 export type UpdateInfo = UpdateInfo_Serialize | UpdateInfo_Deserialize;
 

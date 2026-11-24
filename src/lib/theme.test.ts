@@ -25,10 +25,19 @@ describe("temas prontos passam no contraste AA (texto ≥ 4,5:1)", () => {
         ["texto suave / cartão", c["muted-foreground"], c.card],
         ["texto do botão / destaque", contrastOn(c.primary).fg, c.primary],
         ["destaque / fundo", c.primary, c.background],
+        ["destaque / cartão", c.primary, c.card],
+        ["sucesso / cartão", c.accent, c.card],
+        ["erro / cartão", c.destructive, c.card],
       ];
       const fails = pairs.filter(([, a, b]) => contrast(a, b) < 4.5).map(([n, a, b]) => `${n}: ${contrast(a, b).toFixed(2)}`);
       expect(fails).toEqual([]);
     });
+  }
+});
+
+describe("temas prontos têm cartão visível sobre o fundo", () => {
+  for (const [id, { colors: c }] of Object.entries(PRESETS)) {
+    it(id, () => expect(contrast(c.card, c.background)).toBeGreaterThanOrEqual(1.06));
   }
 });
 

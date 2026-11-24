@@ -18,6 +18,7 @@ import {
 import { isoDay, lastDays, weekStart } from "@/lib/dates";
 import { ago, feedColor, formatDate, hours, plural, shortDate } from "@/lib/format";
 import { cn, errorMessage, warn } from "@/lib/utils";
+import { isDone } from "@/features/world/contests";
 
 export function Panel(props: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
@@ -248,7 +249,7 @@ export function HeatmapWidget({ d }: { d: Dashboard }) {
   const activeDays = d.activity.filter((a) => a.questions > 0 || a.study_minutes > 0).length;
   return (
     <Panel title="Mapa de calor">
-      <p className="text-sm text-muted-foreground">{activeDays} dias com estudo no último ano</p>
+      <p className="text-sm text-muted-foreground">{plural(activeDays, "dia", "dias")} com estudo no último ano</p>
       <div className="overflow-x-auto pb-1">
         <div className="grid grid-flow-col grid-rows-7 gap-[3px]" style={{ width: "max-content" }}>
           {days.map((day) => {
@@ -341,7 +342,8 @@ export function NewsWidget({ go }: { go: Navigate }) {
 
 export function ContestsWidget({ go }: { go: Navigate }) {
   const [contests, setContests] = useState<Contest[]>([]);
-  useEffect(() => void commands.listContests().then(setContests, (e) => warn("ler os concursos", e)), []);
+  // Só os que ainda dá para fazer: prova realizada (aditivo, convocação) fica no rastreador.
+  useEffect(() => void commands.listContests().then((all) => setContests(all.filter((c) => !isDone(c.status))), (e) => warn("ler os concursos", e)), []);
   return (
     <Panel title="Concursos da sua área" action={<LinkButton onClick={() => go("mundo")}>rastreador</LinkButton>}>
       {contests.length === 0 && <Empty>Defina sua área em Config e busque com o Claude em Mundo → Concursos.</Empty>}

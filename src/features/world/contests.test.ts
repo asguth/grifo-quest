@@ -16,3 +16,12 @@ describe("stageOf", () => {
     expect(stageOf("Inscrições abertas, prova em agosto")).toBe(3);
   });
 });
+
+describe("isDone", () => {
+  it("só a prova realizada sai da lista de abertos", async () => {
+    const { isDone } = await import("./contests");
+    expect(isDone("prova realizada")).toBe(true);
+    expect(isDone("edital publicado")).toBe(false);
+    expect(isDone(null)).toBe(false);
+  });
+});

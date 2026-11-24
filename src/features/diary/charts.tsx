@@ -53,7 +53,7 @@ export function HoursWidget({ d }: { d: Dashboard }) {
       <ResponsiveContainer width="100%" height={170}>
         <BarChart data={data}>
           <CartesianGrid stroke="var(--border)" vertical={false} />
-          <XAxis dataKey="day" {...axis} />
+          <XAxis dataKey="day" interval="preserveStartEnd" minTickGap={8} {...axis} />
           <YAxis unit="h" width={36} {...axis} />
           <Tooltip {...tooltipStyle} />
           <Legend />
@@ -75,8 +75,8 @@ export function QuestionsWidget({ d }: { d: Dashboard }) {
       <ResponsiveContainer width="100%" height={170}>
         <BarChart data={data}>
           <CartesianGrid stroke="var(--border)" vertical={false} />
-          <XAxis dataKey="day" interval={4} {...axis} />
-          <YAxis width={36} {...axis} />
+          <XAxis dataKey="day" interval="preserveStartEnd" minTickGap={16} {...axis} />
+          <YAxis width={28} allowDecimals={false} {...axis} />
           <Tooltip {...tooltipStyle} />
           <Bar dataKey="questoes" name="Questões" fill="var(--primary)" radius={[2, 2, 0, 0]} />
         </BarChart>

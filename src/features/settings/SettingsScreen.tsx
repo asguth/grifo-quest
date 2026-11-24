@@ -1,8 +1,10 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
+import { Bug, DatabaseBackup, Lightbulb, RotateCcw } from "lucide-react";
+import { NativeSelect } from "@/components/fields";
 import { Segmented } from "@/components/Segmented";
-import { toastError } from "@/components/toast";
+import { toast, toastError } from "@/components/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,14 +13,19 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   commands,
   type AppConfig_Serialize as AppConfig,
+  type BackupFile,
   type Feed,
+  type CloudStatus,
+  type GpuInfo,
+  type Route,
   type PomodoroConfig,
 } from "@/lib/bindings";
 import { emit } from "@/lib/bus";
 import { getFlag, saveFlag } from "@/lib/prefs";
+import { reportIssue } from "@/lib/report";
 import { QUICK_LOG_SHORTCUT } from "@/lib/rules";
-import { setSoundEnabled, sfx, soundEnabled } from "@/lib/sound";
-import { COLOR_TOKENS, DEFAULT_THEME, PRESETS, saveTheme, useTheme, type ColorToken, type Theme } from "@/lib/theme";
+import { setSoundEnabled, setSoundVolume, sfx, soundEnabled, soundVolume } from "@/lib/sound";
+import { COLOR_TOKENS, DEFAULT_THEME, FONTS, PRESETS, saveTheme, useTheme, type ColorToken, type FontId, type Theme } from "@/lib/theme";
 import { installUpdate, useUpdate } from "@/lib/update";
 import { errorMessage, warn } from "@/lib/utils";
 import { Integrations } from "./Integrations";
@@ -82,27 +89,34 @@ function Appearance() {
   return (
     <div className="space-y-4">
       <Card title="Tema pronto">
-        <div className="grid gap-2 sm:grid-cols-3">
+        <div className="grid gap-2 @lg:grid-cols-3">
           {Object.entries(PRESETS).map(([id, p]) => (
             <button
               key={id}
               onClick={() => update({ ...theme, preset: id, colors: p.colors })}
-              className={`rounded-md border-2 p-3 text-left text-sm ${theme.preset === id ? "border-primary" : "border-border"}`}
+              aria-pressed={theme.preset === id}
+              className={`overflow-hidden rounded-xl border-2 text-left text-sm transition-transform hover:-translate-y-0.5 ${theme.preset === id ? "border-primary" : "border-border"}`}
               style={{ background: p.colors.background, color: p.colors.foreground }}
             >
-              <span className="mb-2 flex gap-1">
-                {[p.colors.primary, p.colors.accent, p.colors.destructive, p.colors.card].map((c) => (
-                  <span key={c} className="size-4 rounded-sm" style={{ background: c }} />
-                ))}
+              {/* miniatura: cartão sobre o fundo com texto, texto suave, botão e as 3 cores de estado */}
+              <span className="m-2.5 mb-2 block space-y-1.5 rounded-lg p-2.5" style={{ background: p.colors.card, border: `1px solid ${p.colors.border}` }}>
+                <span className="block h-1.5 w-3/4 rounded-full" style={{ background: p.colors.foreground }} />
+                <span className="block h-1.5 w-1/2 rounded-full" style={{ background: p.colors["muted-foreground"] }} />
+                <span className="flex items-center gap-1 pt-0.5">
+                  <span className="h-3.5 w-10 rounded" style={{ background: p.colors.primary }} />
+                  <span className="h-3.5 w-6 rounded" style={{ background: p.colors.secondary }} />
+                  <span className="ml-auto size-2.5 rounded-full" style={{ background: p.colors.accent }} />
+                  <span className="size-2.5 rounded-full" style={{ background: p.colors.destructive }} />
+                </span>
               </span>
-              {p.label}
+              <span className="block px-3 pb-2.5 font-medium">{p.label}</span>
             </button>
           ))}
         </div>
       </Card>
 
       <Card title="Cores personalizadas">
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 @lg:grid-cols-3">
           {(Object.keys(COLOR_TOKENS) as ColorToken[]).map((token) => (
             <label key={token} className="flex items-center gap-2 text-sm">
               <input
@@ -118,6 +132,19 @@ function Appearance() {
       </Card>
 
       <Card title="Texto">
+        <div className="space-y-1">
+          <Label htmlFor="font-family">Fonte</Label>
+          <NativeSelect id="font-family" value={theme.font} onChange={(e) => update({ ...theme, font: e.target.value as FontId })}>
+            {(Object.keys(FONTS) as FontId[]).map((id) => (
+              <option key={id} value={id} style={{ fontFamily: FONTS[id].stack }}>
+                {FONTS[id].label}
+              </option>
+            ))}
+          </NativeSelect>
+          <p className="text-sm text-muted-foreground" style={{ fontFamily: FONTS[theme.font].stack }}>
+            A Lei Geral de Proteção de Dados vale para todo tratamento de dados pessoais. 0123456789
+          </p>
+        </div>
         <div className="space-y-1">
           <Label htmlFor="font-scale">Tamanho da fonte: {theme.fontScale}%</Label>
           <input
@@ -302,38 +329,130 @@ function Feeds() {
   );
 }
 
+const CUSTOM = "__custom__";
+
+/**
+ * Modelo do Ollama: catálogo (o recomendado para a placa primeiro, os que não cabem marcados) ou
+ * "Personalizado…", que abre um campo para qualquer tag do Ollama.
+ */
+function ModelPicker({ id, value, gpu, onChange }: { id: string; value: string; gpu: GpuInfo; onChange: (m: string) => void }) {
+  const known = gpu.options.some((o) => o.name === value);
+  const [custom, setCustom] = useState(!known);
+  const options = [...gpu.options].sort((a, b) => Number(b.name === gpu.model) - Number(a.name === gpu.model) || Number(b.fits) - Number(a.fits));
+  return (
+    <div className="flex flex-wrap gap-2">
+      <NativeSelect
+        id={id}
+        className="w-auto min-w-64 flex-1"
+        value={custom ? CUSTOM : value}
+        onChange={(e) => {
+          if (e.target.value === CUSTOM) return setCustom(true);
+          setCustom(false);
+          onChange(e.target.value);
+        }}
+      >
+        {options.map((o) => (
+          <option key={o.name} value={o.name}>
+            {o.name} · {o.size}
+            {o.name === gpu.model ? " · recomendado para a sua placa" : o.fits ? "" : " · não cabe na sua placa"}
+          </option>
+        ))}
+        <option value={CUSTOM}>Personalizado…</option>
+      </NativeSelect>
+      {custom && (
+        <Input
+          className="w-auto min-w-48 flex-1"
+          value={value}
+          onChange={(e) => onChange(e.target.value.trim())}
+          placeholder="tag do Ollama, ex.: llama3.3:70b"
+          aria-label="Modelo personalizado"
+        />
+      )}
+    </div>
+  );
+}
+
+/** Opções de rota: Ollama só com placa de vídeo, nuvem só com chave (e a atual sempre, para não sumir). */
+function routeOptions(local: boolean, clouds: CloudStatus[], current: Route): [Route, string][] {
+  const all: [Route, string][] = [
+    ...(local ? ([["auto", "Automático"], ["ollama", "Ollama"]] as [Route, string][]) : []),
+    ["claude", "Claude"],
+    ...clouds.filter((c) => c.has_key).map((c) => [c.id, c.label] as [Route, string]),
+  ];
+  if (!all.some(([v]) => v === current)) all.push([current, current === "auto" ? "Automático" : current]);
+  return all;
+}
+
 function Ai() {
   const { cfg, setCfg, save, status } = useAppConfig();
-  if (!cfg) return null;
+  const [gpu, setGpu] = useState<GpuInfo | null>(null);
+  const [clouds, setClouds] = useState<CloudStatus[]>([]);
+  useEffect(() => {
+    commands.gpuInfo().then(setGpu, (e) => warn("placa de vídeo", e));
+    commands.cloudStatus().then(setClouds, (e) => warn("IAs na nuvem", e));
+  }, []);
+  if (!cfg || !gpu) return null;
+  const local = gpu.local_ai;
   const field = (k: "ollama_url" | "student_model" | "evaluator_model" | "task_model" | "claude_cli") => (e: React.ChangeEvent<HTMLInputElement>) =>
     setCfg({ ...cfg, [k]: e.target.value });
 
   return (
     <div className="space-y-4">
+      {!local && (
+        <Card title="IA local (Ollama)">
+          <p className="text-sm text-muted-foreground">
+            <b className="text-foreground">Serviço indisponível</b> neste computador: nenhuma placa de vídeo dedicada com 4 GB ou mais
+            {gpu.name ? ` (achei: ${gpu.name})` : ""}. Todas as tarefas de IA usam o Claude.
+          </p>
+        </Card>
+      )}
+      {local && (
       <Card title="IA local (Ollama)">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="space-y-1">
-            <Label htmlFor="ollama-url">Endereço</Label>
-            <Input id="ollama-url" value={cfg.ollama_url} onChange={field("ollama_url")} />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="student-model">Modelo dos alunos</Label>
-            <Input id="student-model" value={cfg.student_model} onChange={field("student_model")} />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="evaluator-model">Modelo do avaliador</Label>
-            <Input id="evaluator-model" value={cfg.evaluator_model} onChange={field("evaluator_model")} />
-          </div>
-        </div>
-      </Card>
-      <Card title="Quem faz cada tarefa">
         <p className="text-xs text-muted-foreground">
-          Automático = Ollama, e o Claude só se o Ollama estiver fora do ar. Rastreador e apostila completa sempre usam o Claude (precisam de internet e da skill inteira).
+          Placa: {gpu.name} ({Math.round(gpu.vram_mb / 1024)} GB). Modelo que cabe: <b className="text-foreground">{gpu.model}</b>.
         </p>
         <div className="space-y-1">
-          <Label htmlFor="task-model">Modelo do Ollama para tarefas (materiais rápidos)</Label>
-          <Input id="task-model" value={cfg.task_model} onChange={field("task_model")} />
+          <Label htmlFor="model-all">Modelo</Label>
+          <ModelPicker
+            id="model-all"
+            value={cfg.task_model}
+            gpu={gpu}
+            onChange={(m) => setCfg({ ...cfg, task_model: m, student_model: m, evaluator_model: m })}
+          />
+          <p className="text-xs text-muted-foreground">
+            Usado nos materiais rápidos, nos alunos da Sala e no avaliador. Um modelo só: dois não cabem juntos na placa e trocar custa
+            ~1 min. Baixe o modelo novo em Integrações.
+          </p>
         </div>
+        <details className="text-sm">
+          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Avançado: endereço e um modelo por papel</summary>
+          <div className="mt-3 grid gap-3 @lg:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="ollama-url">Endereço do Ollama</Label>
+              <Input id="ollama-url" value={cfg.ollama_url} onChange={field("ollama_url")} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="task-model">Tarefas (materiais rápidos)</Label>
+              <ModelPicker id="task-model" value={cfg.task_model} gpu={gpu} onChange={(m) => setCfg({ ...cfg, task_model: m })} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="student-model">Alunos da Sala</Label>
+              <ModelPicker id="student-model" value={cfg.student_model} gpu={gpu} onChange={(m) => setCfg({ ...cfg, student_model: m })} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="evaluator-model">Avaliador</Label>
+              <ModelPicker id="evaluator-model" value={cfg.evaluator_model} gpu={gpu} onChange={(m) => setCfg({ ...cfg, evaluator_model: m })} />
+            </div>
+          </div>
+        </details>
+      </Card>
+      )}
+      <Card title="Quem faz cada tarefa">
+        <p className="text-xs text-muted-foreground">
+          {local ? "Automático = Ollama, e o Claude só se o Ollama estiver fora do ar. " : ""}
+          Gemini, GPT e Grok aparecem aqui depois de salvar a chave em Integrações. Rastreador e apostila completa sempre usam o Claude
+          (precisam de internet e da skill inteira).
+        </p>
         {(
           [
             ["material_route", "Materiais rápidos do Grifo (resumo, questões, flashcards…)"],
@@ -342,16 +461,7 @@ function Ai() {
         ).map(([key, label]) => (
           <div key={key} className="flex flex-wrap items-center justify-between gap-2 text-sm">
             <span>{label}</span>
-            <Segmented
-              label={label}
-              value={cfg[key]}
-              onChange={(v) => setCfg({ ...cfg, [key]: v })}
-              options={[
-                ["auto", "Automático"],
-                ["ollama", "Ollama"],
-                ["claude", "Claude"],
-              ]}
-            />
+            <Segmented label={label} value={cfg[key]} onChange={(v) => setCfg({ ...cfg, [key]: v })} options={routeOptions(local, clouds, cfg[key])} />
           </div>
         ))}
       </Card>
@@ -376,12 +486,14 @@ function Ai() {
 function System() {
   const [autostart, setAutostart] = useState<boolean | null>(null);
   const [sound, setSound] = useState(true);
+  const [volume, setVolume] = useState(70);
   const [welcome, setWelcome] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     isEnabled().then(setAutostart, (e) => setError(errorMessage(e)));
     void soundEnabled().then(setSound);
+    void soundVolume().then(setVolume);
     void getFlag("welcome_on_boot", true).then(setWelcome);
   }, []);
 
@@ -434,10 +546,34 @@ function System() {
             />
           </div>
         </div>
+        <div className="flex items-center gap-3">
+          <Label htmlFor="volume" className="shrink-0">
+            Volume: {volume}%
+          </Label>
+          <input
+            id="volume"
+            type="range"
+            min={0}
+            max={100}
+            step={5}
+            value={volume}
+            disabled={!sound}
+            onChange={(e) => setVolume(Number(e.target.value))}
+            onPointerUp={() => (setSoundVolume(volume), sfx("coin"))}
+            onKeyUp={() => setSoundVolume(volume)}
+            className="w-full accent-[var(--primary)] disabled:opacity-40"
+          />
+        </div>
         <div className="flex items-center justify-between">
           <span className="text-sm">Perfil, rotina, provas e matérias</span>
           <Button size="sm" variant="secondary" onClick={() => emit("onboarding")}>
             Refazer configuração inicial
+          </Button>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-sm">Tour pelo menu</span>
+          <Button size="sm" variant="secondary" onClick={() => emit("tour")}>
+            Ver tutorial de novo
           </Button>
         </div>
         <p className="text-sm text-muted-foreground">
@@ -445,8 +581,96 @@ function System() {
         </p>
       </Card>
 
+      <Backups />
+
+      <Card title="Ajuda">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="min-w-60 flex-1 text-sm text-muted-foreground">
+            Abre o GitHub no navegador com versão e sistema já preenchidos. Você revisa antes de enviar (precisa de conta no GitHub).
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="secondary" onClick={() => void reportIssue("bug")}>
+              <Bug /> Reportar problema
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => void reportIssue("ideia")}>
+              <Lightbulb /> Sugerir ideia
+            </Button>
+          </div>
+        </div>
+      </Card>
+
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
+  );
+}
+
+/** Backup em um clique e restauração a partir da pasta de backups (confirma em dois cliques). */
+function Backups() {
+  const [list, setList] = useState<BackupFile[]>([]);
+  const [confirm, setConfirm] = useState<string | null>(null);
+  const load = useCallback(() => void commands.listBackups().then(setList, (e) => warn("listar backups", e)), []);
+  useEffect(load, [load]);
+
+  async function backup() {
+    try {
+      const path = await commands.backupDatabase();
+      toast(`Backup salvo: ${path.split(/[\\/]/).pop()}`, "success");
+      load();
+    } catch (e) {
+      toastError(e);
+    }
+  }
+
+  async function restore(name: string) {
+    try {
+      await commands.restoreBackup(name);
+    } catch (e) {
+      toastError(e);
+      setConfirm(null);
+    }
+  }
+
+  return (
+    <Card title="Seus dados">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="min-w-60 flex-1 text-sm text-muted-foreground">
+          Tudo fica num arquivo só no seu PC. O backup copia esse arquivo para Documentos › Grifo Quest › backups (pode fazer com o app aberto).
+        </p>
+        <Button size="sm" variant="secondary" onClick={() => void backup()}>
+          <DatabaseBackup /> Fazer backup agora
+        </Button>
+      </div>
+      {list.length > 0 && (
+        <details className="text-sm">
+          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Restaurar um backup ({list.length})</summary>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Antes de restaurar, o app guarda o estado atual como “antes-de-restaurar” na mesma pasta. Depois reinicia.
+          </p>
+          <ul className="mt-2 space-y-1.5">
+            {list.map((b) => (
+              <li key={b.name} className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5">
+                <span className="min-w-0 flex-1 truncate font-mono text-xs">{b.name}</span>
+                <span className="text-xs text-muted-foreground">{b.kb} KB</span>
+                {confirm === b.name ? (
+                  <>
+                    <Button size="sm" variant="destructive" onClick={() => void restore(b.name)}>
+                      Confirmar (reinicia)
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setConfirm(null)}>
+                      Cancelar
+                    </Button>
+                  </>
+                ) : (
+                  <Button size="sm" variant="ghost" onClick={() => setConfirm(b.name)}>
+                    <RotateCcw /> Restaurar
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </Card>
   );
 }
 

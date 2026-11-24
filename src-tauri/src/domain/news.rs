@@ -166,6 +166,58 @@ pub fn clean(c: Classified) -> (i32, String, String, f64) {
     (c.id, super::text::head(c.resumo.trim(), 400).to_string(), tags.join(","), rel)
 }
 
+/// Status de concurso cuja prova já aconteceu (aditivo, convocação, resultado): não dá mais para se inscrever.
+pub const DONE: &str = "prova realizada";
+
+/// Sinais, no título/resumo/status, de que a prova já passou. A IA às vezes chama o aditivo de vagas
+/// de um concurso antigo de "edital publicado" (caso real: Serpro 2023, 3º aditivo em 2026).
+/// Sem "contratação" (da banca vem antes da prova) e sem "convocação" sozinha (para a prova também).
+const AFTER_EXAM: [&str; 12] = [
+    "aditivo", "convocacoes", "convocados", "convocacao de aprovados", "nomea", "homolog", "resultado",
+    "cadastro de reserva", "cadastro reserva", "prova realizada", "aprovados", "posse",
+];
+
+/// Corrige o status de um concurso: se há sinal de que a prova já aconteceu (marcadores acima, data
+/// da prova no passado ou só anos anteriores no título), devolve [`DONE`] seja o que for que a IA
+/// disse. `today` = "AAAA-MM-DD".
+pub fn contest_status(title: &str, summary: Option<&str>, status: Option<&str>, exam_date: Option<&str>, today: &str) -> Option<String> {
+    let text = fold(&format!("{title} {} {}", summary.unwrap_or(""), status.unwrap_or("")));
+    let marker = AFTER_EXAM.iter().any(|m| text.contains(m));
+    let past_exam = exam_date.is_some_and(|d| d.len() >= 10 && d[..10] < *today);
+    let year_now: i32 = today.get(..4).and_then(|y| y.parse().ok()).unwrap_or(0);
+    let years: Vec<i32> = fold(title)
+        .split(|c: char| !c.is_ascii_digit())
+        .filter(|w| w.len() == 4)
+        .filter_map(|w| w.parse().ok())
+        .filter(|y| (2000..2100).contains(y))
+        .collect();
+    let old_contest = !years.is_empty() && years.iter().all(|&y| y < year_now);
+    if marker || past_exam || old_contest {
+        return Some(DONE.to_string());
+    }
+    status.map(str::to_string)
+}
+
+/// "AAAA-MM-DD" (UTC) de um instante Unix. Algoritmo civil-from-days (H. Hinnant), sem dependência.
+pub fn iso_date(unix_secs: i64) -> String {
+    let z = unix_secs.div_euclid(86_400) + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = yoe + era * 400 + i64::from(m <= 2);
+    format!("{y:04}-{m:02}-{d:02}")
+}
+
+/// Hoje (UTC) em "AAAA-MM-DD".
+pub fn today() -> String {
+    let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs() as i64);
+    iso_date(secs)
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -206,5 +258,28 @@ mod tests {
     fn cleans_ai_classification() {
         let c = Classified { id: 7, resumo: " Saiu o edital. ".into(), tags: vec!["Edital".into(), "Inscrições".into(), "fofoca".into()], relevancia: 3.0 };
         assert_eq!(clean(c), (7, "Saiu o edital.".to_string(), "edital,inscricoes".to_string(), 1.0));
+    }
+
+    #[test]
+    fn exam_already_happened_is_never_an_open_edital() {
+        let today = "2026-11-24";
+        // caso real: aditivo de vagas do concurso de 2023, classificado pela IA como "edital publicado"
+        let serpro = contest_status("Serpro – 3º aditivo do concurso 2023 (Analista – Tecnologia)", None, Some("edital publicado"), None, today);
+        assert_eq!(serpro.as_deref(), Some(DONE));
+        assert_eq!(contest_status("Concurso X", Some("convocação de aprovados"), Some("edital publicado"), None, today).as_deref(), Some(DONE));
+        assert_eq!(contest_status("Concurso Y", None, Some("inscrições abertas"), Some("2026-03-01"), today).as_deref(), Some(DONE));
+        // concurso do ano que vem ou deste ano, sem sinal de prova feita: mantém
+        assert_eq!(contest_status("Concurso ANPD 2026", None, Some("banca definida"), Some("2027-04-18"), today).as_deref(), Some("banca definida"));
+        assert_eq!(contest_status("Concurso INSS", None, Some("previsto"), None, today).as_deref(), Some("previsto"));
+        // fases antes da prova não podem virar "realizada"
+        assert_eq!(contest_status("Concurso ANPD: contratação do Cebraspe", None, Some("banca definida"), None, today).as_deref(), Some("banca definida"));
+        assert_eq!(contest_status("TRT-2 divulga convocação para a prova", None, Some("inscrições encerradas"), Some("2026-12-07"), today).as_deref(), Some("inscrições encerradas"));
+    }
+
+    #[test]
+    fn iso_date_from_unix() {
+        assert_eq!(iso_date(0), "1970-01-01");
+        assert_eq!(iso_date(1_795_478_400), "2026-11-24");
+        assert_eq!(iso_date(951_782_400), "2000-02-29");
     }
 }

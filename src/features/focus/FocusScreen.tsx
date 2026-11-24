@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Pause, Play, Square } from "lucide-react";
 import { NativeSelect } from "@/components/fields";
-import { ProgressRing } from "@/components/Progress";
+import { Mascot } from "@/components/Mascot";
 import { Segmented } from "@/components/Segmented";
 import { toastError } from "@/components/toast";
 import { Button } from "@/components/ui/button";
@@ -10,18 +10,37 @@ import { Label } from "@/components/ui/label";
 import { commands, type Subject, type TimerKind } from "@/lib/bindings";
 import { spring } from "@/lib/motion";
 import { sfx } from "@/lib/sound";
-import { clock, timerLabel, timerSeconds, useTimer, type TimerView } from "@/lib/timer";
+import { clock, timerFraction, timerLabel, timerSeconds, useTimer, type TimerView } from "@/lib/timer";
 import { cn } from "@/lib/utils";
+import { PixelRing } from "./PixelRing";
 
-/** Anel do pomodoro: enche no foco, esvazia na pausa. O cronômetro dá uma volta por hora. */
+/** Relógio em blocos de pixel, com o Grifinho estudando ao lado (cochila quando pausa). */
 function TimerRing({ t }: { t: TimerView }) {
-  const frac = t.mode === "pomodoro" ? 1 - t.remaining / Math.max(1, t.total) : t.mode === "stopwatch" ? (t.elapsed % 3600) / 3600 : 0;
   const onBreak = t.mode === "pomodoro" && t.phase === "break";
+  const paused = t.mode !== "idle" && t.paused;
+  const tone = onBreak ? "var(--accent)" : "var(--primary)";
+  const label = t.mode === "idle" ? "pronto para começar" : onBreak ? "pausa: levanta, água, alonga" : t.mode === "pomodoro" ? "foco total" : timerLabel(t).toLowerCase();
   return (
-    <ProgressRing value={frac} size={220} stroke={8} tone={onBreak ? "stroke-success" : "stroke-primary"} transition={{ duration: 0.9, ease: "linear" }}>
-      <p className={cn("retro tabular text-4xl", onBreak ? "text-success" : "text-primary", t.mode !== "idle" && t.paused && "animate-pulse opacity-60")}>{clock(timerSeconds(t))}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{t.mode === "idle" ? "pronto" : `${timerLabel(t)}${t.paused ? " · pausado" : ""}`}</p>
-    </ProgressRing>
+    <div className="flex flex-wrap items-center justify-center gap-6">
+      <PixelRing value={timerFraction(t)} tone={tone} paused={paused}>
+        <span
+          className={cn("retro mb-2 rounded-full px-2.5 py-1 text-[9px]", onBreak ? "bg-success/15 text-success" : "bg-primary/15 text-primary")}
+        >
+          {t.mode === "idle" ? "POMODORO" : paused ? "PAUSADO" : timerLabel(t).toUpperCase()}
+        </span>
+        <p className={cn("retro tabular text-4xl", onBreak ? "text-success" : "text-primary", paused && "animate-pulse")}>{clock(timerSeconds(t))}</p>
+        <p className="mt-2 text-xs text-muted-foreground">{label}</p>
+      </PixelRing>
+      <motion.div
+        className="hidden @xl:block"
+        animate={paused || t.mode === "idle" ? { y: 0, rotate: paused ? -8 : 0, opacity: paused ? 0.6 : 1 } : { y: [0, -5, 0], rotate: 0, opacity: 1 }}
+        transition={paused || t.mode === "idle" ? { duration: 0.4 } : { duration: onBreak ? 2.6 : 1.4, repeat: Infinity, ease: "easeInOut" }}
+        title={paused ? "Zzz…" : "Grifinho estudando junto"}
+      >
+        <Mascot look="cap" scale={5} />
+        {paused && <p className="retro mt-1 text-center text-[9px] text-muted-foreground">zzz…</p>}
+      </motion.div>
+    </div>
   );
 }
 
@@ -51,7 +70,7 @@ export default function FocusScreen() {
   const showSubject = timer.mode === "idle" && (mode === "pomodoro" || kind === "estudo");
 
   return (
-    <div className="flex flex-col items-center gap-5">
+    <div className="@container flex flex-col items-center gap-5">
       <motion.div initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={spring.soft}>
         <TimerRing t={timer} />
       </motion.div>

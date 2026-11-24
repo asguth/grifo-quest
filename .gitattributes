@@ -1,0 +1,4 @@
+# Migrações do sqlx entram no binário com checksum: CRLF (autocrlf do Windows) muda o checksum e o
+# app passa a recusar o banco de quem já instalou ("migration N was previously applied but has
+# been modified"). Sempre LF, em qualquer clone.
+*.sql text eol=lf

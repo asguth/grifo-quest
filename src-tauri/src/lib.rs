@@ -3,10 +3,12 @@ mod wire;
 
 mod ai;
 mod claude;
+mod cloud;
 mod commands;
 mod db;
 mod domain;
 mod error;
+mod gpu;
 mod grifo;
 mod ollama;
 mod settings;
@@ -45,6 +47,9 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         diary::get_dashboard,
         diary::nav_badges,
         config::get_config,
+        config::backup_database,
+        config::list_backups,
+        config::restore_backup,
         config::set_config,
         config::get_ui_pref,
         config::set_ui_pref,
@@ -90,6 +95,11 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         material::cancel_material,
         material::generate_material,
         integrations::integrations_status,
+        integrations::gpu_info,
+        integrations::apply_hardware_defaults,
+        integrations::cloud_status,
+        integrations::set_cloud_key,
+        integrations::cloud_models,
         integrations::install_ollama,
         integrations::start_ollama,
         integrations::pull_model,

@@ -9,9 +9,9 @@ export const COLOR_TOKENS = {
   card: "Superfície",
   foreground: "Texto",
   "muted-foreground": "Texto suave",
-  primary: "Destaque (âmbar)",
-  accent: "Sucesso (musgo)",
-  destructive: "Erro (terracota)",
+  primary: "Destaque",
+  accent: "Sucesso",
+  destructive: "Erro",
   secondary: "Botões secundários",
   border: "Bordas",
 } as const;
@@ -19,9 +19,22 @@ export const COLOR_TOKENS = {
 export type ColorToken = keyof typeof COLOR_TOKENS;
 export type Palette = Record<ColorToken, string>;
 
+/** Fontes de leitura: a Geist vem com o app; as outras são do Windows (nada para baixar). */
+export const FONTS = {
+  geist: { label: "Geist (padrão)", stack: "'Geist Variable', sans-serif" },
+  segoe: { label: "Segoe UI (do Windows)", stack: "'Segoe UI', system-ui, sans-serif" },
+  verdana: { label: "Verdana (letras largas, boa para leitura longa)", stack: "Verdana, Geneva, sans-serif" },
+  georgia: { label: "Georgia (serifada, cara de livro)", stack: "Georgia, 'Times New Roman', serif" },
+  consolas: { label: "Consolas (monoespaçada)", stack: "Consolas, 'Cascadia Mono', monospace" },
+} as const;
+
+export type FontId = keyof typeof FONTS;
+
 export type Theme = {
   preset: string;
   colors: Palette;
+  /** Fonte do corpo (títulos pixel continuam na Press Start). */
+  font: FontId;
   /** Escala da fonte de leitura, em %. */
   fontScale: number;
   /** Títulos e números em fonte pixel. */
@@ -30,82 +43,126 @@ export type Theme = {
   motion: boolean;
 };
 
+/**
+ * Temas prontos. Estudo de cores (gerados em OKLCH e convertidos para hex):
+ * - neutros (fundo, cartão, secundário, borda) têm o mesmo matiz com croma baixo (0,005–0,04), em
+ *   degraus fixos de luminosidade: fundo L 0,18 → cartão +0,045 → secundário +0,09 → borda +0,12.
+ *   Assim o cartão sempre se destaca do fundo (antes alguns ficavam quase iguais);
+ * - nos claros o cartão é MAIS claro que o fundo (papel sobre a mesa), como nos apps atuais;
+ * - destaque, sucesso e erro ficam a ≥ 60° de matiz um do outro (âmbar ≠ terracota ≠ verde) e com
+ *   luminosidade parecida, para nenhum "gritar" mais que o outro;
+ * - todos passam AA (≥ 4,5:1) nos pares de texto: ver theme.test.ts.
+ */
 export const PRESETS: Record<string, { label: string; colors: Palette }> = {
+  // Escuro quente: neutros puxados para o âmbar (h 70), âmbar de destaque e sálvia de sucesso.
   cozy: {
-    label: "Cozy (escuro quente)",
+    label: "Cozy · lareira",
     colors: {
-      background: "#1b1a17",
-      card: "#26241f",
-      foreground: "#efe6d2",
-      "muted-foreground": "#a99f8b",
-      primary: "#e0a84f",
-      accent: "#7a9a5b",
-      destructive: "#c8644a",
-      secondary: "#33302a",
-      border: "#3d3a33",
+      background: "#15110c",
+      card: "#201b15",
+      foreground: "#f2eae0",
+      "muted-foreground": "#b5a99b",
+      primary: "#f3ae51",
+      accent: "#90be76",
+      destructive: "#e6715b",
+      secondary: "#2b251f",
+      border: "#332d25",
     },
   },
+  // Claro de papel: fundo creme, cartões quase brancos (sobem em vez de afundar), tinta sépia.
   pergaminho: {
-    label: "Pergaminho (claro)",
+    label: "Pergaminho · claro",
     colors: {
-      background: "#f3ead6",
-      card: "#e9dcc0",
-      foreground: "#3b2f20",
-      // ajustados para contraste AA no papel claro (ver theme.test.ts)
-      "muted-foreground": "#6b5c46",
-      primary: "#93561a",
-      accent: "#5d7a3f",
-      destructive: "#a8432e",
-      secondary: "#dccdae",
-      border: "#cbb894",
+      background: "#fef2df",
+      card: "#fffcf5",
+      foreground: "#322714",
+      "muted-foreground": "#685c47",
+      primary: "#9c5313",
+      accent: "#427138",
+      destructive: "#b33830",
+      secondary: "#f1e3cc",
+      border: "#e1d2ba",
     },
   },
+  // Verde profundo com ouro: neutros h 160, sucesso verde-folha separado do fundo pela luminosidade.
   floresta: {
-    label: "Floresta",
+    label: "Floresta · musgo",
     colors: {
-      background: "#141c17",
-      card: "#1d2a22",
-      foreground: "#e4efe0",
-      "muted-foreground": "#93a897",
-      primary: "#d9b45a",
-      accent: "#6fae6a",
-      destructive: "#c96a52",
-      secondary: "#25362b",
-      border: "#2f4536",
+      background: "#09150e",
+      card: "#111f18",
+      foreground: "#dcf1e5",
+      "muted-foreground": "#94b4a1",
+      primary: "#e6c45a",
+      accent: "#73cb87",
+      destructive: "#e4785d",
+      secondary: "#1b2b22",
+      border: "#213229",
     },
   },
+  // Índigo frio com ouro e turquesa: o par quente/frio dá contraste sem gritar. Combina com a cena noturna.
   noite: {
     label: "Noite estrelada",
     colors: {
-      background: "#15151f",
-      card: "#1f1f2e",
-      foreground: "#e6e4f2",
-      "muted-foreground": "#9a97b5",
-      primary: "#f0b85c",
-      accent: "#7fb3a8",
-      destructive: "#d16a6a",
-      secondary: "#2a2a3d",
-      border: "#34344a",
+      background: "#10101e",
+      card: "#191a2a",
+      foreground: "#e7e9ff",
+      "muted-foreground": "#a5a7ce",
+      primary: "#f2c36a",
+      accent: "#62cfce",
+      destructive: "#e97078",
+      secondary: "#242437",
+      border: "#2b2c40",
     },
   },
+  // Neon de fliperama: roxo quase preto, rosa de destaque, ciano de sucesso.
   arcade: {
-    label: "Arcade",
+    label: "Neon · fliperama",
     colors: {
-      background: "#0f0e17",
-      card: "#1b1a2b",
-      foreground: "#fffffe",
-      "muted-foreground": "#a7a9be",
-      primary: "#ff8906",
-      accent: "#2cb67d",
-      destructive: "#f25f4c",
-      secondary: "#2e2c47",
-      border: "#3a3857",
+      background: "#10091c",
+      card: "#1a1228",
+      foreground: "#f0e4ff",
+      "muted-foreground": "#b2a0d6",
+      primary: "#ff71bb",
+      accent: "#40e5e5",
+      destructive: "#fb794a",
+      secondary: "#251c35",
+      border: "#2d233f",
+    },
+  },
+  // Neutro sem tingimento (croma ~0): para quem quer só o âmbar como cor.
+  grafite: {
+    label: "Grafite · neutro",
+    colors: {
+      background: "#101214",
+      card: "#1a1c1e",
+      foreground: "#e9ebf0",
+      "muted-foreground": "#a7abb1",
+      primary: "#f5ae4b",
+      accent: "#6dc88f",
+      destructive: "#eb635e",
+      secondary: "#252729",
+      border: "#2c2e31",
+    },
+  },
+  // Claro frio: branco-azulado, destaque azul. Único tema com destaque não quente.
+  nuvem: {
+    label: "Nuvem · claro frio",
+    colors: {
+      background: "#eef4fc",
+      card: "#fbfdff",
+      foreground: "#1f2a38",
+      "muted-foreground": "#525f6f",
+      primary: "#2e62c9",
+      accent: "#187c49",
+      destructive: "#c52c2a",
+      secondary: "#dee5ee",
+      border: "#ced5df",
     },
   },
 };
 
 /** Cores padrão: main.tsx aplica antes da primeira pintura (index.css não repete os valores). */
-export const DEFAULT_THEME: Theme = { preset: "cozy", colors: PRESETS.cozy.colors, fontScale: 100, pixelTitles: true, motion: true };
+export const DEFAULT_THEME: Theme = { preset: "cozy", colors: PRESETS.cozy.colors, font: "geist", fontScale: 100, pixelTitles: true, motion: true };
 
 /** Texto legível sobre um fundo: escuro em cor clara, claro em cor escura (luminância simples). */
 export function contrastOn(hex: string): { fg: string; isLight: boolean } {
@@ -133,6 +190,7 @@ export function applyTheme(t: Theme) {
   root.setProperty("--primary-foreground", contrastOn(c.primary).fg);
   root.setProperty("--accent-foreground", contrastOn(c.accent).fg);
   root.fontSize = `${t.fontScale}%`;
+  root.fontFamily = (FONTS[t.font] ?? FONTS.geist).stack;
   root.colorScheme = contrastOn(c.background).isLight ? "light" : "dark";
   document.documentElement.classList.toggle("no-pixel-titles", !t.pixelTitles);
   document.documentElement.classList.toggle("reduce-motion", !t.motion);
@@ -160,6 +218,7 @@ export async function loadTheme(): Promise<Theme> {
     return DEFAULT_THEME;
   }
   const t: Theme = { ...DEFAULT_THEME, ...saved };
+  if (!(t.font in FONTS)) t.font = DEFAULT_THEME.font;
   // Tema pronto sempre usa as cores atuais do código (correções de contraste chegam sozinhas).
   return t.preset in PRESETS ? { ...t, colors: PRESETS[t.preset].colors } : t;
 }

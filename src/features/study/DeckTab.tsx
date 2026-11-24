@@ -83,7 +83,7 @@ export function DeckTab({ review, onChange }: { review: () => void; onChange: ()
     return (
       <div className="space-y-4">
         <Skeleton className="h-28 rounded-2xl" />
-        <div className="grid gap-3 @2xl:grid-cols-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</div>
+        <div className="grid gap-3 @@4xl:grid-cols-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</div>
       </div>
     );
   }
@@ -134,7 +134,7 @@ export function DeckTab({ review, onChange }: { review: () => void; onChange: ()
             )}
           </div>
 
-          <motion.ul variants={listIn} initial="hidden" animate="show" className="grid gap-3 @2xl:grid-cols-2">
+          <motion.ul variants={listIn} initial="hidden" animate="show" className="grid gap-3 @@4xl:grid-cols-2">
             {shown.slice(0, PAGE).map((c) => {
                 const d = dueLabel(c, today);
                 return (

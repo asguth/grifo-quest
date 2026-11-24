@@ -142,7 +142,7 @@ async fn generate_quick(app: &AppHandle, pool: &SqlitePool, topic_id: i32, kind:
     let topic = materials::topic_for_prompt(pool, topic_id).await?;
     let (system, user) = grifo::quick_prompt(app, kind, Output::Markdown, &topic)?;
 
-    let who = if ai::provider_for(&cfg, Task::Text).await == Provider::Ollama { "Ollama" } else { "Claude" };
+    let who = ai::provider_for(&cfg, Task::Text).await.label();
     let _ = GrifoEvent { topic_id, text: format!("Escrevendo com {who}…") }.emit(app);
     let (text, provider) = ai::complete(app, &cfg, Task::Text, &system, &user, false).await?;
     let text = clean_markdown(&text);
@@ -155,7 +155,7 @@ async fn generate_quick(app: &AppHandle, pool: &SqlitePool, topic_id: i32, kind:
     if kind == MaterialKind::Resumo && topic.reference.is_none() {
         classes::set_material(pool, topic_id, &text, None).await?;
     }
-    let note = (cfg.material_route == Route::Auto && provider == Provider::Claude)
+    let note = (cfg.material_route == Route::Auto && provider == Provider::Claude && crate::gpu::info().await.local_ai)
         .then(|| "O Ollama não respondeu, então usei o Claude.".to_string());
     Ok(Generated { material, note })
 }

@@ -1,0 +1,46 @@
+name: 🐞 Problema
+description: Algo deu errado no Grifo Quest
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por avisar! Se você veio pelo botão **Reportar** do app, versão, sistema e erro já vêm preenchidos.
+        **Não cole dados pessoais** (nome completo, e-mail, CPF): a issue é pública.
+  - type: textarea
+    id: descricao
+    attributes:
+      label: O que aconteceu?
+      description: E o que você esperava que acontecesse.
+    validations:
+      required: true
+  - type: textarea
+    id: passos
+    attributes:
+      label: Como repetir
+      placeholder: |
+        1. Abri Mundo
+        2. Cliquei em Atualizar
+        3. ...
+  - type: input
+    id: tela
+    attributes:
+      label: Tela
+      placeholder: Início, Estudo, Sala de aula, Matérias, Mundo, Config
+  - type: textarea
+    id: erro
+    attributes:
+      label: Mensagem de erro
+      render: text
+  - type: input
+    id: versao
+    attributes:
+      label: Versão do app
+      description: Config → Sistema
+    validations:
+      required: true
+  - type: input
+    id: sistema
+    attributes:
+      label: Sistema
+      placeholder: Windows 11

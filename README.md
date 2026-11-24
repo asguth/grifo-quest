@@ -26,6 +26,7 @@
   <a href="#ia-local-e-claude">IA</a> ·
   <a href="#o-claude-lê-seu-progresso-mcp">MCP</a> ·
   <a href="#privacidade">Privacidade</a> ·
+  <a href="#limitações-e-responsabilidade">Limitações</a> ·
   <a href="#perguntas-frequentes">FAQ</a> ·
   <a href="#apoie-o-projeto">Apoie</a>
 </p>
@@ -45,8 +46,22 @@ acompanhando.
   esquecimento × erros vencidos.
 - **Tudo no seu computador**: banco SQLite local, IA local grátis. Sem conta, sem nuvem, sem
   telemetria.
-- **Atualiza sozinho**: o app procura versões novas ao abrir e a cada 6 horas e avisa quando
-  estiver pronto para reiniciar.
+- **Atualiza sozinho**: o app procura versões novas ao abrir e a cada 6 horas, baixa em segundo
+  plano e mostra o botão **Atualizar** no menu lateral. Um clique instala e reabre o app.
+
+## Por dentro
+
+<p align="center">
+  <img src="docs/gifs/inicio.gif" alt="Início: Grifinho, nível, missões do dia e widgets" width="49%">
+  <img src="docs/gifs/foco.gif" alt="Foco: pomodoro com anel em blocos de pixel e o mini-timer no menu" width="49%">
+</p>
+<p align="center">
+  <img src="docs/gifs/mundo.gif" alt="Mundo: notícias de concursos em mosaico" width="49%">
+  <img src="docs/gifs/temas.gif" alt="Trocando entre os 7 temas em Config, Aparência" width="49%">
+</p>
+
+<!-- Regravar: python scripts/gif.py gravar <pasta> <segundos> enquanto navega no app, depois
+     python scripts/gif.py montar <pasta> docs/gifs/<nome>.gif [largura] [fps]. -->
 
 ## Instalação
 
@@ -77,13 +92,13 @@ de qualquer lugar: `30 22 lgpd fgv` = 30 questões, 22 certas, matéria LGPD, ba
 | ⏱️ **Foco** | Pomodoro e cronômetro de estudo/trabalho com pausa; o tempo aparece no menu e na bandeja |
 | 🏠 **Início** | Painel em grade com arrastar e soltar: sessão do dia, missões, metas da semana, contagem para a prova, acerto por matéria, mapa de calor, recordes |
 | 🌎 **Mundo** | Notícias de concursos com capa, resumo e relevância pela IA local; rastreador de concursos (RSS + Claude) com linha do tempo; suas provas com contagem regressiva |
-| 🎮 **Jogo** | XP, níveis com festa, missões diárias, sequência com escudo, 5 temas + editor de cores (contraste AA), cena pixel que muda com a hora, sons 8-bit. Respeita "movimento reduzido" |
+| 🎮 **Jogo** | XP, níveis com festa, missões diárias, sequência com escudo, 7 temas + editor de cores (contraste AA), cena pixel que muda com a hora, sons 8-bit. Respeita "movimento reduzido" |
 
 ## IA local e Claude
 
 | Quem | Para quê | Custo |
 |---|---|---|
-| **Ollama** (no seu PC) | Questões, materiais rápidos, alunos e avaliador da sala, classificação de notícias | Grátis. Padrão `qwen3:14b` (cabe em 12 GB de VRAM) |
+| **Ollama** (no seu PC) | Questões, materiais rápidos, alunos e avaliador da sala, classificação de notícias | Grátis. O modelo é escolhido pela sua placa de vídeo (Qwen 3.5 ou Gemma 4, de 4 a 32 GB) |
 | **Claude Code** (sua assinatura) | O que precisa de web ou de capricho: matérias pelo cargo, rastreador de concursos, apostila completa | Usa a sua assinatura do Claude, sem chave de API |
 
 Em **Config → IA** cada tarefa pode ir para *Automático* (Ollama, e o Claude se o Ollama estiver
@@ -111,12 +126,35 @@ pergunte *"como foi minha semana de estudos?"* ou *"quais tópicos eu devo revis
   (GitHub), downloads que você pede em Integrações e o Claude quando você manda.
 - A voz é transcrita no seu PC (whisper.cpp na CPU); o áudio não sai da máquina.
 
+## Limitações e responsabilidade
+
+> [!WARNING]
+> O Grifo Quest usa IA para gerar questões, gabaritos comentados, resumos, flashcards e para
+> classificar notícias. Ele **ajuda** a estudar e **não substitui** o edital, a legislação
+> oficial, livros, cursos nem professores.
+
+- **A IA erra.** Questões, alternativas, gabaritos e comentários podem conter erros, inclusive
+  de conteúdo, e podem não refletir a lei ou a jurisprudência atual. Confira na fonte oficial
+  antes de decorar.
+- **Questões são inéditas, não oficiais.** Seguem o estilo da banca, mas não foram aplicadas
+  por ela e não indicam o que vai cair.
+- **Datas e editais: sempre confira na fonte.** Notícias, resumos e o rastreador de concursos
+  vêm de feeds e de pesquisa automática e podem estar atrasados, incompletos ou errados. Prazo
+  de inscrição, data de prova e requisitos valem pelo **edital publicado pela banca/órgão**.
+- **Estatísticas são uma estimativa.** Acerto, pontos fracos e projeções dependem do que você
+  registra e não garantem aprovação.
+- **Claude e Ollama são de terceiros.** O uso do Claude conta na sua assinatura e segue os termos
+  da Anthropic; os modelos do Ollama seguem as licenças de cada modelo.
+- O software é fornecido **"no estado em que se encontra"**, sem garantias. O uso, e as decisões
+  tomadas a partir dele, são de responsabilidade de quem usa.
+
 ## Perguntas frequentes
 
 **É de graça?** Sim. O instalador é gratuito para uso pessoal.
 
-**Preciso de placa de vídeo?** Para a IA local, uma GPU com 12 GB deixa tudo rápido. Sem ela o
-Ollama roda na CPU (mais devagar) ou você manda as tarefas para o Claude.
+**Preciso de placa de vídeo?** Não. Com placa de vídeo dedicada, o assistente inicial detecta a
+memória dela (4 a 32 GB) e sugere um modelo local que cabe. Sem placa dedicada, a IA local fica
+desligada e as tarefas de IA vão para o Claude.
 
 **Funciona sem o Claude?** Sim. Só a pesquisa na web (matérias pelo cargo, rastreador) e a
 apostila completa precisam dele.

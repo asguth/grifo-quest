@@ -5,6 +5,10 @@ import type { Theme } from "@/lib/theme";
 type AppEvents = {
   /** Reabrir o assistente de primeira abertura (Config → Sistema). */
   onboarding: undefined;
+  /** Rever o tutorial do menu (Config → Sistema). */
+  tour: undefined;
+  /** Trocar a aba do Estudo (o mini-timer do menu pede "foco"). */
+  studyTab: string;
   /** Tema aplicado (cores, fonte, movimento). */
   theme: Theme;
   /** Festa de nível novo. */

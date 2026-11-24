@@ -12,6 +12,9 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use crate::error::{AppError, AppResult};
 use crate::settings::{self, AppConfig};
 use crate::sys::{self, progress};
+use crate::ai::Route;
+use crate::cloud::{self, Cloud};
+use crate::gpu::{self, GpuInfo};
 use crate::{claude, grifo, ollama};
 
 #[derive(Debug, Serialize, specta::Type)]
@@ -29,6 +32,10 @@ pub struct IntegrationsStatus {
     pub mcp_desktop: bool,
     /// whisper.cpp + modelo de voz baixados.
     pub voice_installed: bool,
+    /// Placa de vídeo: sem placa dedicada, a IA local nem aparece como opção.
+    pub gpu: GpuInfo,
+    /// Quantas IAs na nuvem (Gemini/GPT/Grok) têm chave salva.
+    pub cloud_keys: i32,
 }
 
 /// Ollama.exe: o instalador põe em %LOCALAPPDATA%\Programs\Ollama, mas o PATH deste
@@ -82,8 +89,8 @@ fn mcp_in_desktop() -> bool {
 #[specta::specta]
 pub async fn integrations_status(app: AppHandle, pool: State<'_, SqlitePool>) -> AppResult<IntegrationsStatus> {
     let cfg = settings::load::<AppConfig>(&pool).await?;
-    let (models, version, code) =
-        tokio::join!(ollama::list_models(&cfg.ollama_url), claude_version(&cfg.claude_cli), mcp_in_claude_code(&cfg.claude_cli));
+    let (models, version, code, gpu) =
+        tokio::join!(ollama::list_models(&cfg.ollama_url), claude_version(&cfg.claude_cli), mcp_in_claude_code(&cfg.claude_cli), gpu::info());
     let mut wanted = vec![cfg.student_model.clone(), cfg.evaluator_model.clone(), cfg.task_model.clone()];
     wanted.sort();
     wanted.dedup();
@@ -98,7 +105,37 @@ pub async fn integrations_status(app: AppHandle, pool: State<'_, SqlitePool>) ->
         mcp_code: code,
         mcp_desktop: mcp_in_desktop(),
         voice_installed: crate::commands::voice::installed(&app),
+        gpu,
+        cloud_keys: Cloud::ALL.iter().filter(|&&c| matches!(cloud::key(c), Ok(Some(_)))).count() as i32,
     })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn gpu_info() -> GpuInfo {
+    gpu::info().await
+}
+
+/// Assistente inicial: ajusta a IA à placa de vídeo. Com placa, os três papéis usam o modelo que
+/// cabe na VRAM; sem placa, as rotas vão para o Claude (o Ollama nem é oferecido).
+#[tauri::command]
+#[specta::specta]
+pub async fn apply_hardware_defaults(pool: State<'_, SqlitePool>) -> AppResult<GpuInfo> {
+    let info = gpu::info().await;
+    let mut cfg = settings::load::<AppConfig>(&pool).await?;
+    match &info.model {
+        Some(model) => {
+            cfg.student_model.clone_from(model);
+            cfg.evaluator_model.clone_from(model);
+            cfg.task_model.clone_from(model);
+        }
+        None => {
+            cfg.material_route = Route::Claude;
+            cfg.evaluator = Route::Claude;
+        }
+    }
+    settings::save(&pool, &cfg).await?;
+    Ok(info)
 }
 
 /// Roda um instalador mostrando cada linha da saída como evento.
@@ -302,4 +339,48 @@ mod tests {
         add_server(&mut empty, "a", "b").unwrap();
         assert_eq!(empty["mcpServers"]["grifo-quest"]["command"], "a");
     }
+}
+
+// ---------- Gemini, GPT e Grok (chave de API própria) ----------
+
+#[derive(Debug, Serialize, specta::Type)]
+pub struct CloudStatus {
+    pub id: Cloud,
+    pub label: String,
+    pub has_key: bool,
+    pub model: String,
+    /// Página onde se cria a chave.
+    pub key_page: String,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn cloud_status(pool: State<'_, SqlitePool>) -> AppResult<Vec<CloudStatus>> {
+    let cfg = settings::load::<AppConfig>(&pool).await?;
+    Cloud::ALL
+        .iter()
+        .map(|&c| {
+            Ok(CloudStatus {
+                id: c,
+                label: c.label().into(),
+                has_key: cloud::key(c)?.is_some(),
+                model: cfg.cloud_models.get(c).to_string(),
+                key_page: c.key_page().into(),
+            })
+        })
+        .collect()
+}
+
+/// Grava a chave no cofre do Windows (texto vazio apaga).
+#[tauri::command]
+#[specta::specta]
+pub fn set_cloud_key(cloud: Cloud, key: String) -> AppResult<()> {
+    cloud::set_key(cloud, &key)
+}
+
+/// Modelos de texto da conta; serve também para testar a chave.
+#[tauri::command]
+#[specta::specta]
+pub async fn cloud_models(cloud: Cloud) -> AppResult<Vec<String>> {
+    cloud::list_models(cloud).await
 }

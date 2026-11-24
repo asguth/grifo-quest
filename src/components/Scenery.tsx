@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, useReducedMotionConfig, useSpring, useTransform } from "motion/react";
 import { periodOf, type Period } from "@/lib/dates";
+import { useWidth } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 
 /** Céu (topo → horizonte), astro e se tem estrelas. O resto da cena puxa a cor do tema. */
@@ -12,16 +13,27 @@ const SKY: Record<Period, { top: string; horizon: string; body: string; stars: b
   noite: { top: "#121530", horizon: "#3a3463", body: "#f1ecd2", stars: true, sun: false },
 };
 
+/** Largura mínima da cena em "pixels" da arte. */
 const W = 320;
 const H = 90;
+/** Folga do parallax: as camadas são 3rem mais largas que a cena. */
+const BLEED = 48;
+
+/**
+ * Largura da arte para uma tela de `px` × `heightPx`: o pixel da arte tem sempre o mesmo tamanho
+ * (altura / H), e a paisagem fica mais comprida em vez de ser ampliada em janela larga.
+ */
+export function artWidth(px: number, heightPx: number): number {
+  return Math.max(W, Math.ceil(((px + BLEED) * H) / heightPx));
+}
 
 /** Silhueta em degraus (só traços horizontais/verticais → cara de pixel). Determinística pelo `seed`. */
-export function ridge(seed: number, base: number, amp: number, step: number): string {
+export function ridge(seed: number, base: number, amp: number, step: number, w = W): string {
   let d = `M0 ${H}`;
-  for (let x = 0; x <= W; x += step) {
+  for (let x = 0; x <= w; x += step) {
     const y = base - amp * (0.55 * Math.sin(x * 0.021 + seed) + 0.3 * Math.sin(x * 0.057 + seed * 2.1) + 0.15 * Math.sin(x * 0.13 + seed * 3.7));
     const yy = Math.round(y);
-    d += ` V${yy} H${Math.min(x + step, W)}`;
+    d += ` V${yy} H${Math.min(x + step, w)}`;
   }
   return `${d} V${H} Z`;
 }
@@ -36,6 +48,16 @@ export default function Scenery({ className }: { className?: string }) {
   const [period, setPeriod] = useState<Period>(() => periodOf(new Date().getHours()));
   const reduce = useReducedMotionConfig();
   const px = useSpring(0, { stiffness: 40, damping: 18 });
+  const [box, boxWidth] = useWidth<HTMLDivElement>();
+  const [boxHeight, setBoxHeight] = useState(300);
+  const w = artWidth(boxWidth || 1000, boxHeight);
+  const measure = useCallback(
+    (el: HTMLDivElement | null) => {
+      box(el);
+      if (el?.clientHeight) setBoxHeight(el.clientHeight);
+    },
+    [box],
+  );
 
   useEffect(() => {
     const id = setInterval(() => setPeriod(periodOf(new Date().getHours())), 5 * 60_000);
@@ -54,16 +76,21 @@ export default function Scenery({ className }: { className?: string }) {
   const sky = SKY[period];
   const layers = useMemo(
     () => [
-      { d: ridge(1.3, 40, 20, 6), mix: 70 },
-      { d: ridge(4.1, 52, 14, 4), mix: 40 },
-      { d: ridge(7.7, 62, 8, 3), mix: 0 },
+      { d: ridge(1.3, 40, 20, 6, w), mix: 70 },
+      { d: ridge(4.1, 52, 14, 4, w), mix: 40 },
+      { d: ridge(7.7, 62, 8, 3, w), mix: 0 },
     ],
-    [],
+    [w],
   );
-  const stars = useMemo(() => Array.from({ length: 40 }, (_, i) => ({ x: rand(i) * W, y: rand(i + 99) * 45, d: 2 + rand(i + 7) * 4 })), []);
+  // ~1 estrela a cada 8 px de arte: mesma densidade em qualquer largura
+  const stars = useMemo(() => Array.from({ length: Math.round(w / 8) }, (_, i) => ({ x: rand(i) * w, y: rand(i + 99) * 45, d: 2 + rand(i + 7) * 4 })), [w]);
 
   return (
-    <div aria-hidden className={cn("pointer-events-none overflow-hidden", className)}>
+    <div
+      aria-hidden
+      ref={measure}
+      className={cn("pointer-events-none overflow-hidden", className)}
+    >
       <div
         className="absolute inset-0"
         style={{
@@ -71,7 +98,7 @@ export default function Scenery({ className }: { className?: string }) {
           maskImage: "linear-gradient(to bottom, black 55%, transparent)",
         }}
       />
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMax slice" className="pixelated absolute inset-0 size-full">
+      <svg viewBox={`0 0 ${w} ${H}`} preserveAspectRatio="xMidYMax slice" className="pixelated absolute inset-0 size-full">
         {sky.stars &&
           stars.map((s, i) => (
             <rect
@@ -85,7 +112,7 @@ export default function Scenery({ className }: { className?: string }) {
             />
           ))}
         {/* Astro: disco pixelado com um halo */}
-        <g transform={sky.sun ? "translate(250 14)" : "translate(262 12)"}>
+        <g transform={sky.sun ? `translate(${w - 70} 14)` : `translate(${w - 58} 12)`}>
           <circle r={9} fill={sky.body} opacity={0.12} />
           <rect x={-3} y={-5} width={6} height={10} fill={sky.body} />
           <rect x={-5} y={-3} width={10} height={6} fill={sky.body} />
@@ -117,7 +144,7 @@ export default function Scenery({ className }: { className?: string }) {
       {layers.map((l, i) => (
         <motion.svg
           key={i}
-          viewBox={`0 0 ${W} ${H}`}
+          viewBox={`0 0 ${w} ${H}`}
           preserveAspectRatio="xMidYMax slice"
           className="pixelated absolute -inset-x-6 inset-y-0 h-full w-[calc(100%+3rem)]"
           style={{ x: xs[i] }}

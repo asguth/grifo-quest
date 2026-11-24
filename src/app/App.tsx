@@ -5,11 +5,14 @@ import Scenery from "@/components/Scenery";
 import { Toaster } from "@/components/toast";
 import { commands, events } from "@/lib/bindings";
 import { useAppEvent } from "@/lib/bus";
+import { getFlag, saveFlag } from "@/lib/prefs";
 import { digitsClaimed, useKey, useTauriEvent } from "@/lib/hooks";
+import { reportIssue } from "@/lib/report";
 import { useTheme } from "@/lib/theme";
 import { warn } from "@/lib/utils";
 import { SLOTS, toSlot, type SlotId } from "./nav";
 import { Sidebar } from "./Sidebar";
+import { Tour } from "./Tour";
 import { PageTransition, ScreenSkeleton } from "./transitions";
 
 // Cada tela num chunk próprio: a janela abre rápido e só baixa o que for usado.
@@ -22,7 +25,7 @@ const SettingsScreen = lazy(() => import("@/features/settings/SettingsScreen"));
 const Onboarding = lazy(() => import("@/features/onboarding/Onboarding"));
 
 /** Erro numa tela não derruba o app: mostra o aviso e deixa tentar de novo. */
-class ScreenBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+class ScreenBoundary extends Component<{ where: string; children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };
   static getDerivedStateFromError(error: Error) {
     return { error };
@@ -33,9 +36,22 @@ class ScreenBoundary extends Component<{ children: ReactNode }, { error: Error |
       <div className="mx-auto mt-16 max-w-md space-y-3 rounded-2xl border border-border bg-card p-6 text-center shadow-soft">
         <p className="font-semibold">Esta tela tropeçou.</p>
         <p className="text-sm text-muted-foreground">{this.state.error.message}</p>
-        <button className="text-sm text-primary underline-offset-4 hover:underline" onClick={() => this.setState({ error: null })}>
-          Tentar de novo
-        </button>
+        <div className="flex justify-center gap-4">
+          <button className="text-sm text-primary underline-offset-4 hover:underline" onClick={() => this.setState({ error: null })}>
+            Tentar de novo
+          </button>
+          <button
+            className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            onClick={() => {
+              const e = this.state.error;
+              void reportIssue("bug", { title: `Erro na tela ${this.props.where}`, where: this.props.where, error: e ? `${e.message}
+
+${e.stack ?? ""}` : undefined });
+            }}
+          >
+            Reportar no GitHub
+          </button>
+        </div>
       </div>
     );
   }
@@ -45,10 +61,15 @@ export default function App() {
   const [slot, setSlot] = useState<SlotId>("diario");
   const { motion: motionOn } = useTheme();
   const [onboarding, setOnboarding] = useState<boolean | null>(null);
+  const [tour, setTour] = useState(false);
 
   useEffect(() => {
     commands.getProfile().then(
-      (p) => setOnboarding(!p.onboarded),
+      (p) => {
+        setOnboarding(!p.onboarded);
+        // Quem já tinha configurado antes do tour existir também vê uma vez.
+        if (p.onboarded) void getFlag("tour_done", false).then((done) => setTour(!done));
+      },
       (e) => {
         warn("ler o perfil", e);
         setOnboarding(false);
@@ -56,6 +77,7 @@ export default function App() {
     );
   }, []);
   useAppEvent("onboarding", () => setOnboarding(true));
+  useAppEvent("tour", () => setTour(true));
   // Boas-vindas do Windows pedem uma tela ("foco" = Estudo).
   useTauriEvent(events.navigateTo, (s) => {
     const target = toSlot(s);
@@ -76,6 +98,8 @@ export default function App() {
             onDone={() => {
               setOnboarding(false);
               setSlot("diario");
+              // Primeira vez: o tour do menu logo depois do assistente.
+              setTour(true);
             }}
           />
         </Suspense>
@@ -106,11 +130,11 @@ export default function App() {
             )}
           </AnimatePresence>
 
-          <div className={`relative mx-auto max-w-6xl px-8 pb-7 transition-[padding] duration-500 ${scenery ? "pt-44" : "pt-7"}`}>
+          <div className={`@container relative mx-auto max-w-6xl px-8 pb-7 transition-[padding] duration-500 ${scenery ? "pt-44" : "pt-7"}`}>
             <Suspense fallback={<ScreenSkeleton />}>
               <AnimatePresence mode="wait">
                 <PageTransition key={slot}>
-                  <ScreenBoundary>
+                  <ScreenBoundary where={slot}>
                     {slot === "diario" && <DiaryScreen go={setSlot} />}
                     {slot === "foco" && <StudyScreen />}
                     {slot === "sala" && <ClassroomScreen />}
@@ -126,6 +150,15 @@ export default function App() {
       </div>
       <Toaster />
       <LevelUpOverlay />
+      {tour && (
+        <Tour
+          go={setSlot}
+          onClose={() => {
+            setTour(false);
+            saveFlag("tour_done", true);
+          }}
+        />
+      )}
     </>
   );
 }

@@ -53,7 +53,7 @@ pub fn merge(parts: Vec<PlanSubject>) -> Vec<PlanSubject> {
         if name.is_empty() {
             continue;
         }
-        let idx = match out.iter().position(|s| fold(&s.name) == fold(&name)) {
+        let idx = match out.iter().position(|s| subject_key(&s.name) == subject_key(&name)) {
             Some(i) => i,
             None => {
                 out.push(PlanSubject { name, weight: 1.0, topics: Vec::new() });
@@ -72,6 +72,26 @@ pub fn merge(parts: Vec<PlanSubject>) -> Vec<PlanSubject> {
         }
     }
     out
+}
+
+/// Chave para juntar a mesma matéria escrita de jeitos diferentes: sem acento/caixa, sem "Noções de"
+/// e com os sinônimos comuns de edital ("Português" = "Língua Portuguesa", "RLM" = "Raciocínio Lógico").
+pub fn subject_key(name: &str) -> String {
+    let mut k = fold(name).replace(['-', '–', '/'], " ");
+    for prefix in ["nocoes basicas de ", "nocoes de ", "conhecimentos de ", "conhecimentos basicos de "] {
+        if let Some(rest) = k.strip_prefix(prefix) {
+            k = rest.to_string();
+        }
+    }
+    let k = k.split_whitespace().collect::<Vec<_>>().join(" ");
+    const SYNONYMS: [(&str, &[&str]); 5] = [
+        ("lingua portuguesa", &["portugues", "lingua portuguesa", "lp", "gramatica e interpretacao de textos"]),
+        ("lingua inglesa", &["ingles", "lingua inglesa", "lingua estrangeira ingles"]),
+        ("raciocinio logico", &["raciocinio logico", "rlm", "raciocinio logico matematico", "raciocinio logico e matematico", "logica"]),
+        ("informatica", &["informatica", "nocoes de informatica", "tecnologia da informacao basica"]),
+        ("lgpd", &["lgpd", "lei geral de protecao de dados", "lei geral de protecao de dados pessoais", "protecao de dados pessoais"]),
+    ];
+    SYNONYMS.iter().find(|(_, all)| all.contains(&k.as_str())).map_or(k.clone(), |(canon, _)| (*canon).to_string())
 }
 
 fn clean_item(s: &str) -> String {
@@ -115,5 +135,20 @@ mod tests {
         assert_eq!(out[0].name, "Língua Portuguesa");
         assert_eq!(out[0].weight, 10.0);
         assert_eq!(out[0].topics, vec!["Compreensão de texto", "Ortografia", "Crase"]);
+    }
+
+    #[test]
+    fn same_subject_with_other_names_is_merged() {
+        assert_eq!(subject_key("Português"), subject_key("LÍNGUA PORTUGUESA"));
+        assert_eq!(subject_key("Noções de Direito Administrativo"), subject_key("Direito Administrativo"));
+        assert_eq!(subject_key("RLM"), subject_key("Raciocínio Lógico-Matemático"));
+        assert_ne!(subject_key("Direito Constitucional"), subject_key("Direito Administrativo"));
+        let merged = merge(vec![
+            PlanSubject { name: "Português".into(), weight: 1.0, topics: vec!["Crase".into()] },
+            PlanSubject { name: "Língua Portuguesa".into(), weight: 2.0, topics: vec!["Regência".into()] },
+        ]);
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].name, "Português");
+        assert_eq!(merged[0].topics, vec!["Crase", "Regência"]);
     }
 }

@@ -59,7 +59,7 @@ pub struct Contest {
 }
 
 /// Formato pedido ao Claude no rastreador.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct FoundContest {
     pub title: String,
     pub org: Option<String>,
@@ -70,6 +70,9 @@ pub struct FoundContest {
     pub deadline: Option<String>,
     pub url: String,
     pub summary: Option<String>,
+    /// Data da prova (AAAA-MM-DD), quando a fonte diz. Só serve para a trava de status.
+    #[serde(default)]
+    pub exam_date: Option<String>,
 }
 
 pub async fn feeds(pool: &SqlitePool) -> AppResult<Vec<Feed>> {
@@ -208,18 +211,26 @@ pub async fn mark_all_read(pool: &SqlitePool) -> AppResult<i32> {
 }
 
 pub async fn contests(pool: &SqlitePool) -> AppResult<Vec<Contest>> {
-    Ok(sqlx::query_as(
+    let rows: Vec<Contest> = sqlx::query_as(
         "SELECT id, title, org, banca, status, vacancies, salary, deadline, url, summary, source, followed, found_at
          FROM contests ORDER BY followed DESC, found_at DESC, id DESC",
     )
     .fetch_all(pool)
-    .await?)
+    .await?;
+    // A mesma trava na leitura: corrige também o que foi gravado antes dela existir.
+    let today = news::today();
+    Ok(rows
+        .into_iter()
+        .map(|c| Contest { status: news::contest_status(&c.title, c.summary.as_deref(), c.status.as_deref(), None, &today), ..c })
+        .collect())
 }
 
 /// Insere ou atualiza pelo link; se o mesmo concurso já veio de outra fonte (mesma chave de órgão),
 /// só completa aquele. Devolve se era novo.
 pub async fn upsert_contest(pool: &SqlitePool, c: &FoundContest, source: ContestSource) -> AppResult<bool> {
     let key = news::contest_key(c.org.as_deref(), &c.title);
+    // A IA não decide sozinha que um concurso está aberto: prova passada vira "prova realizada".
+    let status = news::contest_status(&c.title, c.summary.as_deref(), c.status.as_deref(), c.exam_date.as_deref(), &news::today());
     if let Some(k) = &key {
         let twin: Option<i32> = sqlx::query_scalar("SELECT id FROM contests WHERE dedupe_key = ? AND url <> ? LIMIT 1")
             .bind(k)
@@ -246,7 +257,7 @@ pub async fn upsert_contest(pool: &SqlitePool, c: &FoundContest, source: Contest
             .bind(&c.title)
             .bind(&c.org)
             .bind(&c.banca)
-            .bind(&c.status)
+            .bind(&status)
             .bind(&c.vacancies)
             .bind(&c.salary)
             .bind(&c.deadline)
@@ -270,7 +281,7 @@ pub async fn upsert_contest(pool: &SqlitePool, c: &FoundContest, source: Contest
     .bind(&c.title)
     .bind(&c.org)
     .bind(&c.banca)
-    .bind(&c.status)
+    .bind(&status)
     .bind(&c.vacancies)
     .bind(&c.salary)
     .bind(&c.deadline)

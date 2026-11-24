@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Check, CheckCheck, ExternalLink, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { Chip, NativeSelect, SearchInput } from "@/components/fields";
@@ -8,7 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { commands, type NewsItem } from "@/lib/bindings";
 import { ago, feedColor } from "@/lib/format";
-import { itemIn, listIn, spring } from "@/lib/motion";
+import { useWidth } from "@/lib/hooks";
+import { masonry } from "./masonry";
+import { spring } from "@/lib/motion";
 import { NEWS_RELEVANT } from "@/lib/rules";
 import { sfx } from "@/lib/sound";
 import { cn } from "@/lib/utils";
@@ -29,6 +31,13 @@ type Filter = "todas" | "nao_lidas" | "area";
 const tagsOf = (n: NewsItem) => (n.tags ? n.tags.split(",").filter(Boolean) : []);
 const isMine = (n: NewsItem) => (n.relevance ?? 0) >= NEWS_RELEVANT;
 
+/** Cartões por "página": o resto entra quando a rolagem chega perto do fim. */
+const PAGE = 24;
+/** Largura mínima de uma coluna do mosaico (px). */
+const COLUMN_MIN = 300;
+
+const estimate = (n: NewsItem) => (n.image_url ? 300 : 160) + ((n.summary ?? n.description) ? 60 : 0) + Math.min(n.title.length, 140) * 0.4;
+
 export function NewsBoard() {
   const [items, setItems] = useState<NewsItem[] | null>(null);
   const [filter, setFilter] = useState<Filter>("todas");
@@ -37,6 +46,10 @@ export function NewsBoard() {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<NewsItem | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [limit, setLimit] = useState(PAGE);
+  const [gridRef, width] = useWidth<HTMLDivElement>();
+  const columns = Math.max(1, Math.min(3, Math.floor((width + 16) / (COLUMN_MIN + 16))));
+  const sentinel = useRef<HTMLDivElement>(null);
 
   const load = useCallback(() => void commands.listNews(300).then(setItems, toastError), []);
   useEffect(load, [load]);
@@ -86,22 +99,36 @@ export function NewsBoard() {
     );
   }, [items, filter, tag, feed, q]);
 
+  // Filtro novo volta para a primeira página.
+  useEffect(() => setLimit(PAGE), [filter, tag, feed, q]);
+
   // Destaque: a primeira não lida com capa (senão, a primeira com capa).
   const featured = shown.find((n) => !n.read && n.image_url) ?? shown.find((n) => n.image_url) ?? null;
   const rest = shown.filter((n) => n !== featured);
+  const page = rest.slice(0, limit);
+  const cols = useMemo(() => masonry(page, columns, estimate), [page, columns]);
+
+  // Rolou até perto do fim: mais uma página.
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el || limit >= rest.length) return;
+    const io = new IntersectionObserver(([e]) => e.isIntersecting && setLimit((l) => l + PAGE), { rootMargin: "600px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [limit, rest.length]);
 
   if (items === null) {
     return (
-      <div className="columns-1 gap-4 md:columns-2 xl:columns-3">
-        {[180, 260, 200, 240, 170, 220].map((h, i) => (
-          <Skeleton key={i} className="mb-4 break-inside-avoid rounded-2xl" style={{ height: h }} />
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
+        {[220, 260, 200, 240, 210, 230].map((h, i) => (
+          <Skeleton key={i} className="rounded-2xl" style={{ height: h }} />
         ))}
       </div>
     );
   }
 
   return (
-    <section className="space-y-4">
+    <section ref={gridRef} className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput value={q} onChange={setQ} placeholder="Buscar nas notícias" className="min-w-56 flex-1" />
         <Button variant="ghost" size="sm" disabled={!unread} onClick={() => void readAll()}>
@@ -133,7 +160,7 @@ export function NewsBoard() {
             </Chip>
           ))}
         {feeds.length > 1 && (
-          <NativeSelect value={feed ?? ""} onChange={(e) => setFeed(e.target.value || null)} className="ml-auto h-8 w-auto" aria-label="Fonte">
+          <NativeSelect value={feed ?? ""} onChange={(e) => setFeed(e.target.value || null)} className="ml-auto h-8 w-auto max-w-52 rounded-full text-xs" aria-label="Fonte">
             <option value="">Todas as fontes</option>
             {feeds.map((f) => (
               <option key={f} value={f}>
@@ -151,11 +178,23 @@ export function NewsBoard() {
       ) : (
         <>
           {featured && <Featured n={featured} onOpen={() => (setOpen(featured), void setRead(featured, true))} />}
-          <motion.div key={`${filter}-${tag}-${feed}`} variants={listIn} initial="hidden" animate="show" className="columns-1 gap-4 md:columns-2 xl:columns-3">
-            {rest.map((n) => (
-              <Card key={n.id} n={n} onOpen={() => (setOpen(n), void setRead(n, true))} onToggle={() => void setRead(n, !n.read)} />
+          <div className="flex items-start gap-4">
+            {cols.map((col, c) => (
+              <div key={c} className="min-w-0 flex-1 space-y-4">
+                {col.map((n, row) => (
+                  <Card
+                    key={n.id}
+                    n={n}
+                    // entrada por linha, só nos primeiros: quem chega rolando já aparece
+                    delay={Math.min(row * columns + c, 12) * 0.035}
+                    onOpen={() => (setOpen(n), void setRead(n, true))}
+                    onToggle={() => void setRead(n, !n.read)}
+                  />
+                ))}
+              </div>
             ))}
-          </motion.div>
+          </div>
+          {limit < rest.length && <div ref={sentinel} className="h-px" />}
         </>
       )}
 
@@ -216,9 +255,13 @@ function Featured({ n, onOpen }: { n: NewsItem; onOpen: () => void }) {
   );
 }
 
-function Card({ n, onOpen, onToggle }: { n: NewsItem; onOpen: () => void; onToggle: () => void }) {
+function Card({ n, delay, onOpen, onToggle }: { n: NewsItem; delay: number; onOpen: () => void; onToggle: () => void }) {
   return (
-    <motion.article variants={itemIn} layout className={cn("group mb-4 break-inside-avoid overflow-hidden rounded-2xl border border-border bg-card shadow-soft transition-opacity", n.read && "opacity-60 hover:opacity-100")}>
+    <motion.article
+      initial={{ opacity: 0, y: 12, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ ...spring.soft, delay }}
+      className={cn("group overflow-hidden rounded-2xl border border-border bg-card shadow-soft transition-opacity", n.read && "opacity-60 hover:opacity-100")}>
       <button onClick={onOpen} className="block w-full text-left">
         {n.image_url ? <Cover n={n} className="h-36 w-full" /> : <div className="h-1.5" style={{ background: feedColor(n.feed) }} />}
         <div className="space-y-2 p-4">

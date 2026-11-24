@@ -12,16 +12,17 @@ export function StatTile({
 }: {
   value: ReactNode;
   label: string;
-  icon?: string;
+  /** Ícone pixel (`PixelFlame` etc.) à esquerda do número. */
+  icon?: ReactNode;
   tone?: string;
   className?: string;
   valueClass?: string;
 }) {
   return (
-    <div className={cn("rounded-2xl border border-border bg-card p-4 text-center", className)}>
-      <p className={cn("retro tabular", valueClass, tone)}>
+    <div className={cn("flex flex-col items-center rounded-2xl border border-border bg-card p-4 text-center", className)}>
+      <p className={cn("retro tabular inline-flex items-center justify-center gap-2", valueClass, tone)}>
         {icon && (
-          <span aria-hidden className="mr-1 text-[0.8em]">
+          <span aria-hidden className="inline-flex">
             {icon}
           </span>
         )}

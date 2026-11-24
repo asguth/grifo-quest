@@ -1,0 +1,134 @@
+# Roadmap
+
+Planejamento do Grifo Quest num lugar só. O que falta fazer está separado por **dificuldade**
+(estimativa de esforço, não de importância). O histórico fica em [Entregue](#entregue), e as
+limitações conhecidas em [Débitos técnicos](#débitos-técnicos).
+
+Legenda: 🔵 planejado · ⚪ ideia (sem compromisso) · ✋ depende de você
+
+---
+
+## A fazer
+
+### 🟢 Fácil (horas, sem mudar o banco)
+
+| | Item | Notas |
+|---|---|---|
+| 🔵 | GIF da Sala de aula no README | Gravar uma aula com o Ollama no ar (`scripts/gif.py`) |
+
+### 🟡 Médio (dias, com migração ou tela nova)
+
+| | Item | Por quê |
+|---|---|---|
+| 🔵 | **Nota de corte e projeção** | Cadastrar a nota de corte e projetar a nota (acerto por matéria × peso): "faltam X pontos para passar" |
+| 🔵 | **Reta final** | Últimos 15 dias: só caderno de erros, flashcards e pontos fracos; sem matéria nova |
+| 🔵 | **Motivo do erro** | "Não sabia / confundi / falta de atenção / pegadinha" ao errar, visível no Desempenho (coluna nova + gráfico) |
+| 🔵 | Sala de aula sem placa de vídeo | Alunos e avaliador pelo Claude ou Gemini/GPT/Grok quando não há IA local |
+| 🔵 | Tempo por questão no simulado | Comparar com o tempo da prova real, por matéria |
+| 🔵 | Lançamento rápido com tópico | `30 15 lgpd#direitos fgv` e prévia antes do Enter |
+| 🔵 | Lista de bancas editável | Hoje é fixa em `domain/quick_log.rs` |
+| 🔵 | Limite de 20 cartões novos por dia | Coluna `introduced_at` (hoje vale por carregamento) |
+| 🔵 | Missões geradas à meia-noite | Hoje nascem no 1º acesso do dia |
+| 🔵 | Badges do menu por evento | Hoje é polling de 60 s |
+| 🔵 | Cache local das capas de notícia | Sem internet, a capa vira a faixa colorida |
+| 🔵 | Voz: whisper-server durante a aula | Evita ~1 s carregando o modelo a cada fala; seletor de microfone |
+| ⚪ | Trilha chiptune opcional no foco | Sons sintetizados como os efeitos |
+| ⚪ | Cosméticos do mascote | Destravados por nível/edital |
+| ⚪ | Exportar resumo semanal (Notion), kanban | |
+
+### 🔴 Difícil (semanas, ou depende de terceiros)
+
+| | Item | Por quê |
+|---|---|---|
+| 🔵 | **Cronograma reverso** | Da data da prova para trás: matéria e tópico de cada dia, com horas e peso; replanejar quando atrasa |
+| ⚪ | Questões de provas reais | Importar PDF de prova + gabarito num banco "oficial", separado das geradas pela IA |
+| ⚪ | Lei seca | Leitor de artigo com grifo e cartão por dispositivo (prazos, exceções, competências) |
+| ⚪ | Discursiva/redação corrigida pela IA | Com o espelho da banca |
+| ⚪ | Voz dos alunos com Piper | Mais natural que a do Windows |
+| ⚪ | OCR de edital escaneado | PDF sem texto hoje não é lido |
+| ⚪ | Issue automática sem conta no GitHub | Precisa de um servidor intermediário (o app não pode carregar token) |
+| ⚪ | Sincronização na nuvem / app no celular | |
+
+---
+
+## Entregue
+
+### Próxima versão (em teste)
+- **Interface**: responsividade por container query, cena pixel sem ampliar, Mundo em mosaico por linha com 24 notícias por vez, layout padrão do Início sem buracos (mapa de calor e notícias em largura total), ícones em pixel art no lugar dos emojis, menu sem números, tutorial animado com Pular.
+- **Temas e texto**: 7 temas em OKLCH (todos AA), escolha de fonte (Geist, Segoe UI, Verdana, Georgia, Consolas) e volume dos sons.
+- **Foco**: anel de blocos pixel com o Grifinho estudando; mini-timer do menu com barra de 10 blocos, pausa e atalho direto para a aba Foco.
+- **IA**: detecção da placa de vídeo e modelo que cabe (Qwen 3.5 / Gemma 4), seletor com catálogo + personalizado, Gemini/GPT/Grok por chave de API (Cofre do Windows).
+- **Rastreador**: trava contra concurso com prova já realizada (aditivo, convocação, resultado, data passada, ano antigo) virar "edital publicado"; encerrados ficam separados.
+- **Dados**: backup do banco em um clique e restauração pela lista de backups (guarda o estado atual antes); edital importado junta matérias sinônimas ("Português" = "Língua Portuguesa").
+- **Projeto**: GIFs das telas no README (`scripts/gif.py` grava a janela e monta), ROADMAP único, aviso de limitações no README, formulários de issue, migrações sempre em LF, `cargo test` em checkout novo sem rodar o sidecar antes, teste de SQL que não quebra de madrugada.
+
+### 0.1.0 (nov/2026), primeira release pública
+- **Fundação**: Tauri 2 + bandeja, autostart, lançamento rápido (Ctrl+Alt+Q), matérias e tópicos, pomodoro e cronômetro estudo/trabalho com pausa e foco parcial.
+- **Design**: menu lateral recolhível com badges e mini-timer, transições, skeletons, cena pixel em parallax que muda com a hora, temas + editor de cores, sons 8-bit, "movimento reduzido".
+- **Onboarding**: assistente de 7 telas; matérias pelo cargo (Claude + web) ou pelo edital em PDF, com prévia editável.
+- **IA**: roteador Ollama/Claude por tarefa; Grifo nativo (modo rápido em Markdown pelo Ollama, apostila completa pelo Claude) com cancelamento; Integrações em um clique (Ollama, Claude, voz, MCP).
+- **Estudo**: sessão do dia por pontos fracos, Reforço, simulado, questões por tópico/matéria, tela dividida com o material, caderno de erros (1/3/7 dias), flashcards SM-2, Desempenho.
+- **Início**: grade com arrastar e soltar e tamanhos 1×1/2×1/2×2, widgets de sessão, missões, metas, prova, acerto, mapa de calor, notícias; janela de boas-vindas ao ligar o Windows.
+- **Mundo**: notícias com capa, resumo, tags e relevância pela IA local, leitor embutido, lidas/não lidas; rastreador de concursos com linha do tempo e "seguir".
+- **Sala de aula**: 6 alunos virtuais, avaliador oculto, boletim, reaula 1/7/30 dias, voz local (whisper.cpp) e vozes pt-BR do Windows, aulas retomadas ao reabrir.
+- **Distribuição**: MCP no instalador, ícone e marca, atualização automática assinada pelas Releases do GitHub.
+
+---
+
+## Débitos técnicos
+
+Atalhos deliberados (marcados no código com `ponytail:`) e limitações conhecidas, por área.
+Quando um for resolvido, apague a linha.
+
+### Estudo e questões
+- `commands/study.rs`: fila da sessão fica em memória; fechar o app no meio perde a fila (o que foi respondido fica gravado).
+- `commands/study.rs`: questões da IA não são conferidas por outra IA; o comentário pode errar (mitigação: material como referência, prompt proíbe inventar lei, botão "Problema").
+- `commands/study.rs`: simulado respeita o peso das matérias, mas não a ordem/blocos da prova real.
+- `commands/study.rs`: aquecimento de questões só com Ollama no ar; sem ele a 1ª questão espera o lote.
+- `commands/study.rs`: sessão por matéria busca erros com uma consulta por erro vencido (trocar por JOIN se o caderno passar de centenas).
+- `db/study.rs`: limite de 20 cartões novos vale por carregamento, não por dia (falta coluna `introduced_at`).
+- Erros vindos do lançamento rápido (sem enunciado) não entram no caderno de erros.
+- Desempenho: "pontos em risco" = peso × (1 − acerto 30 d); matéria sem dados conta 50%. Sem nota de corte.
+
+### Edital e matérias
+- `commands/planner.rs`: edital acima de 90 mil caracteres é cortado; PDF escaneado (sem texto) não é lido (falta OCR).
+- `domain/quick_log.rs`: lista fixa de bancas.
+
+### Mundo
+- `domain/news.rs`: duplicata = título igual sem o " - Fonte"; títulos reescritos continuam duplicados.
+- `domain/news.rs`: chave de concurso = 2 primeiras palavras do órgão; cargos diferentes do mesmo órgão podem virar um só.
+- `commands/world.rs`: og:image sem cache local (sem internet, a capa vira a faixa colorida); classificação só com Ollama no ar.
+- Leitor mostra o trecho do RSS, não a página inteira.
+
+### IA, Grifo e voz
+- `commands/material.rs`: um trabalho por tópico; dois tópicos em paralelo disputam a GPU (fila global se travar).
+- `grifo.rs`: modo rápido sem figuras (só Markdown).
+- `commands/integrations.rs`: o app não detecta login do Claude ("Testar" confirma).
+- `commands/voice.rs`: whisper roda como processo a cada fala (~1 s carregando o modelo); fala até 120 s; microfone sempre o padrão do Windows.
+
+### App e interface
+- `src/app/Sidebar.tsx`: badges por polling de 60 s.
+- `src/app/App.tsx`: "Tentar de novo" não refaz um `lazy()` que falhou ao baixar (só em dev).
+- `src/components/Scenery.tsx`: cores do céu fixas por período (não seguem o tema).
+- `src-tauri/src/gpu.rs`: placa detectada uma vez por execução; a Sala de aula ainda exige Ollama (sem placa dedicada, os alunos não falam).
+- Reportar problema exige conta no GitHub (o app não envia nada sozinho para não carregar token num repositório público).
+- `src/features/diary/DiaryScreen.tsx`: sem redimensionar widget pela borda (só 1×1/2×1/2×2).
+- `db/diary.rs`: missões geradas no 1º acesso do dia, não às 00:00.
+- `mcp-server`: SQL repetido do app (crate comum se divergir).
+- IDs `i32` (specta proíbe `i64`).
+- Acessibilidade: contraste AA testado só nos temas prontos; sem auditoria com leitor de tela.
+
+### Build
+- `src-tauri/build.rs`: em debug, sem o binário do MCP, cria um placeholder vazio (os testes rodam; `tauri dev/build` trocam pelo real).
+
+---
+
+## Princípios de design
+
+Valem para toda tela nova.
+
+**Visual**: "RPG aconchegante, acabamento de produto". Pixel é tempero (mascote, XP, títulos, cena); corpo em Geist + shadcn. Nada de gradiente roxo-azul genérico nem grade de cards idênticos.
+
+**Movimento** (`src/lib/motion.ts`, nenhum easing solto na tela): nunca linear; entradas animam 2–3 propriedades; listas em stagger curto e **limitado** (listas longas não esperam item por item); saídas na metade do tempo; o que fica parado respira; um destaque por vez.
+
+**UX**: uma ação primária por tela; estados vazio/carregando/erro/sucesso sempre desenhados; layout decide colunas pela largura da própria área (container queries), não da tela; contraste AA, foco visível, alvo ≥ 32 px.

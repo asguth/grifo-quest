@@ -7,6 +7,7 @@ import { Check, EyeOff, GripVertical, LayoutGrid, Play, Plus, RotateCcw, Scaling
 import type { Navigate } from "@/app/nav";
 import { celebrateLevel } from "@/components/LevelUp";
 import { Mascot, tierOf } from "@/components/Mascot";
+import { PixelFlame, PixelShield } from "@/components/PixelIcons";
 import { Skeleton } from "@/components/motion";
 import { ProgressBar } from "@/components/Progress";
 import { StatTile } from "@/components/StatTile";
@@ -20,7 +21,7 @@ import { plural } from "@/lib/format";
 import { itemIn, listIn, spring } from "@/lib/motion";
 import { sfx } from "@/lib/sound";
 import { cn, errorMessage, warn } from "@/lib/utils";
-import { DEFAULT_LAYOUT, loadLayout, NEXT_SIZE, saveLayout, SIZE_LABEL, SPAN, WIDGETS, type WidgetId, type WidgetSlot } from "./layout";
+import { DEFAULT_LAYOUT, isFull, loadLayout, NEXT_SIZE, saveLayout, SIZE_LABEL, SPAN, WIDGETS, type WidgetId, type WidgetSlot } from "./layout";
 
 function Hero({ d, name, go }: { d: Dashboard; name: string; go: Navigate }) {
   const reduce = useReducedMotionConfig();
@@ -68,8 +69,8 @@ function Hero({ d, name, go }: { d: Dashboard; name: string; go: Navigate }) {
       </div>
 
       <div className="relative flex items-center gap-6">
-        <StatTile className={HERO_STAT} tone="text-foreground" label="dias seguidos" value={d.streak.days} icon="🔥" />
-        <StatTile className={HERO_STAT} tone="text-foreground" label={d.streak.shield_available ? "escudo pronto" : "escudo usado"} value={d.streak.shield_available ? 1 : 0} icon="🛡️" />
+        <StatTile className={HERO_STAT} tone="text-foreground" label="dias seguidos" value={d.streak.days} icon={<PixelFlame off={d.streak.days === 0} />} />
+        <StatTile className={HERO_STAT} tone="text-foreground" label={d.streak.shield_available ? "escudo pronto" : "escudo usado"} value={d.streak.shield_available ? 1 : 0} icon={<PixelShield off={!d.streak.shield_available} />} />
         <Button size="lg" className="h-11 shadow-soft" onClick={() => go("foco")}>
           <Play /> Estudar agora
         </Button>
@@ -89,7 +90,7 @@ function Tile({ slot, editing, onResize, onHide, children }: { slot: WidgetSlot;
     <div
       ref={setNodeRef}
       style={style}
-      className={cn("relative min-h-[190px]", SPAN[slot.size], editing && !isDragging && "wiggle", isDragging && "opacity-80")}
+      className={cn("relative min-h-[190px]", isFull(slot.id) ? "col-span-full" : SPAN[slot.size], editing && !isDragging && "wiggle", isDragging && "opacity-80")}
       {...(editing ? { ...attributes, ...listeners } : {})}
     >
       <motion.div variants={itemIn} className={cn("h-full", editing && "pointer-events-none select-none")}>
@@ -101,9 +102,11 @@ function Tile({ slot, editing, onResize, onHide, children }: { slot: WidgetSlot;
             <span className="grid size-7 place-items-center rounded-md bg-card/90 text-muted-foreground" aria-hidden>
               <GripVertical className="size-4" />
             </span>
-            <button onClick={onResize} className="flex h-7 items-center gap-1 rounded-md bg-card/90 px-2 text-xs font-medium hover:text-primary" aria-label={`Tamanho: ${SIZE_LABEL[slot.size]}. Trocar`}>
-              <Scaling className="size-3.5" /> {SIZE_LABEL[slot.size]}
-            </button>
+            {!isFull(slot.id) && (
+              <button onClick={onResize} className="flex h-7 items-center gap-1 rounded-md bg-card/90 px-2 text-xs font-medium hover:text-primary" aria-label={`Tamanho: ${SIZE_LABEL[slot.size]}. Trocar`}>
+                <Scaling className="size-3.5" /> {SIZE_LABEL[slot.size]}
+              </button>
+            )}
             <button onClick={onHide} className="grid size-7 place-items-center rounded-md bg-card/90 hover:text-destructive" aria-label={`Esconder ${WIDGETS[slot.id].label}`}>
               <EyeOff className="size-3.5" />
             </button>
@@ -175,7 +178,7 @@ export default function DiaryScreen({ go }: { go: Navigate }) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-36 rounded-3xl" />
-        <div className="grid gap-4 md:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-48 rounded-2xl" />)}</div>
+        <div className="grid gap-4 @xl:grid-cols-2 @4xl:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-48 rounded-2xl" />)}</div>
       </div>
     );
   }
@@ -235,7 +238,7 @@ export default function DiaryScreen({ go }: { go: Navigate }) {
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={visible.map((w) => w.id)} strategy={rectSortingStrategy}>
-          <motion.div variants={listIn} initial="hidden" animate="show" className="grid grid-flow-dense auto-rows-[minmax(190px,auto)] gap-4 md:grid-cols-3">
+          <motion.div variants={listIn} initial="hidden" animate="show" className="grid grid-flow-dense auto-rows-[minmax(190px,auto)] gap-4 @xl:grid-cols-2 @4xl:grid-cols-3">
             {visible.map((w) => {
               const View = WIDGETS[w.id].view;
               return (
@@ -267,7 +270,7 @@ export default function DiaryScreen({ go }: { go: Navigate }) {
                 <span className="block font-medium">{WIDGETS[w.id].label}</span>
                 <span className="block text-xs text-muted-foreground">{WIDGETS[w.id].hint}</span>
               </span>
-              <span className="text-xs text-muted-foreground">{SIZE_LABEL[w.size]}</span>
+              <span className="text-xs text-muted-foreground">{isFull(w.id) ? "largura toda" : SIZE_LABEL[w.size]}</span>
             </button>
           ))}
         </div>

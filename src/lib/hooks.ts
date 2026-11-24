@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { warn } from "@/lib/utils";
 
@@ -79,4 +79,19 @@ export function useClaimDigits() {
 
 export function digitsClaimed(): boolean {
   return digitClaims > 0;
+}
+
+/** Largura do elemento (ResizeObserver). A janela tem tamanho livre: telas decidem colunas pela própria largura. */
+export function useWidth<T extends HTMLElement>(): [(el: T | null) => void, number] {
+  const [width, setWidth] = useState(0);
+  const observer = useRef<ResizeObserver | null>(null);
+  const ref = useCallback((el: T | null) => {
+    observer.current?.disconnect();
+    if (!el) return;
+    setWidth(el.clientWidth);
+    observer.current = new ResizeObserver(([entry]) => setWidth(Math.round(entry.contentRect.width)));
+    observer.current.observe(el);
+  }, []);
+  useEffect(() => () => observer.current?.disconnect(), []);
+  return [ref, width];
 }

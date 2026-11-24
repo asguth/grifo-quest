@@ -67,8 +67,10 @@ mod tests {
             let s = sessions::NewSession {
                 kind: crate::domain::timer::TimerKind::Estudo,
                 subject_id: Some(lgpd),
-                started: now - 1500,
-                ended: now,
+                // começa há 1 min (não "25 min atrás"): rodando logo depois da meia-noite, a sessão
+                // cairia no dia anterior e o teste quebrava
+                started: now - 60,
+                ended: now - 60 + 1500,
                 source: sessions::SessionSource::Pomodoro,
                 xp: 10,
             };
@@ -115,6 +117,7 @@ mod tests {
                 deadline: None,
                 url: "https://x.gov.br/edital".into(),
                 summary: None,
+                exam_date: None,
             };
             assert!(world::upsert_contest(&pool, &c, world::ContestSource::Claude).await.unwrap());
             assert!(!world::upsert_contest(&pool, &c, world::ContestSource::Claude).await.unwrap());
@@ -123,12 +126,23 @@ mod tests {
                 title: "Concurso ANPD: edital publicado".into(),
                 vacancies: Some("40".into()),
                 url: "https://blog.com/anpd".into(),
-                ..c
+                ..c.clone()
             };
             assert!(!world::upsert_contest(&pool, &rss, world::ContestSource::Rss).await.unwrap(), "duplicata vira o mesmo concurso");
             let all = world::contests(&pool).await.unwrap();
             assert_eq!(all.len(), 1);
             assert_eq!((all[0].title.as_str(), all[0].vacancies.as_deref()), ("Concurso ANPD", Some("40")));
+
+            // aditivo de concurso antigo chamado de "edital publicado" pela IA: grava como prova realizada
+            let old = world::FoundContest {
+                title: "Serpro – 3º aditivo do concurso 2023 (Analista)".into(),
+                status: Some("edital publicado".into()),
+                url: "https://serpro.gov.br/aditivo".into(),
+                ..c.clone()
+            };
+            world::upsert_contest(&pool, &old, world::ContestSource::Claude).await.unwrap();
+            let serpro = world::contests(&pool).await.unwrap().into_iter().find(|x| x.title.starts_with("Serpro")).unwrap();
+            assert_eq!(serpro.status.as_deref(), Some(crate::domain::news::DONE));
 
             // notícias: capa e texto do RSS, classificação, lido/não lido
             let feed = world::feeds(&pool).await.unwrap()[0].id;

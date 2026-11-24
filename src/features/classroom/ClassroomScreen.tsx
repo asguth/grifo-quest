@@ -96,7 +96,7 @@ export default function ClassroomScreen() {
         </motion.div>
       ))}
 
-      <div className="grid gap-5 md:grid-cols-[280px_1fr]">
+      <div className="grid gap-5 @2xl:grid-cols-[280px_1fr]">
         <div className="space-y-2">
           <Label htmlFor="class-topic">Tópico</Label>
           <NativeSelect id="class-topic" value={topicId ?? ""} onChange={(e) => setTopicId(e.target.value ? Number(e.target.value) : null)}>
@@ -367,7 +367,7 @@ function Lesson({ classId, topic, onFinish }: { classId: number; topic: TopicRef
         </Button>
       </header>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
+      <div className="grid gap-4 @4xl:grid-cols-[1fr_300px]">
         {/* Turma em semicírculo */}
         <div className="relative h-64 overflow-hidden rounded-2xl border border-border bg-gradient-to-b from-card to-secondary/40">
           {/* Fala do aluno num balão central: nas pontas do semicírculo ele saía cortado. */}
@@ -568,7 +568,7 @@ function ReportCard({ report, onClose }: { report: ClassReport; onClose?: () => 
       <p className="text-sm">
         {report.next_review_days ? `Reaula em ${plural(report.next_review_days, "dia", "dias")}.` : "Ciclo de revisão concluído para este tópico!"}
       </p>
-      <div className="grid gap-3 text-sm sm:grid-cols-3">
+      <div className="grid gap-3 text-sm @lg:grid-cols-3">
         <List title="Erros" items={e.erros} className="text-destructive" />
         <List title="Omitidos" items={e.omitidos} className="text-primary" />
         <List title="Rasos" items={e.rasos} className="text-muted-foreground" />

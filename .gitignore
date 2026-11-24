@@ -31,3 +31,4 @@ src-tauri/binaries/
 
 # executável solto (gerado)
 portatil/
+__pycache__/

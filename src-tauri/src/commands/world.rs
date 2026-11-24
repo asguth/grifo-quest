@@ -166,6 +166,7 @@ async fn refresh_all(pool: &SqlitePool) -> AppResult<i32> {
                         deadline: None,
                         url: link.clone(),
                         summary: Some(feed.name.clone()),
+                        exam_date: None,
                     };
                     world::upsert_contest(pool, &c, ContestSource::Rss).await?;
                 }
@@ -290,7 +291,8 @@ async fn enrich(app: &AppHandle) -> AppResult<()> {
     }
 
     let cfg: AppConfig = settings::load(&pool).await?;
-    if !ollama::is_up(&cfg.ollama_url).await {
+    // classificação de fundo só com IA local (e placa que aguente): não gasta o Claude
+    if !crate::gpu::info().await.local_ai || !ollama::is_up(&cfg.ollama_url).await {
         return Ok(());
     }
     let area = area(&pool).await?;

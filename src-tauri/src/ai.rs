@@ -4,23 +4,53 @@
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
+use crate::cloud::{self, Cloud};
 use crate::error::AppResult;
 use crate::settings::AppConfig;
 use crate::{claude, ollama};
 
 /// Escolha do usuário em Config → IA. `Auto` = Ollama, e Claude se o Ollama estiver fora do ar.
+/// Gemini/GPT/Grok usam a chave de API da pessoa.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum Route {
     Auto,
     Ollama,
     Claude,
+    Gemini,
+    Openai,
+    Grok,
 }
 
 wire_enum! {
     pub enum Provider {
         Ollama = "ollama",
         Claude = "claude",
+        Gemini = "gemini",
+        Openai = "openai",
+        Grok = "grok",
+    }
+}
+
+impl Provider {
+    /// Nome para a interface ("Escrevendo com …").
+    pub fn label(self) -> &'static str {
+        match self {
+            Provider::Ollama => "Ollama",
+            Provider::Claude => "Claude",
+            Provider::Gemini => Cloud::Gemini.label(),
+            Provider::Openai => Cloud::Openai.label(),
+            Provider::Grok => Cloud::Grok.label(),
+        }
+    }
+
+    fn cloud(self) -> Option<Cloud> {
+        match self {
+            Provider::Gemini => Some(Cloud::Gemini),
+            Provider::Openai => Some(Cloud::Openai),
+            Provider::Grok => Some(Cloud::Grok),
+            Provider::Ollama | Provider::Claude => None,
+        }
     }
 }
 
@@ -46,26 +76,40 @@ fn pick(route: Route, ollama_up: bool) -> Provider {
     match route {
         Route::Ollama => Provider::Ollama,
         Route::Claude => Provider::Claude,
+        Route::Gemini => Provider::Gemini,
+        Route::Openai => Provider::Openai,
+        Route::Grok => Provider::Grok,
         Route::Auto if ollama_up => Provider::Ollama,
         Route::Auto => Provider::Claude,
     }
 }
 
-/// Quem vai rodar a tarefa agora (no `Auto`, pergunta ao Ollama se está no ar).
+/// Quem vai rodar a tarefa agora (no `Auto`, pergunta ao Ollama se está no ar). Sem placa de vídeo
+/// dedicada o `Auto` nem tenta o Ollama: rodaria na CPU, lento demais.
 pub async fn provider_for(cfg: &AppConfig, task: Task) -> Provider {
     let (route, _) = task.route_and_model(cfg);
-    let up = route == Route::Auto && ollama::is_up(&cfg.ollama_url).await;
+    let up = route == Route::Auto && crate::gpu::info().await.local_ai && ollama::is_up(&cfg.ollama_url).await;
     pick(route, up)
 }
 
 /// Uma resposta de texto. `json = true` pede só JSON (o Ollama garante pelo `format`; ao Claude vai no prompt).
 pub async fn complete(app: &AppHandle, cfg: &AppConfig, task: Task, system: &str, user: &str, json: bool) -> AppResult<(String, Provider)> {
     let provider = provider_for(cfg, task).await;
+    let messages = [ollama::Msg { role: "system", content: system }, ollama::Msg { role: "user", content: user }];
     let text = match provider {
         Provider::Ollama => {
             let (_, model) = task.route_and_model(cfg);
-            let messages = [ollama::Msg { role: "system", content: system }, ollama::Msg { role: "user", content: user }];
             ollama::chat(&cfg.ollama_url, model, &messages, json).await?
+        }
+        Provider::Gemini | Provider::Openai | Provider::Grok => {
+            let c = provider.cloud().unwrap_or(Cloud::Gemini);
+            // JSON pedido também no texto: nem todo modelo respeita só o `response_format`
+            let only_json = if json { "
+
+Responda somente com JSON." } else { "" };
+            let user = format!("{user}{only_json}");
+            let messages = [ollama::Msg { role: "system", content: system }, ollama::Msg { role: "user", content: &user }];
+            cloud::chat(c, cfg.cloud_models.get(c), &messages, json).await?
         }
         Provider::Claude => {
             let only_json = if json { "\n\nResponda somente com o JSON pedido, sem texto antes ou depois." } else { "" };
@@ -106,6 +150,7 @@ mod tests {
         assert_eq!(pick(Route::Auto, true), Provider::Ollama);
         assert_eq!(pick(Route::Auto, false), Provider::Claude);
         assert_eq!(pick(Route::Ollama, false), Provider::Ollama);
+        assert_eq!(pick(Route::Gemini, true), Provider::Gemini);
     }
 
     #[test]

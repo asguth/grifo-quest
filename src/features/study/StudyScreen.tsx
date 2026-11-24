@@ -21,6 +21,8 @@ import { PracticeTab } from "./PracticeTab";
 import { QuestionRunner } from "./QuestionRunner";
 import { dailyProgress } from "./daily";
 import { NoTopics, startKey, type Start, type Tab } from "./shared";
+import { getStudyTab, setStudyTab } from "./tabRequest";
+import { useAppEvent } from "@/lib/bus";
 
 const FocusScreen = lazy(() => import("@/features/focus/FocusScreen"));
 
@@ -35,20 +37,21 @@ const TABS: { id: Tab; label: string; icon: LucideIcon }[] = [
   { id: "foco", label: "Foco", icon: Timer },
 ];
 
-// De propósito fora do componente: sair do Estudo e voltar reabre a mesma aba (só nesta sessão do app).
-let lastTab: Tab = "hoje";
-
 export default function StudyScreen() {
   const [view, setView] = useState<View>({ k: "tabs" });
-  const [tab, setTabState] = useState<Tab>(lastTab);
+  const [tab, setTabState] = useState<Tab>(getStudyTab);
   const [home, setHome] = useState<StudyHome | null>(null);
   const [homeError, setHomeError] = useState("");
   const [starting, setStarting] = useState<string | null>(null);
 
   const setTab = (t: Tab) => {
-    lastTab = t;
+    setStudyTab(t);
     setTabState(t);
   };
+  // Pedido do menu (mini-timer): troca a aba, mas não derruba uma sessão de questões em andamento.
+  useAppEvent("studyTab", (t) => {
+    if (view.k === "tabs" && TABS.some((x) => x.id === t)) setTabState(t as Tab);
+  });
 
   const load = useCallback(() => {
     setHomeError("");

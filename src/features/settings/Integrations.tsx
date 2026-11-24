@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { motion } from "motion/react";
-import { Bot, Cpu, Feather, Loader2, Mic, Plug, RefreshCw } from "lucide-react";
+import { Bot, Cpu, Feather, Loader2, Mic, Plug, RefreshCw, Sparkles } from "lucide-react";
 import { Skeleton } from "@/components/motion";
 import { EventProgress, type ProgressEntry } from "@/components/Progress";
 import { toast, toastError } from "@/components/toast";
@@ -10,6 +10,7 @@ import { useTauriEvent } from "@/lib/hooks";
 import { itemIn, listIn } from "@/lib/motion";
 import { useHasPtVoice } from "@/lib/speech";
 import { cn } from "@/lib/utils";
+import { CloudKeys } from "./CloudKeys";
 
 type Tone = "ok" | "warn" | "off";
 const TONE: Record<Tone, string> = {
@@ -55,7 +56,13 @@ function useProgress() {
   return [p, clear] as const;
 }
 
-export function Integrations() {
+const gb = (mb: number) => `${Math.round(mb / 1024)} GB`;
+
+/**
+ * `setup`: assistente inicial. Antes de olhar o status, ajusta os modelos à placa de vídeo; sem placa
+ * dedicada, o Ollama nem aparece (em Config ele aparece como indisponível).
+ */
+export function Integrations({ setup = false }: { setup?: boolean }) {
   const [s, setS] = useState<IntegrationsStatus | null>(null);
   const [checking, setChecking] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -65,13 +72,14 @@ export function Integrations() {
   const check = useCallback(async () => {
     setChecking(true);
     try {
+      if (setup) await commands.applyHardwareDefaults();
       setS(await commands.integrationsStatus());
     } catch (e) {
       toastError(e);
     } finally {
       setChecking(false);
     }
-  }, []);
+  }, [setup]);
   useEffect(() => void check(), [check]);
 
   async function act(key: string, fn: () => Promise<unknown>, ok?: string) {
@@ -99,14 +107,19 @@ export function Integrations() {
   const missing = s.wanted_models.filter((m) => !s.ollama_models.some((have) => have === m || have === `${m}:latest`));
   const ollamaTone: Tone = !s.ollama_installed ? "off" : !s.ollama_running || missing.length ? "warn" : "ok";
   const ollamaStatus = !s.ollama_installed ? "Não instalado" : !s.ollama_running ? "Instalado, parado" : missing.length ? "Falta modelo" : "Pronto";
-  const ready = [ollamaTone === "ok", !!s.claude_version, s.mcp_code || s.mcp_desktop, s.voice_installed].filter(Boolean).length;
+  const local = s.gpu.local_ai;
+  const cloudReady = s.cloud_keys > 0;
+  const checks = [!!s.claude_version, s.mcp_code || s.mcp_desktop, s.voice_installed, ...(local ? [ollamaTone === "ok"] : [])];
+  const ready = checks.filter(Boolean).length;
   const spin = (k: string) => busy === k && <Loader2 className="animate-spin" />;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
         <p className="flex-1 text-sm text-muted-foreground">
-          <span className="font-semibold text-foreground">{ready} de 4</span> integrações prontas. Cada botão faz tudo sozinho; você só confirma o que o Windows pedir.
+          <span className="font-semibold text-foreground">
+            {ready} de {checks.length}
+          </span> integrações prontas. Cada botão faz tudo sozinho; você só confirma o que o Windows pedir.
         </p>
         <Button size="sm" variant="ghost" onClick={() => void check()} disabled={checking}>
           <RefreshCw className={cn(checking && "animate-spin")} /> Verificar de novo
@@ -114,6 +127,7 @@ export function Integrations() {
       </div>
 
       <motion.ul variants={listIn} initial="hidden" animate="show" className="space-y-3">
+        {local ? (
         <Row
           icon={Cpu}
           name="Ollama (IA local)"
@@ -122,7 +136,7 @@ export function Integrations() {
           text={
             s.ollama_running
               ? `Modelos baixados: ${s.ollama_models.join(", ") || "nenhum"}. Usado nas tarefas simples, nos alunos da Sala e no avaliador.`
-              : "Roda a IA no seu PC (placa de vídeo), de graça e offline. Faz resumos, questões rápidas e a Sala de aula."
+              : `Roda a IA na sua ${s.gpu.name ?? "placa de vídeo"} (${gb(s.gpu.vram_mb)}), de graça e offline. Modelo que cabe: ${s.gpu.model} (${s.gpu.model_size}). Faz resumos, questões rápidas e a Sala de aula.`
           }
           log={<EventProgress entry={progress.ollama ?? progress.model} />}
         >
@@ -148,6 +162,17 @@ export function Integrations() {
             </Button>
           )}
         </Row>
+        ) : (
+          !setup && (
+            <Row
+              icon={Cpu}
+              name="Ollama (IA local)"
+              tone="off"
+              status="Indisponível"
+              text={`Nenhuma placa de vídeo dedicada com 4 GB ou mais${s.gpu.name ? ` (achei: ${s.gpu.name})` : ""}. As tarefas de IA vão para o Claude.`}
+            />
+          )
+        )}
 
         <Row
           icon={Bot}
@@ -171,6 +196,18 @@ export function Integrations() {
               </Button>
             </>
           )}
+        </Row>
+
+        <Row
+          icon={Sparkles}
+          name="Gemini, GPT e Grok (sua chave de API)"
+          tone={cloudReady ? "ok" : "warn"}
+          status={cloudReady ? "Conectado" : "Opcional"}
+          text="Alternativa ao Claude e à IA local: cole a chave de API de qualquer uma delas e escolha em Config → IA quem faz cada tarefa. A chave fica no Cofre de Credenciais do Windows, e o uso é cobrado na sua conta da Google, OpenAI ou xAI."
+        >
+          <div className="w-full">
+            <CloudKeys onChange={() => void check()} />
+          </div>
         </Row>
 
         <Row

@@ -58,7 +58,7 @@ export default function SubjectsScreen() {
 
   if (subjects === null) {
     return (
-      <div className="grid gap-6 md:grid-cols-[320px_1fr]">
+      <div className="grid gap-6 @2xl:grid-cols-[320px_1fr]">
         <Skeleton className="h-80 rounded-2xl" />
         <Skeleton className="h-80 rounded-2xl" />
       </div>
@@ -94,7 +94,7 @@ export default function SubjectsScreen() {
           <ImportEditalButton size="lg" label="Importar do edital" onApplied={() => void reload()} />
         </MascotEmpty>
       ) : (
-        <div className="grid items-start gap-6 md:grid-cols-[320px_1fr]">
+        <div className="grid items-start gap-6 @2xl:grid-cols-[320px_1fr]">
           <motion.ul variants={listIn} initial="hidden" animate="show" className="space-y-1">
             {subjects.map((s) => (
               <motion.li key={s.id} variants={itemIn}>
@@ -238,7 +238,7 @@ function TopicsPanel({ subject, onChange }: { subject: Subject; onChange: () => 
       <header className="flex items-center gap-3">
         <span className="size-3 rounded-full" style={{ background: subject.color }} />
         <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">{subject.name}</h2>
-        <span className="hidden text-[11px] text-muted-foreground sm:block">T = teoria · Q = questões · R = revisões</span>
+        <span className="hidden text-[11px] text-muted-foreground @lg:block">T = teoria · Q = questões · R = revisões</span>
         <Button size="sm" variant="ghost" onClick={() => setAdding((a) => !a)}>
           <Plus /> Tópicos
         </Button>

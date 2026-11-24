@@ -1,15 +1,18 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, Pause, Play } from "lucide-react";
 import { Mascot } from "@/components/Mascot";
 import { commands, type NavBadges } from "@/lib/bindings";
 import { spring } from "@/lib/motion";
 import { getFlag, saveFlag } from "@/lib/prefs";
-import { clock, timerLabel, timerSeconds, useTimer } from "@/lib/timer";
+import { clock, timerFraction, timerLabel, timerSeconds, useTimer } from "@/lib/timer";
 import { sfx } from "@/lib/sound";
 import { cn, warn } from "@/lib/utils";
 import { badgeOf, SLOTS, type Navigate, type SlotId } from "./nav";
 import { UpdateButton } from "./UpdateButton";
+import { toastError } from "@/components/toast";
+import { PixelBar } from "@/features/focus/PixelRing";
+import { requestStudyTab } from "@/features/study/tabRequest";
 
 function useBadges(slot: SlotId) {
   const [b, setB] = useState<NavBadges>({ unread_news: 0, reviews_due: 0, study_due: 0 });
@@ -24,7 +27,8 @@ function useBadges(slot: SlotId) {
 
 export function Sidebar({ slot, go }: { slot: SlotId; go: Navigate }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [timer] = useTimer();
+  const [timer, setTimer] = useTimer();
+  const onBreak = timer.mode === "pomodoro" && timer.phase === "break";
   const badges = useBadges(slot);
   const badgeBySlot = badgeOf(badges);
 
@@ -48,7 +52,7 @@ export function Sidebar({ slot, go }: { slot: SlotId; go: Navigate }) {
         {!collapsed && <span className="retro truncate text-[10px] text-primary">Grifo Quest</span>}
       </div>
 
-      {SLOTS.map((s, i) => {
+      {SLOTS.map((s) => {
         const active = slot === s.id;
         const badge = badgeBySlot[s.id] ?? 0;
         const Icon = s.icon;
@@ -60,7 +64,8 @@ export function Sidebar({ slot, go }: { slot: SlotId; go: Navigate }) {
               go(s.id);
             }}
             aria-current={active ? "page" : undefined}
-            title={collapsed ? `${s.label} (${i + 1})` : undefined}
+            data-tour={s.id}
+            title={collapsed ? s.label : undefined}
             className={cn(
               "group relative flex h-10 items-center gap-3 rounded-lg px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
               active ? "text-primary-foreground" : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground",
@@ -75,9 +80,6 @@ export function Sidebar({ slot, go }: { slot: SlotId; go: Navigate }) {
             )}
             <Icon className="relative size-[18px] shrink-0" strokeWidth={2} />
             {!collapsed && <span className="relative flex-1 truncate text-left font-medium">{s.label}</span>}
-            {!collapsed && !badge && (
-              <kbd className="relative text-[10px] opacity-0 transition-opacity group-hover:opacity-50">{i + 1}</kbd>
-            )}
             <AnimatePresence>
               {badge > 0 && (
                 <motion.span
@@ -101,33 +103,56 @@ export function Sidebar({ slot, go }: { slot: SlotId; go: Navigate }) {
       <div className="mt-auto space-y-2">
         <AnimatePresence>
           {timer.mode !== "idle" && (
-            <motion.button
+            <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 8 }}
-              onClick={() => go("foco")}
-              title="Abrir o Estudo"
-              className={cn("relative w-full overflow-hidden rounded-lg border border-border bg-secondary/60 text-left", collapsed ? "px-0.5 py-2" : "p-2.5")}
-            >
-              {timer.mode === "pomodoro" && (
-                <span
-                  className="absolute inset-y-0 left-0 bg-primary/15 transition-[width] duration-1000 ease-linear"
-                  style={{ width: `${(1 - timer.remaining / Math.max(1, timer.total)) * 100}%` }}
-                />
+              className={cn(
+                "relative overflow-hidden rounded-xl border bg-secondary/50 shadow-soft",
+                onBreak ? "border-success/40" : "border-primary/40",
               )}
-              <span className="relative flex items-center gap-2">
-                {!collapsed && <span className={cn("size-2 shrink-0 rounded-full bg-primary", !timer.paused && "animate-pulse")} />}
-                {!collapsed && (
-                  <span className="truncate text-xs text-muted-foreground">
-                    {timerLabel(timer)}
-                    {timer.paused && " · pausado"}
+            >
+              {/* O cartão inteiro leva à aba Foco; o botão de pausa fica por cima, à direita. */}
+              <button
+                onClick={() => {
+                  requestStudyTab("foco");
+                  go("foco");
+                }}
+                title="Abrir o Foco"
+                className={cn("block w-full text-left transition-colors hover:bg-secondary", collapsed ? "px-1 py-2" : "p-2.5 pr-11")}
+              >
+                <span className={cn("flex items-center gap-2", collapsed && "flex-col gap-1")}>
+                  <motion.span
+                    className="shrink-0"
+                    animate={timer.paused ? { rotate: -8, opacity: 0.6 } : { y: [0, -2, 0], rotate: 0, opacity: 1 }}
+                    transition={timer.paused ? { duration: 0.3 } : { duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+                  >
+                    <Mascot look="cap" scale={1.5} />
+                  </motion.span>
+                  <span className="min-w-0 flex-1">
+                    {!collapsed && (
+                      <span className={cn("retro block truncate text-[8px]", onBreak ? "text-success" : "text-primary")}>
+                        {timer.paused ? "PAUSADO" : timerLabel(timer).toUpperCase()}
+                      </span>
+                    )}
+                    <span className={cn("retro tabular block", collapsed ? "text-center text-[9px]" : "mt-1 text-sm", timer.paused && "animate-pulse")}>
+                      {clock(timerSeconds(timer))}
+                    </span>
                   </span>
-                )}
-                <span className={cn("tabular ml-auto font-semibold", collapsed ? "mx-auto text-[11px]" : "text-sm", timer.paused && "opacity-60")}>
-                  {clock(timerSeconds(timer))}
                 </span>
-              </span>
-            </motion.button>
+                <PixelBar value={timerFraction(timer)} tone={onBreak ? "var(--accent)" : "var(--primary)"} className="mt-2" />
+              </button>
+              {!collapsed && (
+                <button
+                  onClick={() => void commands.togglePause().then(setTimer, toastError)}
+                  aria-label={timer.paused ? "Continuar" : "Pausar"}
+                  title={timer.paused ? "Continuar" : "Pausar"}
+                  className="absolute top-2.5 right-2 grid size-7 place-items-center rounded-lg bg-card/80 text-foreground hover:bg-primary hover:text-primary-foreground"
+                >
+                  {timer.paused ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
+                </button>
+              )}
+            </motion.div>
           )}
         </AnimatePresence>
 

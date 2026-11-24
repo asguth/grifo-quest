@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ridge } from "./Scenery";
+import { artWidth, ridge } from "./Scenery";
 
 describe("ridge", () => {
   it("só tem traços retos (cara de pixel) e fecha o contorno no chão", () => {
@@ -9,5 +9,15 @@ describe("ridge", () => {
   it("é a mesma silhueta para a mesma semente", () => {
     expect(ridge(4.1, 52, 14, 4)).toBe(ridge(4.1, 52, 14, 4));
     expect(ridge(4.1, 52, 14, 4)).not.toBe(ridge(7.7, 52, 14, 4));
+  });
+});
+
+describe("artWidth", () => {
+  it("pixel da arte com tamanho fixo: janela larga alonga a paisagem", () => {
+    expect(artWidth(2000, 300)).toBe(Math.ceil((2048 * 90) / 300));
+    expect(artWidth(4000, 300)).toBeGreaterThan(artWidth(2000, 300));
+  });
+  it("nunca menor que a arte original", () => {
+    expect(artWidth(200, 300)).toBe(320);
   });
 });

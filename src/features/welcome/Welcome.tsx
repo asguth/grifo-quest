@@ -7,6 +7,7 @@ import { Count } from "@/components/motion";
 import { ProgressBar } from "@/components/Progress";
 import Scenery from "@/components/Scenery";
 import { StatTile } from "@/components/StatTile";
+import { PixelCalendar, PixelFlame, PixelSword } from "@/components/PixelIcons";
 import { Button } from "@/components/ui/button";
 import { dailyProgress } from "@/features/study/daily";
 import { commands, type Dashboard_Serialize as Dashboard, type StudyHome } from "@/lib/bindings";
@@ -91,9 +92,9 @@ export default function Welcome() {
           </motion.div>
 
           <motion.div variants={itemIn} className="grid grid-cols-3 gap-2 text-center">
-            <StatTile className={TILE} valueClass="text-lg" value={<Count to={d?.streak.days ?? 0} />} label="dias seguidos" icon="🔥" />
-            <StatTile className={TILE} valueClass="text-lg" value={<Count to={goal ?? 0} />} label={goal === 0 ? "meta batida!" : "faltam hoje"} icon="⚔️" />
-            <StatTile className={TILE} valueClass="text-lg" value={<Count to={exam?.days_left ?? 0} />} label={exam ? `dias p/ ${exam.name}` : "sem prova marcada"} icon="📅" />
+            <StatTile className={TILE} valueClass="text-lg" value={<Count to={d?.streak.days ?? 0} />} label="dias seguidos" icon={<PixelFlame off={!d?.streak.days} />} />
+            <StatTile className={TILE} valueClass="text-lg" value={<Count to={goal ?? 0} />} label={goal === 0 ? "meta batida!" : "faltam hoje"} icon={<PixelSword />} />
+            <StatTile className={TILE} valueClass="text-lg" value={<Count to={exam?.days_left ?? 0} />} label={exam ? `dias p/ ${exam.name}` : "sem prova marcada"} icon={<PixelCalendar />} />
           </motion.div>
 
           {d && d.missions.length > 0 && (

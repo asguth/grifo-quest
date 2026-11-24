@@ -53,19 +53,19 @@ Tauri 2, sqlx (SQLite), specta/tauri-specta, Tailwind v4, shadcn, Vitest, tauri-
 - Front: Mundo em `features/world/` (NewsBoard = mosaico em colunas CSS + leitor; ContestTracker = linha do tempo via `stageOf`).
 - Front: materiais em `src/features/material/` (painel, folha em iframe `sandbox` sem scripts, flashcards); `src/lib/motion.ts` é o tema único de movimento; `src/lib/sound.ts` `sfx()` sons 8-bit sintetizados.
 - Front: `src/app/App.tsx` (telas em `lazy`, transições, limite de erro por tela) + `src/app/Sidebar.tsx` (menu lateral, atalhos 1–6, badges, mini-timer), `src/features/<feature>`, `src/lib/theme.ts` (temas em CSS vars, `motion` liga/desliga animações), `src/app/nav.ts` (telas, `Navigate`, badges), `src/lib/` (format, dates, hooks `useTauriEvent`/`useKey`, prefs, bus de eventos internos, rules = números do backend mostrados na UI, update), `src/components/` primitivas (ProgressBar, ProgressRing, Chip, StatTile, FlipCard, toast…), `src/components/Scenery.tsx` (cena pixel por horário), `src/components/PixelSprite.tsx`.
-- Visual: pixel é tempero (mascote, XP, títulos); corpo em Geist + shadcn. Tokens derivados em `index.css` (`surface`, `glass`, `shadow-soft/lift`). Plano em `PLANO-V2.md`.
+- Visual: pixel é tempero (mascote, XP, títulos); corpo em Geist + shadcn. Tokens derivados em `index.css` (`surface`, `glass`, `shadow-soft/lift`). Planejamento, débitos e princípios em `ROADMAP.md`.
 
 ## Decisões
 - IDs/contadores `i32` (specta proíbe `i64`). Erros: `AppError` → `{kind, message}`; front usa `errorMessage(e)`.
-- Banco `%APPDATA%/dev.grifoquest.app/grifo.db`, WAL. Datas UTC; dia local via `date(x,'localtime')`.
+- Banco `%APPDATA%/dev.grifoquest.app/grifo.db`, WAL. Migrações sempre em LF (`.gitattributes`): CRLF muda o checksum e o app recusa o banco de quem já instalou. Datas UTC; dia local via `date(x,'localtime')`.
 - `settings`: `config` (JSON `AppConfig`, backend), `profile`, `pomodoro` e `ui_*` do front (`settings::UiKey`: theme, home_layout, sound, sidebar_collapsed, welcome_on_boot, class_voice; flags "on"/"off").
 - Timer vive no Rust (ticker 1 s); notícias atualizam ao abrir e a cada 3 h.
 - Missões geradas no 1º acesso do dia (completadas se matérias surgirem depois); XP creditado uma vez.
 - Sala: avaliador oculto devolve temas sem resposta; `next_turn` escolhe aluno/lacuna; eventos `ClassEvent` em streaming.
-- Ollama: alunos e avaliador no mesmo `qwen3:14b` (14B + 8B não cabem juntos em 12 GB; troca custa ~1 min).
+- Ollama: alunos, avaliador e tarefas no mesmo modelo (dois modelos não cabem juntos na VRAM; troca custa ~1 min). Catálogo e sugestão por VRAM em `domain/gpu.rs` (Qwen 3.5 / Gemma 4 / gpt-oss).
 - Claude CLI (assinatura do usuário): rastreador (WebSearch) e Grifo completo (saída em `%APPDATA%/…/apostilas/<topic_id>/<kind>-<ts>/`; resumo gera `material.md`). Grifo completo gasta muitos tokens: não testar sem pedir.
 - Links e apostilas abertos por comandos Rust (`open_link`, `open_material`) via plugin opener.
 
 ## Convenções
 - Sem `unwrap()` fora de testes; sem `any` no TS. Textos de UI em pt-BR.
-- Atalhos deliberados: comentário `ponytail:` + evolução; listar em `DEBITOS.md`. Ideias fora de escopo → `IDEIAS.md`.
+- Atalhos deliberados: comentário `ponytail:` + evolução; listar em `ROADMAP.md` (Débitos técnicos). Ideias fora de escopo → `ROADMAP.md` (Depois).

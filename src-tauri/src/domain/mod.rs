@@ -1,6 +1,7 @@
 pub mod audio;
 pub mod classroom;
 pub mod edital;
+pub mod gpu;
 pub mod level;
 pub mod missions;
 pub mod news;

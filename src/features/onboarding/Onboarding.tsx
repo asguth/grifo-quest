@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { ArrowLeft, ArrowRight, Check, Loader2, Search, Trash2 } from "lucide-react";
 import { Chip } from "@/components/fields";
 import { Mascot } from "@/components/Mascot";
+import { PixelBook, PixelStar, PixelSword } from "@/components/PixelIcons";
 import Scenery from "@/components/Scenery";
 import { StatTile } from "@/components/StatTile";
 import { toastError } from "@/components/toast";
@@ -29,7 +30,7 @@ const STEPS: { id: string; title: string; skip?: boolean; speech: (nome: string)
   { id: "provas", title: "Provas", skip: true, speech: (nome) => `Prazer, ${nome}! Tem alguma prova em vista? Se não tiver, eu procuro as abertas na sua área.` },
   { id: "rotina", title: "Rotina", speech: () => "Agora a rotina. Seja honesto(a): constância ganha de maratona." },
   { id: "materias", title: "Matérias", skip: true, speech: () => "Hora das matérias. Me dá o edital (ou o cargo) que eu monto tudo pra você revisar." },
-  { id: "integracoes", title: "Integrações", skip: true, speech: () => "Quase lá! Vamos ligar a IA local e o Claude. Cada botão faz tudo sozinho." },
+  { id: "integracoes", title: "Integrações", skip: true, speech: () => "Quase lá! Já olhei o seu PC e escolhi a IA que cabe nele. Cada botão faz tudo sozinho." },
   { id: "pronto", title: "Pronto", speech: (nome) => `Tudo pronto, ${nome}! Bora pro primeiro pomodoro?` },
 ];
 
@@ -181,7 +182,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
                 {id === "materias" && <SubjectsStep />}
                 {id === "integracoes" && (
                   <div className="max-h-[48vh] overflow-y-auto pr-1">
-                    <Integrations />
+                    <Integrations setup />
                   </div>
                 )}
                 {id === "pronto" && <Done p={p} />}
@@ -236,9 +237,9 @@ function Field({ label, id, children }: { label: string; id?: string; children: 
 
 function Welcome() {
   const items = [
-    ["🗺️", "Edital verticalizado", "matérias e tópicos montados do edital, com teoria, questões e revisões"],
-    ["⚔️", "Missões e XP", "metas diárias nas matérias que mais precisam"],
-    ["🧠", "IA que estuda junto", "resumos, questões e flashcards do Grifo; sala de aula com alunos virtuais"],
+    [<PixelBook key="b" scale={3} />, "Edital verticalizado", "matérias e tópicos montados do edital, com teoria, questões e revisões"],
+    [<PixelSword key="s" scale={3} />, "Missões e XP", "metas diárias nas matérias que mais precisam"],
+    [<PixelStar key="t" scale={3} />, "IA que estuda junto", "resumos, questões e flashcards do Grifo; sala de aula com alunos virtuais"],
   ] as const;
   return (
     <ul className="grid gap-3">
@@ -250,7 +251,7 @@ function Welcome() {
           transition={{ ...spring.soft, delay: 0.15 + i * 0.07 }}
           className="flex items-start gap-3"
         >
-          <span className="text-xl">{icon}</span>
+          <span className="mt-0.5 shrink-0">{icon}</span>
           <span>
             <span className="font-medium">{title}</span>
             <span className="text-muted-foreground"> — {text}</span>

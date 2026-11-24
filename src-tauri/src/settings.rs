@@ -26,7 +26,7 @@ pub async fn save<T: Stored>(pool: &SqlitePool, value: &T) -> AppResult<()> {
     db::settings::set(pool, T::KEY, &serde_json::to_string(value)?).await
 }
 
-const DEFAULT_MODEL: &str = "qwen3:14b";
+const DEFAULT_MODEL: &str = "gemma4:12b";
 
 /// Configuração usada pelo backend (IA, rastreador).
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -43,6 +43,33 @@ pub struct AppConfig {
     pub task_model: String,
     /// Onde rodam os materiais rápidos do Grifo (resumo, questões, flashcards…).
     pub material_route: Route,
+    /// Modelo de cada IA na nuvem (a chave fica no cofre do Windows, não aqui).
+    pub cloud_models: CloudModels,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(default)]
+pub struct CloudModels {
+    pub gemini: String,
+    pub openai: String,
+    pub grok: String,
+}
+
+impl Default for CloudModels {
+    fn default() -> Self {
+        // Modelos rápidos e baratos de cada uma; Integrações lista os da conta para trocar.
+        Self { gemini: "gemini-2.5-flash".into(), openai: "gpt-4.1-mini".into(), grok: "grok-3-mini".into() }
+    }
+}
+
+impl CloudModels {
+    pub fn get(&self, c: crate::cloud::Cloud) -> &str {
+        match c {
+            crate::cloud::Cloud::Gemini => &self.gemini,
+            crate::cloud::Cloud::Openai => &self.openai,
+            crate::cloud::Cloud::Grok => &self.grok,
+        }
+    }
 }
 
 impl Stored for AppConfig {
@@ -62,6 +89,7 @@ impl Default for AppConfig {
             evaluator: Route::Ollama,
             task_model: DEFAULT_MODEL.into(),
             material_route: Route::Auto,
+            cloud_models: CloudModels::default(),
         }
     }
 }
@@ -149,6 +177,8 @@ wire_enum! {
         SidebarCollapsed = "sidebar_collapsed",
         WelcomeOnBoot = "welcome_on_boot",
         ClassVoice = "class_voice",
+        TourDone = "tour_done",
+        SoundVolume = "sound_volume",
     }
 }
 

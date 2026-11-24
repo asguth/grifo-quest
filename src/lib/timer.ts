@@ -31,3 +31,10 @@ export function timerLabel(t: TimerView): string {
 export function timerSeconds(t: TimerView): number {
   return t.mode === "pomodoro" ? t.remaining : t.mode === "stopwatch" ? t.elapsed : 0;
 }
+
+/** Quanto do anel acendeu: o pomodoro enche no foco e na pausa; o cronômetro dá uma volta por hora. */
+export function timerFraction(t: TimerView): number {
+  if (t.mode === "pomodoro") return 1 - t.remaining / Math.max(1, t.total);
+  if (t.mode === "stopwatch") return (t.elapsed % 3600) / 3600;
+  return 0;
+}

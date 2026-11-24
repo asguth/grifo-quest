@@ -9,7 +9,7 @@ import { commands, type Contest_Serialize as Contest } from "@/lib/bindings";
 import { formatDate } from "@/lib/format";
 import { itemIn, listIn, spring } from "@/lib/motion";
 import { cn } from "@/lib/utils";
-import { STAGES, stageOf } from "./contests";
+import { isDone, STAGES, stageOf } from "./contests";
 import { createExam, toggleFollow, useContestSearch } from "./exams";
 
 export function ContestTracker() {
@@ -31,15 +31,29 @@ export function ContestTracker() {
       </div>
 
       {items === null ? (
-        <div className="grid gap-3 md:grid-cols-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-44 rounded-2xl" />)}</div>
+        <div className="grid gap-3 @2xl:grid-cols-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-44 rounded-2xl" />)}</div>
       ) : items.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">Nenhum concurso rastreado ainda.</p>
       ) : (
-        <motion.ul variants={listIn} initial="hidden" animate="show" className="grid gap-3 md:grid-cols-2">
-          {items.map((c) => (
-            <ContestCard key={c.id} c={c} reload={load} />
-          ))}
-        </motion.ul>
+        <>
+          <motion.ul variants={listIn} initial="hidden" animate="show" className="grid gap-3 @2xl:grid-cols-2">
+            {items.filter((c) => !isDone(c.status)).map((c) => (
+              <ContestCard key={c.id} c={c} reload={load} />
+            ))}
+          </motion.ul>
+          {items.some((c) => isDone(c.status)) && (
+            <details className="rounded-2xl border border-border bg-card/50 p-4">
+              <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
+                Prova já realizada ({items.filter((c) => isDone(c.status)).length}): aditivos, convocações e resultados. Não dá mais para se inscrever.
+              </summary>
+              <ul className="mt-3 grid gap-3 opacity-70 @2xl:grid-cols-2">
+                {items.filter((c) => isDone(c.status)).map((c) => (
+                  <ContestCard key={c.id} c={c} reload={load} />
+                ))}
+              </ul>
+            </details>
+          )}
+        </>
       )}
     </section>
   );

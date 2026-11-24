@@ -1,6 +1,22 @@
-import { getFlag, saveFlag } from "@/lib/prefs";
+import { getFlag, getPref, saveFlag, setPref } from "@/lib/prefs";
+import { warn } from "@/lib/utils";
 
 let enabled: Promise<boolean> | null = null;
+let volume: Promise<number> | null = null;
+
+/** Volume dos sons, 0–100 (padrão 70). */
+export function soundVolume(): Promise<number> {
+  volume ??= getPref("sound_volume").then((v) => {
+    const n = Number(v);
+    return v !== null && Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 70;
+  });
+  return volume;
+}
+
+export function setSoundVolume(v: number) {
+  volume = Promise.resolve(v);
+  setPref("sound_volume", String(v)).catch((e) => warn("salvar o volume", e));
+}
 
 export function soundEnabled(): Promise<boolean> {
   enabled ??= getFlag("sound", true);
@@ -39,8 +55,10 @@ export type Sfx = keyof typeof SFX;
 let ctx: AudioContext | null = null;
 
 export function sfx(name: Sfx) {
-  void soundEnabled().then((on) => {
-    if (!on) return;
+  void Promise.all([soundEnabled(), soundVolume()]).then(([on, vol]) => {
+    if (!on || vol === 0) return;
+    // 70 = o volume antigo (fixo); 100 = ~1,4× mais alto
+    const k = vol / 70;
     ctx ??= new AudioContext();
     let t = ctx.currentTime + 0.01;
     for (const n of SFX[name] as Note[]) {
@@ -50,7 +68,7 @@ export function sfx(name: Sfx) {
       osc.frequency.setValueAtTime(n.f, t);
       if (n.to) osc.frequency.exponentialRampToValueAtTime(n.to, t + n.d);
       // Quadrada é alta: volume baixo e corte rápido para não cansar.
-      gain.gain.setValueAtTime(n.w === "triangle" ? 0.09 : 0.045, t);
+      gain.gain.setValueAtTime((n.w === "triangle" ? 0.09 : 0.045) * k, t);
       gain.gain.exponentialRampToValueAtTime(0.0001, t + n.d);
       osc.connect(gain).connect(ctx.destination);
       osc.start(t);
