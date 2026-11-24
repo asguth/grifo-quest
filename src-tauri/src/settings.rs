@@ -178,6 +178,7 @@ wire_enum! {
         WelcomeOnBoot = "welcome_on_boot",
         ClassVoice = "class_voice",
         TourDone = "tour_done",
+        CustomThemes = "custom_themes",
         SoundVolume = "sound_volume",
     }
 }
@@ -194,6 +195,24 @@ pub async fn ui_pref(pool: &SqlitePool, key: UiKey) -> AppResult<Option<String>>
 
 pub async fn set_ui_pref(pool: &SqlitePool, key: UiKey, value: &str) -> AppResult<()> {
     db::settings::set(pool, &key.db_key(), value).await
+}
+
+/// Chave do aviso "mostre a janela na próxima abertura" (não é pref de UI: o backend lê e apaga).
+const SHOW_ON_START: &str = "show_on_start";
+
+/// Grava, antes de reiniciar (atualização, restauração de backup), que a próxima abertura deve
+/// mostrar a janela mesmo que o app tenha subido no login do Windows.
+pub async fn ask_show_on_start(pool: &SqlitePool) -> AppResult<()> {
+    db::settings::set(pool, SHOW_ON_START, "1").await
+}
+
+/// Lê e apaga o aviso: `true` uma vez só.
+pub async fn take_show_on_start(pool: &SqlitePool) -> AppResult<bool> {
+    let asked = db::settings::get(pool, SHOW_ON_START).await?.as_deref() == Some("1");
+    if asked {
+        db::settings::set(pool, SHOW_ON_START, "0").await?;
+    }
+    Ok(asked)
 }
 
 #[cfg(test)]

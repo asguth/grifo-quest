@@ -159,7 +159,59 @@ export const PRESETS: Record<string, { label: string; colors: Palette }> = {
       border: "#ced5df",
     },
   },
+  // Escuro azul-petróleo: neutros h 225, destaque água-marinha (h 195) e sucesso verde (h 150).
+  oceano: {
+    label: "Oceano · profundo",
+    colors: {
+      background: "#02141b",
+      card: "#081f27",
+      foreground: "#d1f1ff",
+      "muted-foreground": "#82b3c8",
+      primary: "#62dedd",
+      accent: "#79d28d",
+      destructive: "#f2716a",
+      secondary: "#112a34",
+      border: "#16323d",
+    },
+  },
+  // Claro lilás: fundo levemente violeta, destaque violeta (h 295). Par claro do Neon.
+  lavanda: {
+    label: "Lavanda · claro",
+    colors: {
+      background: "#f5f1ff",
+      card: "#fdfcff",
+      foreground: "#2b2538",
+      "muted-foreground": "#60596f",
+      primary: "#6c4ab3",
+      accent: "#007a4d",
+      destructive: "#c2272d",
+      secondary: "#e7e1f3",
+      border: "#d6d1e3",
+    },
+  },
 };
+
+/** Tema criado em Config → Aparência e salvo com nome: vira um card ao lado dos prontos. */
+export type CustomTheme = { id: string; label: string; colors: Palette };
+
+/** `preset` de um tema salvo pela pessoa. */
+export const customPreset = (id: string) => `custom:${id}`;
+
+export async function loadCustomThemes(): Promise<CustomTheme[]> {
+  const raw = await getPref("custom_themes");
+  if (!raw) return [];
+  try {
+    const list = JSON.parse(raw) as CustomTheme[];
+    return Array.isArray(list) ? list.filter((t) => t && typeof t.id === "string" && t.colors) : [];
+  } catch (e) {
+    warn("temas salvos ilegíveis", e);
+    return [];
+  }
+}
+
+export async function saveCustomThemes(list: CustomTheme[]) {
+  await setPref("custom_themes", JSON.stringify(list));
+}
 
 /** Cores padrão: main.tsx aplica antes da primeira pintura (index.css não repete os valores). */
 export const DEFAULT_THEME: Theme = { preset: "cozy", colors: PRESETS.cozy.colors, font: "geist", fontScale: 100, pixelTitles: true, motion: true };

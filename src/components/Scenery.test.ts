@@ -17,7 +17,11 @@ describe("artWidth", () => {
     expect(artWidth(2000, 300)).toBe(Math.ceil((2048 * 90) / 300));
     expect(artWidth(4000, 300)).toBeGreaterThan(artWidth(2000, 300));
   });
-  it("nunca menor que a arte original", () => {
-    expect(artWidth(200, 300)).toBe(320);
+  it("em tela estreita a arte acompanha a área (a lua não é cortada)", () => {
+    // monitor em pé de 900 px: sobra ~620 px para a cena
+    const w = artWidth(620, 300);
+    expect(w).toBe(Math.ceil(((620 + 48) * 90) / 300));
+    expect(w - 58 + 9).toBeLessThanOrEqual(w); // borda direita da lua dentro da arte
+    expect(artWidth(10, 300)).toBe(120);
   });
 });

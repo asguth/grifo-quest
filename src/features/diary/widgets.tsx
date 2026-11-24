@@ -15,10 +15,12 @@ import {
   type Profile_Serialize as Profile,
   type StudyHome,
 } from "@/lib/bindings";
-import { isoDay, lastDays, weekStart } from "@/lib/dates";
+import { isoDay, weekStart } from "@/lib/dates";
 import { ago, feedColor, formatDate, hours, plural, shortDate } from "@/lib/format";
 import { cn, errorMessage, warn } from "@/lib/utils";
 import { isDone } from "@/features/world/contests";
+import { heatGrid } from "./heatmap";
+import { requestWorldTab } from "@/features/world/tabRequest";
 
 export function Panel(props: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
@@ -202,9 +204,33 @@ export function RecordsWidget({ d }: { d: Dashboard }) {
 export function CountdownWidget({ d, go }: { d: Dashboard; go: Navigate }) {
   const [next, ...rest] = d.exams;
   return (
-    <Panel title="Dias até a prova" action={<LinkButton onClick={() => go("mundo")}>gerenciar</LinkButton>}>
+    <Panel
+      title="Dias até a prova"
+      action={
+        <LinkButton
+          onClick={() => {
+            requestWorldTab("exams");
+            go("mundo");
+          }}
+        >
+          gerenciar
+        </LinkButton>
+      }
+    >
       {!next ? (
-        <Empty>Nenhuma prova marcada. Adicione em Mundo → Provas.</Empty>
+        <div className="space-y-2">
+          <Empty>Nenhuma prova marcada.</Empty>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              requestWorldTab("exams");
+              go("mundo");
+            }}
+          >
+            Marcar a data da prova
+          </Button>
+        </div>
       ) : (
         <>
           <div className="flex items-baseline gap-3">
@@ -241,31 +267,58 @@ function heat(score: number): number {
   return 4;
 }
 
+const WEEKDAY_LABELS = ["", "seg", "", "qua", "", "sex", ""];
+const heatColor = (lv: number) => (lv === 0 ? "var(--secondary)" : `color-mix(in srgb, var(--accent) ${25 + lv * 18}%, var(--secondary))`);
+
 export function HeatmapWidget({ d }: { d: Dashboard }) {
-  // 53 semanas terminando hoje; colunas = semanas (domingo no topo).
-  const today = new Date();
-  const days = lastDays(53 * 7 - (6 - today.getDay()));
+  const { weeks, months } = heatGrid(new Date());
   const byDay = new Map(d.activity.map((a) => [a.day, a]));
   const activeDays = d.activity.filter((a) => a.questions > 0 || a.study_minutes > 0).length;
   return (
     <Panel title="Mapa de calor">
       <p className="text-sm text-muted-foreground">{plural(activeDays, "dia", "dias")} com estudo no último ano</p>
+      {/* Grade como a do GitHub: meses em cima, dias da semana à esquerda, quadrados que ocupam a largura toda. */}
       <div className="overflow-x-auto pb-1">
-        <div className="grid grid-flow-col grid-rows-7 gap-[3px]" style={{ width: "max-content" }}>
-          {days.map((day) => {
-            const iso = isoDay(day);
-            const a = byDay.get(iso);
-            const lv = heat(a ? a.questions + a.study_minutes / 3 : 0);
+        <div
+          className="grid min-w-[640px] gap-[3px]"
+          style={{ gridTemplateColumns: `auto repeat(${weeks.length}, minmax(0, 1fr))`, gridTemplateRows: "auto repeat(7, auto)" }}
+        >
+          <span />
+          {weeks.map((_, c) => {
+            const m = months.find((x) => x.col === c);
             return (
-              <div
-                key={iso}
-                title={`${formatDate(iso)}: ${a?.questions ?? 0} questões, ${a?.study_minutes ?? 0} min de estudo`}
-                className="size-3 rounded-[2px]"
-                style={{ background: lv === 0 ? "var(--secondary)" : `color-mix(in srgb, var(--accent) ${25 + lv * 18}%, var(--secondary))` }}
-              />
+              <span key={`m${c}`} className="relative h-4 text-[10px] text-muted-foreground">
+                {m && <span className="absolute left-0 whitespace-nowrap">{m.label}</span>}
+              </span>
             );
           })}
+          {WEEKDAY_LABELS.map((label, r) => [
+            <span key={`w${r}`} className="pr-1.5 text-[10px] leading-none text-muted-foreground" style={{ gridColumn: 1, gridRow: r + 2 }}>
+              {label}
+            </span>,
+            ...weeks.map((col, c) => {
+              const day = col[r];
+              if (!day) return <span key={`${c}-${r}`} style={{ gridColumn: c + 2, gridRow: r + 2 }} />;
+              const iso = isoDay(day);
+              const a = byDay.get(iso);
+              return (
+                <div
+                  key={iso}
+                  title={`${formatDate(iso)}: ${a?.questions ?? 0} questões, ${a?.study_minutes ?? 0} min de estudo`}
+                  className="aspect-square rounded-[2px]"
+                  style={{ gridColumn: c + 2, gridRow: r + 2, background: heatColor(heat(a ? a.questions + a.study_minutes / 3 : 0)) }}
+                />
+              );
+            }),
+          ])}
         </div>
+      </div>
+      <div className="flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
+        menos
+        {[0, 1, 2, 3, 4].map((lv) => (
+          <span key={lv} className="size-2.5 rounded-[2px]" style={{ background: heatColor(lv) }} />
+        ))}
+        mais
       </div>
     </Panel>
   );

@@ -144,5 +144,17 @@ pub async fn restore_backup(app: tauri::AppHandle, pool: State<'_, SqlitePool>, 
         let _ = std::fs::remove_file(format!("{}{ext}", db.to_string_lossy()));
     }
     std::fs::copy(&src, &db)?;
+    // O aviso vai no banco RESTAURADO (o antigo acabou de ser trocado): o app reabre com a janela à
+    // vista, não escondido na bandeja.
+    let opts = sqlx::sqlite::SqliteConnectOptions::new().filename(&db);
+    match sqlx::SqlitePool::connect_with(opts).await {
+        Ok(p) => {
+            if let Err(e) = crate::settings::ask_show_on_start(&p).await {
+                eprintln!("aviso de abrir a janela: {e}");
+            }
+            p.close().await;
+        }
+        Err(e) => eprintln!("aviso de abrir a janela: {e}"),
+    }
     app.restart()
 }

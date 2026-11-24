@@ -53,7 +53,16 @@ Legenda: 🔵 planejado · ⚪ ideia (sem compromisso) · ✋ depende de você
 
 ## Entregue
 
-### Próxima versão (em teste)
+### 0.2.1 (nov/2026)
+- **Importar edital**: texto do PDF consertado (números e acentos quebrados, rodapés), corte no próximo anexo, fatias que nunca partem uma matéria ao meio, um tópico por item numerado (antes picotava itens e inventava matérias). Validado no edital da ANPD: 14 matérias e 105 tópicos, iguais ao PDF.
+- **Ollama** sobe sem abrir janelas de terminal (os runners herdam um console escondido).
+- **Início**: mapa de calor no estilo do GitHub (meses, dias da semana, legenda, largura toda); "gerenciar" e "Marcar a data da prova" abrem direto Minhas provas.
+- **Sala de aula**: escolha de tópico com busca e agrupada por matéria.
+- **Aparência**: 9 temas (novos: Oceano e Lavanda) e "Salvar como tema" para guardar as cores personalizadas num card.
+- **Cena**: lua e sol visíveis em telas estreitas (monitor em pé).
+- **Abrir o app**: a janela aparece ao abrir, depois de atualizar e depois de restaurar backup (antes ia para a bandeja e parecia ter fechado); só o login do Windows abre na bandeja.
+
+### 0.2.0 (nov/2026)
 - **Interface**: responsividade por container query, cena pixel sem ampliar, Mundo em mosaico por linha com 24 notícias por vez, layout padrão do Início sem buracos (mapa de calor e notícias em largura total), ícones em pixel art no lugar dos emojis, menu sem números, tutorial animado com Pular.
 - **Temas e texto**: 7 temas em OKLCH (todos AA), escolha de fonte (Geist, Segoe UI, Verdana, Georgia, Consolas) e volume dos sons.
 - **Foco**: anel de blocos pixel com o Grifinho estudando; mini-timer do menu com barra de 10 blocos, pausa e atalho direto para a aba Foco.

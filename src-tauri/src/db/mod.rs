@@ -44,6 +44,12 @@ mod tests {
             let _ = std::fs::remove_file(&path);
             let pool = super::open(&path).await.expect("abrir + migrations");
 
+            // aviso de mostrar a janela depois de reiniciar: vale uma vez só
+            assert!(!crate::settings::take_show_on_start(&pool).await.unwrap());
+            crate::settings::ask_show_on_start(&pool).await.unwrap();
+            assert!(crate::settings::take_show_on_start(&pool).await.unwrap());
+            assert!(!crate::settings::take_show_on_start(&pool).await.unwrap());
+
             // 1º acesso sem matérias: só a missão de pomodoro
             assert_eq!(diary::refresh_missions(&pool).await.unwrap(), 0);
             assert_eq!(diary::missions_today(&pool).await.unwrap().len(), 1);

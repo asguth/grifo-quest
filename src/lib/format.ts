@@ -74,3 +74,8 @@ export function feedColor(name: string): string {
   for (const c of name) h = (h * 31 + c.charCodeAt(0)) % 360;
   return `hsl(${h} 45% 38%)`;
 }
+
+/** Minúsculas sem acento, para busca ("Proteção" acha "protecao"). */
+export function fold(s: string): string {
+  return s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+}

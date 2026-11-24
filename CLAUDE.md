@@ -5,7 +5,7 @@ Commit/push só quando o usuário pedir. Ao fim de cada etapa: build sem warning
 
 ## Comandos
 - Toolchain fora do PATH do bash? `export PATH="$HOME/.cargo/bin:$APPDATA/npm:$PATH"`
-- `pnpm tauri dev` — roda o app (janela começa escondida; rodar o exe de novo a mostra via single-instance). Antes compila o MCP via `scripts/sidecar.mjs` (externalBin).
+- `pnpm tauri dev` — roda o app (a janela aparece ao abrir; só fica na bandeja quando o Windows abre o app no login com `--autostart`). Antes compila o MCP via `scripts/sidecar.mjs` (externalBin).
 - Checkout novo: `node scripts/sidecar.mjs` uma vez antes de `cargo test`/`clippy` (o tauri-build exige o binário em `src-tauri/binaries/`).
 - `pnpm build` — tsc + vite
 - `pnpm test` — Vitest (lógica pura do front, `src/**/*.test.ts`; inclui contraste AA dos temas prontos)

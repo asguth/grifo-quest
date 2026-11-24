@@ -180,7 +180,12 @@ pub async fn start_ollama(pool: State<'_, SqlitePool>) -> AppResult<()> {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        cmd.creation_flags(sys::CREATE_NO_WINDOW | 0x0000_0008); // + DETACHED_PROCESS: segue vivo depois do app
+        // CREATE_NO_WINDOW dá ao servidor um console ESCONDIDO, que os runners (um processo por
+        // modelo carregado) herdam. Com DETACHED_PROCESS (versão antiga) o servidor ficava sem
+        // console e cada runner abria uma janela preta própria. CREATE_NEW_PROCESS_GROUP: o Ctrl+C
+        // do app não derruba o Ollama, que segue rodando depois que o app fecha.
+        const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+        cmd.creation_flags(sys::CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP);
     }
     cmd.spawn().map_err(|e| AppError::Invalid(format!("Não consegui abrir o Ollama: {e}")))?;
     let url = settings::load::<AppConfig>(&pool).await?.ollama_url;

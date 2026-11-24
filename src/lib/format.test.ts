@@ -29,3 +29,10 @@ describe("format", () => {
     expect([shortDate("2026-03-12"), shortDate("2026-03-12 14:05:00"), shortDate(null)]).toEqual(["12/03", "12/03", ""]);
   });
 });
+
+describe("fold", () => {
+  it("busca sem acento nem caixa", async () => {
+    const { fold } = await import("./format");
+    expect(fold("Proteção de DADOS")).toBe("protecao de dados");
+  });
+});

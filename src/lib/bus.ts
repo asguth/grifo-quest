@@ -9,6 +9,8 @@ type AppEvents = {
   tour: undefined;
   /** Trocar a aba do Estudo (o mini-timer do menu pede "foco"). */
   studyTab: string;
+  /** Trocar a aba do Mundo (o widget da prova pede "exams"). */
+  worldTab: string;
   /** Tema aplicado (cores, fonte, movimento). */
   theme: Theme;
   /** Festa de nível novo. */

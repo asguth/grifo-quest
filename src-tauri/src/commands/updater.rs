@@ -104,6 +104,11 @@ pub async fn check_update(app: AppHandle) -> AppResult<Option<UpdateInfo>> {
 #[specta::specta]
 pub async fn install_update(app: AppHandle, pending: State<'_, PendingUpdate>) -> AppResult<()> {
     let (update, bytes) = pending.lock().take().ok_or_else(|| AppError::Invalid("Nenhuma atualização baixada".into()))?;
+    // A versão nova abre com a janela à vista (antes ia para a bandeja e parecia ter fechado).
+    // Grava antes: no Windows o instalador encerra este processo.
+    if let Err(e) = crate::settings::ask_show_on_start(&app.state::<sqlx::SqlitePool>()).await {
+        eprintln!("aviso de abrir a janela: {e}");
+    }
     if let Err(e) = update.install(&bytes) {
         // Fica guardada para tentar de novo (ex.: o servidor MCP estava em uso).
         *pending.lock() = Some((update, bytes));

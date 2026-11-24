@@ -203,11 +203,20 @@ async fn autostart_first_run(app: &AppHandle, pool: &sqlx::SqlitePool) -> SetupR
 }
 
 /// Ao ligar o PC: janela compacta de boas-vindas (a não ser que o usuário tenha desligado).
-async fn welcome_on_boot(app: &AppHandle, pool: &sqlx::SqlitePool) -> SetupResult {
+/// Em qualquer outra abertura (menu Iniciar, depois de atualizar, depois de restaurar backup) a
+/// janela principal aparece: antes ela começava sempre escondida e o app parecia ter fechado.
+async fn on_launch(app: &AppHandle, pool: &sqlx::SqlitePool) -> SetupResult {
     let booted = std::env::args().any(|a| a == AUTOSTART_ARG);
-    let off = settings::ui_pref(pool, settings::UiKey::WelcomeOnBoot).await?.as_deref() == Some("off");
-    if booted && !off {
-        commands::window::open_welcome(app)?;
+    // Reiniciar (atualização, restauração) reaproveita os argumentos: se o app tinha subido no
+    // login, voltaria escondido. O aviso gravado antes de reiniciar vence o `--autostart`.
+    let asked = settings::take_show_on_start(pool).await?;
+    if booted && !asked {
+        let off = settings::ui_pref(pool, settings::UiKey::WelcomeOnBoot).await?.as_deref() == Some("off");
+        if !off {
+            commands::window::open_welcome(app)?;
+        }
+    } else {
+        sys::show_window(app, sys::MAIN);
     }
     Ok(())
 }
@@ -228,7 +237,7 @@ fn setup(app: &mut tauri::App) -> SetupResult {
         if let Err(e) = autostart_first_run(&handle, &pool).await {
             eprintln!("autostart: {e}");
         }
-        welcome_on_boot(&handle, &pool).await
+        on_launch(&handle, &pool).await
     })?;
     setup_tray(app)?;
     setup_shortcut(app)?;

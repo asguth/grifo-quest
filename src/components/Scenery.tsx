@@ -13,8 +13,10 @@ const SKY: Record<Period, { top: string; horizon: string; body: string; stars: b
   noite: { top: "#121530", horizon: "#3a3463", body: "#f1ecd2", stars: true, sun: false },
 };
 
-/** Largura mínima da cena em "pixels" da arte. */
+/** Largura de referência da arte (só para a silhueta padrão de `ridge`). */
 const W = 320;
+/** Mínimo para a lua/sol (a ~58 px da borda direita) e as montanhas ainda caberem. */
+const MIN_W = 120;
 const H = 90;
 /** Folga do parallax: as camadas são 3rem mais largas que a cena. */
 const BLEED = 48;
@@ -24,7 +26,9 @@ const BLEED = 48;
  * (altura / H), e a paisagem fica mais comprida em vez de ser ampliada em janela larga.
  */
 export function artWidth(px: number, heightPx: number): number {
-  return Math.max(W, Math.ceil(((px + BLEED) * H) / heightPx));
+  // Sem piso de 320: em tela estreita (monitor em pé, ~900 px) a arte maior que a área era
+  // recortada nas laterais e a lua, perto da borda direita, sumia.
+  return Math.max(MIN_W, Math.ceil(((px + BLEED) * H) / heightPx));
 }
 
 /** Silhueta em degraus (só traços horizontais/verticais → cara de pixel). Determinística pelo `seed`. */

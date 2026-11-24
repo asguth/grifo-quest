@@ -5,11 +5,20 @@ import { formatDate } from "@/lib/format";
 import { ContestTracker } from "./ContestTracker";
 import { ExamForm, useExams } from "./exams";
 import { NewsBoard } from "./NewsBoard";
+import { getWorldTab, setWorldTab, type WorldTab } from "./tabRequest";
+import { useAppEvent } from "@/lib/bus";
 
-type Tab = "news" | "contests" | "exams";
+type Tab = WorldTab;
 
 export default function WorldScreen() {
-  const [tab, setTab] = useState<Tab>("news");
+  const [tab, setTabState] = useState<Tab>(getWorldTab);
+  const setTab = (t: Tab) => {
+    setWorldTab(t);
+    setTabState(t);
+  };
+  useAppEvent("worldTab", (t) => {
+    if (t === "news" || t === "contests" || t === "exams") setTabState(t);
+  });
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">

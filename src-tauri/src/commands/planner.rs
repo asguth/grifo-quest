@@ -96,9 +96,16 @@ struct ChunkSubject {
 
 const EDITAL_SYSTEM: &str = "Você extrai o conteúdo programático de editais de concurso público. \
 Recebe um TRECHO do edital e devolve SOMENTE JSON no formato \
-{\"materias\":[{\"nome\":\"Língua Portuguesa\",\"peso\":null,\"topicos\":[\"Compreensão de textos\",\"Ortografia\"]}]}. \
-Regras: copie os nomes como estão no edital; quebre a lista do edital em tópicos curtos (um assunto por item, sem numeração); \
-peso = número de questões da matéria se o trecho disser, senão null; ignore regras de inscrição, datas e cargos que não pedirem. \
+{\"materias\":[{\"nome\":\"Língua Portuguesa\",\"peso\":null,\"topicos\":[\"Compreensão e interpretação de textos\",\"Ortografia oficial\"]}]}. \
+Regras: \
+1) Matéria é o TÍTULO do edital (geralmente em MAIÚSCULAS, como LÍNGUA PORTUGUESA ou DIREITO ADMINISTRATIVO). \
+Nunca invente matéria a partir de um tópico. Títulos de grupo como CONHECIMENTOS GERAIS ou CONHECIMENTOS ESPECÍFICOS não são matéria. \
+2) Se o trecho começar com \"(continuação de X)\", os itens são da matéria X: use exatamente esse nome. \
+3) Cada item NUMERADO do edital vira UM tópico, com o texto do item inteiro (sem o número). Não quebre um item em vários \
+nem separe leis, artigos ou exemplos do item. Item sem numeração: um tópico por frase ou por ponto e vírgula. \
+4) Copie nomes e textos como estão, só corrigindo espaços quebrados. \
+5) peso = número de questões ou peso da matéria se o trecho disser, senão null. \
+6) Ignore inscrições, datas, cargos que não pedirem, notas de rodapé e listas de bibliografia. \
 Se o trecho não tiver conteúdo programático, devolva {\"materias\":[]}.";
 
 /// Matérias e tópicos a partir do texto do edital, pela IA de tarefas (Ollama no automático), em fatias.
@@ -106,9 +113,11 @@ Se o trecho não tiver conteúdo programático, devolva {\"materias\":[]}.";
 #[specta::specta]
 pub async fn plan_from_edital(app: AppHandle, pool: State<'_, SqlitePool>, text: String, role: Option<String>) -> AppResult<Vec<PlanSubject>> {
     let cfg: AppConfig = settings::load(&pool).await?;
-    let section = edital::program_section(&text);
+    // texto do PDF consertado → só o conteúdo programático (até o próximo anexo) → fatias por matéria
+    let clean = edital::clean_pdf_text(&text);
+    let section = edital::until_next_annex(edital::program_section(&clean));
     let section = text::head(section, MAX_CHARS);
-    let parts = edital::chunks(section, CHUNK_CHARS);
+    let parts = edital::chunks_by_subject(section, CHUNK_CHARS);
     if parts.is_empty() {
         return Err(AppError::Invalid("O texto do edital está vazio".into()));
     }

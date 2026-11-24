@@ -1,7 +1,7 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
-import { Bug, DatabaseBackup, Lightbulb, RotateCcw } from "lucide-react";
+import { Bug, DatabaseBackup, Lightbulb, RotateCcw, Save, Trash2 } from "lucide-react";
 import { NativeSelect } from "@/components/fields";
 import { Segmented } from "@/components/Segmented";
 import { toast, toastError } from "@/components/toast";
@@ -25,7 +25,22 @@ import { getFlag, saveFlag } from "@/lib/prefs";
 import { reportIssue } from "@/lib/report";
 import { QUICK_LOG_SHORTCUT } from "@/lib/rules";
 import { setSoundEnabled, setSoundVolume, sfx, soundEnabled, soundVolume } from "@/lib/sound";
-import { COLOR_TOKENS, DEFAULT_THEME, FONTS, PRESETS, saveTheme, useTheme, type ColorToken, type FontId, type Theme } from "@/lib/theme";
+import {
+  COLOR_TOKENS,
+  customPreset,
+  DEFAULT_THEME,
+  FONTS,
+  loadCustomThemes,
+  PRESETS,
+  saveCustomThemes,
+  saveTheme,
+  useTheme,
+  type ColorToken,
+  type CustomTheme,
+  type FontId,
+  type Palette,
+  type Theme,
+} from "@/lib/theme";
 import { installUpdate, useUpdate } from "@/lib/update";
 import { errorMessage, warn } from "@/lib/utils";
 import { Integrations } from "./Integrations";
@@ -82,35 +97,90 @@ function useStatus() {
   return [status, setStatus] as const;
 }
 
+/** Miniatura de um tema: cartão sobre o fundo com texto, texto suave, botão e as 3 cores de estado. */
+function ThemeCard({ label, colors, active, onPick, onDelete }: { label: string; colors: Palette; active: boolean; onPick: () => void; onDelete?: () => void }) {
+  return (
+    <div className="relative">
+      <button
+        onClick={onPick}
+        aria-pressed={active}
+        className={`w-full overflow-hidden rounded-xl border-2 text-left text-sm transition-transform hover:-translate-y-0.5 ${active ? "border-primary" : "border-border"}`}
+        style={{ background: colors.background, color: colors.foreground }}
+      >
+        <span className="m-2.5 mb-2 block space-y-1.5 rounded-lg p-2.5" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
+          <span className="block h-1.5 w-3/4 rounded-full" style={{ background: colors.foreground }} />
+          <span className="block h-1.5 w-1/2 rounded-full" style={{ background: colors["muted-foreground"] }} />
+          <span className="flex items-center gap-1 pt-0.5">
+            <span className="h-3.5 w-10 rounded" style={{ background: colors.primary }} />
+            <span className="h-3.5 w-6 rounded" style={{ background: colors.secondary }} />
+            <span className="ml-auto size-2.5 rounded-full" style={{ background: colors.accent }} />
+            <span className="size-2.5 rounded-full" style={{ background: colors.destructive }} />
+          </span>
+        </span>
+        <span className="block truncate px-3 pb-2.5 pr-8 font-medium">{label}</span>
+      </button>
+      {onDelete && (
+        <button
+          onClick={onDelete}
+          aria-label={`Apagar o tema ${label}`}
+          title="Apagar este tema"
+          className="absolute right-2 bottom-2 grid size-6 place-items-center rounded-md opacity-60 hover:opacity-100"
+          style={{ color: colors.foreground }}
+        >
+          <Trash2 className="size-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 function Appearance() {
   const theme = useTheme();
   const update = (t: Theme) => saveTheme(t).catch(toastError);
+  const [customs, setCustoms] = useState<CustomTheme[]>([]);
+  const [name, setName] = useState("");
+  useEffect(() => void loadCustomThemes().then(setCustoms), []);
+
+  async function saveAsTheme() {
+    const t: CustomTheme = { id: Date.now().toString(36), label: name.trim() || `Meu tema ${customs.length + 1}`, colors: theme.colors };
+    const next = [...customs, t];
+    try {
+      await saveCustomThemes(next);
+      setCustoms(next);
+      setName("");
+      await update({ ...theme, preset: customPreset(t.id) });
+      toast(`Tema "${t.label}" salvo nos temas prontos`, "success");
+    } catch (e) {
+      toastError(e);
+    }
+  }
+
+  async function removeTheme(id: string) {
+    const next = customs.filter((t) => t.id !== id);
+    try {
+      await saveCustomThemes(next);
+      setCustoms(next);
+    } catch (e) {
+      toastError(e);
+    }
+  }
 
   return (
     <div className="space-y-4">
       <Card title="Tema pronto">
         <div className="grid gap-2 @lg:grid-cols-3">
           {Object.entries(PRESETS).map(([id, p]) => (
-            <button
-              key={id}
-              onClick={() => update({ ...theme, preset: id, colors: p.colors })}
-              aria-pressed={theme.preset === id}
-              className={`overflow-hidden rounded-xl border-2 text-left text-sm transition-transform hover:-translate-y-0.5 ${theme.preset === id ? "border-primary" : "border-border"}`}
-              style={{ background: p.colors.background, color: p.colors.foreground }}
-            >
-              {/* miniatura: cartão sobre o fundo com texto, texto suave, botão e as 3 cores de estado */}
-              <span className="m-2.5 mb-2 block space-y-1.5 rounded-lg p-2.5" style={{ background: p.colors.card, border: `1px solid ${p.colors.border}` }}>
-                <span className="block h-1.5 w-3/4 rounded-full" style={{ background: p.colors.foreground }} />
-                <span className="block h-1.5 w-1/2 rounded-full" style={{ background: p.colors["muted-foreground"] }} />
-                <span className="flex items-center gap-1 pt-0.5">
-                  <span className="h-3.5 w-10 rounded" style={{ background: p.colors.primary }} />
-                  <span className="h-3.5 w-6 rounded" style={{ background: p.colors.secondary }} />
-                  <span className="ml-auto size-2.5 rounded-full" style={{ background: p.colors.accent }} />
-                  <span className="size-2.5 rounded-full" style={{ background: p.colors.destructive }} />
-                </span>
-              </span>
-              <span className="block px-3 pb-2.5 font-medium">{p.label}</span>
-            </button>
+            <ThemeCard key={id} label={p.label} colors={p.colors} active={theme.preset === id} onPick={() => update({ ...theme, preset: id, colors: p.colors })} />
+          ))}
+          {customs.map((t) => (
+            <ThemeCard
+              key={t.id}
+              label={t.label}
+              colors={t.colors}
+              active={theme.preset === customPreset(t.id)}
+              onPick={() => update({ ...theme, preset: customPreset(t.id), colors: t.colors })}
+              onDelete={() => void removeTheme(t.id)}
+            />
           ))}
         </div>
       </Card>
@@ -129,6 +199,19 @@ function Appearance() {
             </label>
           ))}
         </div>
+        <form
+          className="flex flex-wrap items-center gap-2 border-t border-border pt-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void saveAsTheme();
+          }}
+        >
+          <Input className="w-auto min-w-48 flex-1" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome do tema (ex.: Meu escuro)" aria-label="Nome do tema" maxLength={40} />
+          <Button type="submit" size="sm" variant="secondary">
+            <Save /> Salvar como tema
+          </Button>
+          <p className="w-full text-xs text-muted-foreground">Ele aparece junto dos temas prontos, para voltar a ele com um clique.</p>
+        </form>
       </Card>
 
       <Card title="Texto">

@@ -1178,7 +1178,7 @@ export type TopicRef_Serialize = {
 export type Trend = "melhorando" | "piorando" | "estavel" | "sem_dados";
 
 /**  Preferências da interface (`ui_<nome>` em `settings`). O front usa o tipo gerado nos bindings. */
-export type UiKey = "theme" | "home_layout" | "sound" | "sidebar_collapsed" | "welcome_on_boot" | "class_voice" | "tour_done" | "sound_volume";
+export type UiKey = "theme" | "home_layout" | "sound" | "sidebar_collapsed" | "welcome_on_boot" | "class_voice" | "tour_done" | "custom_themes" | "sound_volume";
 
 export type UpdateInfo = UpdateInfo_Serialize | UpdateInfo_Deserialize;
 

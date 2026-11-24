@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotionConfig } from "motion/react";
 import { Loader2, Mic, Volume2, VolumeX } from "lucide-react";
-import { NativeSelect } from "@/components/fields";
 import { toast, toastError } from "@/components/toast";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -25,6 +24,7 @@ import { sfx } from "@/lib/sound";
 import { useHasPtVoice } from "@/lib/speech";
 import { errorMessage, warn } from "@/lib/utils";
 import { Avatar } from "./students";
+import { TopicPicker } from "./TopicPicker";
 import { speak, stopSpeaking, useVoice } from "./voice";
 
 type Msg = { role: "teacher" | "student"; student?: Student; text: string };
@@ -96,18 +96,10 @@ export default function ClassroomScreen() {
         </motion.div>
       ))}
 
-      <div className="grid gap-5 @2xl:grid-cols-[280px_1fr]">
+      <div className="grid gap-5 @2xl:grid-cols-[320px_1fr]">
         <div className="space-y-2">
-          <Label htmlFor="class-topic">Tópico</Label>
-          <NativeSelect id="class-topic" value={topicId ?? ""} onChange={(e) => setTopicId(e.target.value ? Number(e.target.value) : null)}>
-            <option value="">Escolha um tópico…</option>
-            {topics.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.has_material ? "📘 " : ""}
-                {t.subject} — {t.name}
-              </option>
-            ))}
-          </NativeSelect>
+          <Label>Tópico</Label>
+          <TopicPicker topics={topics} value={topicId} onChange={setTopicId} />
           {topics.length === 0 && <p className="text-xs text-muted-foreground">Cadastre tópicos em Matérias primeiro.</p>}
           <History topicId={topicId} />
         </div>
