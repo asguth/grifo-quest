@@ -1,4 +1,5 @@
-//! IAs na nuvem com chave de API própria: Gemini, GPT (OpenAI) e Grok (xAI). As três aceitam a API de
+//! IAs na nuvem com chave de API própria: Gemini, GPT (OpenAI), Grok (xAI), DeepSeek, GLM (Z.ai) e
+//! qualquer outra com API no formato da OpenAI. Todas aceitam a API de
 //! chat no formato da OpenAI, então um cliente serve para todas. A chave fica no Cofre de
 //! Credenciais do Windows (nunca no banco, que o servidor MCP lê).
 
@@ -16,6 +17,11 @@ wire_enum! {
         Gemini = "gemini",
         Openai = "openai",
         Grok = "grok",
+        Deepseek = "deepseek",
+        Glm = "glm",
+        /// Qualquer serviço com API no formato da OpenAI (OpenRouter, Groq, Mistral, LM Studio…):
+        /// a pessoa informa o endereço.
+        Custom = "custom",
     }
 }
 
@@ -29,14 +35,21 @@ impl Cloud {
             Cloud::Gemini => "Gemini",
             Cloud::Openai => "GPT",
             Cloud::Grok => "Grok",
+            Cloud::Deepseek => "DeepSeek",
+            Cloud::Glm => "GLM (Z.ai)",
+            Cloud::Custom => "Outra IA",
         }
     }
 
-    fn base_url(self) -> &'static str {
+    /// Endereço da API no formato da OpenAI. `Custom` usa o que a pessoa informou (vazio = erro claro).
+    pub fn default_base_url(self) -> &'static str {
         match self {
             Cloud::Gemini => "https://generativelanguage.googleapis.com/v1beta/openai",
             Cloud::Openai => "https://api.openai.com/v1",
             Cloud::Grok => "https://api.x.ai/v1",
+            Cloud::Deepseek => "https://api.deepseek.com/v1",
+            Cloud::Glm => "https://api.z.ai/api/paas/v4",
+            Cloud::Custom => "",
         }
     }
 
@@ -46,6 +59,9 @@ impl Cloud {
             Cloud::Gemini => "https://aistudio.google.com/apikey",
             Cloud::Openai => "https://platform.openai.com/api-keys",
             Cloud::Grok => "https://console.x.ai",
+            Cloud::Deepseek => "https://platform.deepseek.com/api_keys",
+            Cloud::Glm => "https://z.ai/manage-apikey/apikey-list",
+            Cloud::Custom => "https://openrouter.ai/keys",
         }
     }
 
@@ -127,10 +143,19 @@ pub fn chat_body(model: &str, messages: &[Msg<'_>], json_mode: bool) -> Value {
 }
 
 /// Uma resposta de chat.
-pub async fn chat(c: Cloud, model: &str, messages: &[Msg<'_>], json_mode: bool) -> AppResult<String> {
+fn need_base(c: Cloud, base: &str) -> AppResult<String> {
+    let b = base.trim().trim_end_matches('/');
+    if !b.starts_with("http") {
+        return Err(AppError::Invalid(format!("Falta o endereço da API do {} (Config → Integrações).", c.label())));
+    }
+    Ok(b.to_string())
+}
+
+pub async fn chat(c: Cloud, base: &str, model: &str, messages: &[Msg<'_>], json_mode: bool) -> AppResult<String> {
     let key = need_key(c)?;
+    let base = need_base(c, base)?;
     let res = sys::http()
-        .post(format!("{}/chat/completions", c.base_url()))
+        .post(format!("{base}/chat/completions"))
         .bearer_auth(key)
         .timeout(TIMEOUT)
         .json(&chat_body(model, messages, json_mode))
@@ -159,9 +184,10 @@ struct ModelId {
 }
 
 /// Modelos de texto da conta (também serve de teste da chave). O Gemini devolve `models/x`.
-pub async fn list_models(c: Cloud) -> AppResult<Vec<String>> {
+pub async fn list_models(c: Cloud, base: &str) -> AppResult<Vec<String>> {
     let key = need_key(c)?;
-    let res = sys::http().get(format!("{}/models", c.base_url())).bearer_auth(key).timeout(Duration::from_secs(20)).send().await?;
+    let base = need_base(c, base)?;
+    let res = sys::http().get(format!("{base}/models")).bearer_auth(key).timeout(Duration::from_secs(20)).send().await?;
     if !res.status().is_success() {
         return Err(error_of(c, res).await);
     }
@@ -201,6 +227,7 @@ mod tests {
     #[test]
     fn stored_names_do_not_change() {
         assert_eq!(Cloud::parse("openai"), Some(Cloud::Openai));
-        assert_eq!(Cloud::ALL.len(), 3);
+        assert_eq!(Cloud::ALL.len(), 6);
+        assert!(Cloud::ALL.iter().filter(|c| **c != Cloud::Custom).all(|c| c.default_base_url().starts_with("https://")));
     }
 }

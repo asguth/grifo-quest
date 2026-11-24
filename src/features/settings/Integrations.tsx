@@ -200,10 +200,10 @@ export function Integrations({ setup = false }: { setup?: boolean }) {
 
         <Row
           icon={Sparkles}
-          name="Gemini, GPT e Grok (sua chave de API)"
+          name="Outras IAs (sua chave de API)"
           tone={cloudReady ? "ok" : "warn"}
           status={cloudReady ? "Conectado" : "Opcional"}
-          text="Alternativa ao Claude e à IA local: cole a chave de API de qualquer uma delas e escolha em Config → IA quem faz cada tarefa. A chave fica no Cofre de Credenciais do Windows, e o uso é cobrado na sua conta da Google, OpenAI ou xAI."
+          text="Gemini, GPT, Grok, DeepSeek, GLM ou qualquer IA com API no formato da OpenAI. Cole a chave e escolha em Config → IA quem faz cada tarefa. A chave fica no Cofre de Credenciais do Windows, e o uso é cobrado na sua conta do serviço."
         >
           <div className="w-full">
             <CloudKeys onChange={() => void check()} />

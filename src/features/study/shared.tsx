@@ -2,7 +2,7 @@ import { MascotEmpty } from "@/components/MascotEmpty";
 import { ImportEditalButton } from "@/features/onboarding/ImportEdital";
 import type { SessionKind } from "@/lib/bindings";
 
-export type Tab = "hoje" | "questoes" | "cards" | "erros" | "desempenho" | "foco";
+export type Tab = "hoje" | "questoes" | "cards" | "erros" | "desempenho" | "duvidas" | "foco";
 
 /** Começa uma sessão de questões (o tipo + tópico ou matéria + quantas). */
 export type Start = (kind: SessionKind, opts?: { topic?: number; subject?: number; n?: number }) => Promise<void>;

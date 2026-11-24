@@ -4,18 +4,34 @@ import type { Dashboard_Serialize as Dashboard } from "@/lib/bindings";
 import { getPref, setPref } from "@/lib/prefs";
 import { warn } from "@/lib/utils";
 
-/** s = 1×1, m = 2×1 (largo), l = 2×2 (grande). Grade de 3 colunas. */
-export type WidgetSize = "s" | "m" | "l";
+/** Largura × altura na grade de 3 colunas. "w"/"xl" = largura toda (3 colunas; 2 em tela média). */
+export type WidgetSize = "s" | "m" | "w" | "t" | "l" | "xl";
 
-export const SIZE_LABEL: Record<WidgetSize, string> = { s: "1×1", m: "2×1", l: "2×2" };
+/** Ordem do seletor de tamanho. */
+export const SIZES: WidgetSize[] = ["s", "m", "w", "t", "l", "xl"];
+
+export const SIZE_LABEL: Record<WidgetSize, string> = { s: "1×1", m: "2×1", w: "3×1", t: "1×2", l: "2×2", xl: "3×2" };
+
+export const SIZE_HINT: Record<WidgetSize, string> = {
+  s: "pequeno",
+  m: "largo",
+  w: "largura toda",
+  t: "alto",
+  l: "grande",
+  xl: "largura toda e alto",
+};
+
+/** Colunas e linhas que cada tamanho ocupa (para o seletor desenhar a miniatura e o teste somar). */
+export const SIZE_GRID: Record<WidgetSize, [number, number]> = { s: [1, 1], m: [2, 1], w: [3, 1], t: [1, 2], l: [2, 2], xl: [3, 2] };
 
 export const SPAN: Record<WidgetSize, string> = {
   s: "col-span-1",
   m: "@xl:col-span-2",
+  w: "col-span-full",
+  t: "row-span-2",
   l: "@xl:col-span-2 @xl:row-span-2",
+  xl: "col-span-full row-span-2",
 };
-
-export const NEXT_SIZE: Record<WidgetSize, WidgetSize> = { s: "m", m: "l", l: "s" };
 
 export type WidgetProps = { d: Dashboard; go: Navigate };
 type View = LazyExoticComponent<ComponentType<WidgetProps>>;
@@ -25,14 +41,13 @@ const cards = (pick: (m: typeof import("./widgets")) => ComponentType<WidgetProp
 // Gráficos num chunk próprio: o Recharts (~400 KB) só carrega depois do resto da tela.
 const chart = (pick: (m: typeof import("./charts")) => ComponentType<WidgetProps>) => view(() => import("./charts").then(pick));
 
-/** `full`: sempre a largura toda da grade (mapa de calor, notícias), sem troca de tamanho. */
-type Widget = { label: string; hint: string; size: WidgetSize; enabled: boolean; full?: boolean; view: View };
+type Widget = { label: string; hint: string; size: WidgetSize; enabled: boolean; view: View };
 
 /**
  * Todos os widgets do Início. Um novo entra aqui (e no layout salvo, no fim, sozinho).
  * A ordem é o layout padrão da primeira abertura e fecha as linhas de 3 colunas sem buraco:
  * [Sessão 2 + Missões 1] [Acerto 2 + Prova 1] [Questões 2 + Concursos 1] [Metas + Recordes + Horas]
- * e depois os de largura total.
+ * e depois os de largura toda (só o tamanho padrão: dá para trocar em "Editar início").
  */
 export const WIDGETS = {
   today: { label: "Sessão de hoje", hint: "meta do dia, erros e cartões vencidos", size: "m", enabled: true, view: cards((m) => m.TodayWidget) },
@@ -44,13 +59,10 @@ export const WIDGETS = {
   weekly: { label: "Metas da semana", hint: "questões e horas contra o que você planejou", size: "s", enabled: true, view: cards((m) => m.WeeklyWidget) },
   records: { label: "Recordes", hint: "melhor dia, total do ano", size: "s", enabled: true, view: cards((m) => m.RecordsWidget) },
   hours: { label: "Estudo × trabalho", hint: "horas da semana", size: "s", enabled: true, view: chart((m) => m.HoursWidget) },
-  heatmap: { label: "Mapa de calor do ano", hint: "dias com estudo", size: "m", enabled: true, full: true, view: cards((m) => m.HeatmapWidget) },
-  news: { label: "Notícias de concursos", hint: "últimas dos seus feeds", size: "m", enabled: true, full: true, view: cards((m) => m.NewsWidget) },
+  heatmap: { label: "Mapa de calor do ano", hint: "dias com estudo", size: "w", enabled: true, view: cards((m) => m.HeatmapWidget) },
+  news: { label: "Notícias de concursos", hint: "últimas dos seus feeds", size: "w", enabled: true, view: cards((m) => m.NewsWidget) },
   reviews: { label: "Reaulas da sala", hint: "revisões da sala de aula", size: "s", enabled: false, view: cards((m) => m.ReviewsWidget) },
 } as const satisfies Record<string, Widget>;
-
-/** Ocupa a linha inteira (ignora o tamanho salvo). */
-export const isFull = (id: WidgetId): boolean => "full" in WIDGETS[id] && WIDGETS[id].full === true;
 
 export type WidgetId = keyof typeof WIDGETS;
 export type WidgetSlot = { id: WidgetId; enabled: boolean; size: WidgetSize };
@@ -67,7 +79,7 @@ export function mergeLayout(saved: Saved[]): WidgetSlot[] {
     .map((s) => ({
       id: s.id,
       enabled: s.enabled ?? true,
-      size: s.size ?? (s.wide ? "m" : WIDGETS[s.id].size),
+      size: s.size && s.size in SIZE_LABEL ? s.size : s.wide ? "m" : WIDGETS[s.id].size,
     }));
   const missing = DEFAULT_LAYOUT.filter((d) => !known.some((s) => s.id === d.id));
   return [...known, ...missing];

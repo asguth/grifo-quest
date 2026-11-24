@@ -158,3 +158,31 @@ pub async fn restore_backup(app: tauri::AppHandle, pool: State<'_, SqlitePool>, 
     }
     app.restart()
 }
+
+/// Apaga tudo (matérias, questões, histórico, preferências) e reinicia no assistente inicial.
+/// Antes guarda um backup "antes-de-apagar" na pasta de backups: dá para voltar em Restaurar.
+/// Chaves de API (cofre do Windows), modelos do Ollama e apostilas geradas não são apagados.
+#[tauri::command]
+#[specta::specta]
+pub async fn reset_database(app: tauri::AppHandle, pool: State<'_, SqlitePool>) -> AppResult<()> {
+    use tauri::Manager;
+    write_backup(&app, &pool, "-antes-de-apagar").await?;
+    pool.close().await;
+    let db = app.path().app_data_dir()?.join(crate::sys::DB_FILE);
+    for ext in ["", "-wal", "-shm"] {
+        let path = format!("{}{ext}", db.to_string_lossy());
+        match std::fs::remove_file(&path) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+                return Err(AppError::Invalid(format!("Não consegui apagar {path}: {e}")));
+            }
+            _ => {}
+        }
+    }
+    // Banco novo já com as migrações e o aviso de abrir a janela (o app reabre no assistente, à vista).
+    let fresh = crate::db::open(&db).await?;
+    if let Err(e) = crate::settings::ask_show_on_start(&fresh).await {
+        eprintln!("aviso de abrir a janela: {e}");
+    }
+    fresh.close().await;
+    app.restart()
+}

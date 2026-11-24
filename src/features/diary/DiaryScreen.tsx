@@ -1,7 +1,6 @@
-import { Suspense, useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { arrayMove, rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { closestCenter, DndContext, DragOverlay, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { AnimatePresence, motion, useAnimationControls, useReducedMotionConfig } from "motion/react";
 import { Check, EyeOff, GripVertical, LayoutGrid, Play, Plus, RotateCcw, Scaling } from "lucide-react";
 import type { Navigate } from "@/app/nav";
@@ -21,7 +20,7 @@ import { plural } from "@/lib/format";
 import { itemIn, listIn, spring } from "@/lib/motion";
 import { sfx } from "@/lib/sound";
 import { cn, errorMessage, warn } from "@/lib/utils";
-import { DEFAULT_LAYOUT, isFull, loadLayout, NEXT_SIZE, saveLayout, SIZE_LABEL, SPAN, WIDGETS, type WidgetId, type WidgetSlot } from "./layout";
+import { DEFAULT_LAYOUT, loadLayout, saveLayout, SIZE_GRID, SIZE_HINT, SIZE_LABEL, SIZES, SPAN, WIDGETS, type WidgetId, type WidgetSize, type WidgetSlot } from "./layout";
 
 function Hero({ d, name, go }: { d: Dashboard; name: string; go: Navigate }) {
   const reduce = useReducedMotionConfig();
@@ -81,32 +80,71 @@ function Hero({ d, name, go }: { d: Dashboard; name: string; go: Navigate }) {
 
 const HERO_STAT = "border-0 bg-transparent p-0";
 
-/** Um widget na grade. Em modo edição: arrasta, troca tamanho, esconde. */
-function Tile({ slot, editing, onResize, onHide, children }: { slot: WidgetSlot; editing: boolean; onResize: () => void; onHide: () => void; children: ReactNode }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: slot.id, disabled: !editing });
-  const style: CSSProperties = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 20 : undefined };
+/** Miniatura de um tamanho (blocos numa grade 3×2) para o seletor. */
+function SizeIcon({ size }: { size: WidgetSize }) {
+  const [w, h] = SIZE_GRID[size];
   return (
-    // Div de fora: arrasto (transform do dnd-kit). Div de dentro: entrada animada (transform do Motion).
+    <span className="grid grid-cols-3 grid-rows-2 gap-[2px]" aria-hidden>
+      {Array.from({ length: 6 }, (_, i) => (
+        <span key={i} className={cn("size-2 rounded-[2px]", i % 3 < w && Math.floor(i / 3) < h ? "bg-primary" : "bg-foreground/15")} />
+      ))}
+    </span>
+  );
+}
+
+/**
+ * Um widget na grade. Em modo edição: arrasta, escolhe o tamanho, esconde.
+ * Durante o arrasto NADA se move na grade (só a etiqueta que segue o mouse, no DragOverlay): com cards
+ * de tamanhos diferentes, a reordenação ao vivo do dnd-kit esticava e espalhava os cards.
+ */
+function Tile({ slot, editing, onResize, onHide, children }: { slot: WidgetSlot; editing: boolean; onResize: (s: WidgetSize) => void; onHide: () => void; children: ReactNode }) {
+  const { attributes, listeners, setNodeRef, isDragging, isOver } = useSortable({ id: slot.id, disabled: !editing });
+  const [picking, setPicking] = useState(false);
+  return (
+    // Div de fora: alvo do arrasto. Div de dentro: entrada animada (transform do Motion).
     <div
       ref={setNodeRef}
-      style={style}
-      className={cn("relative min-h-[190px]", isFull(slot.id) ? "col-span-full" : SPAN[slot.size], editing && !isDragging && "wiggle", isDragging && "opacity-80")}
+      className={cn("relative min-h-[190px]", SPAN[slot.size], editing && !isDragging && "wiggle", isDragging && "opacity-35")}
       {...(editing ? { ...attributes, ...listeners } : {})}
     >
       <motion.div variants={itemIn} className={cn("h-full", editing && "pointer-events-none select-none")}>
         {children}
       </motion.div>
       {editing && (
-        <div className="absolute inset-0 cursor-grab rounded-2xl ring-2 ring-primary/50 ring-dashed active:cursor-grabbing">
+        <div className={cn("absolute inset-0 cursor-grab rounded-2xl ring-2 ring-dashed active:cursor-grabbing", isOver && !isDragging ? "bg-primary/10 ring-primary" : "ring-primary/50")}>
           <div className="absolute top-2 right-2 flex gap-1" onPointerDown={(e) => e.stopPropagation()}>
             <span className="grid size-7 place-items-center rounded-md bg-card/90 text-muted-foreground" aria-hidden>
               <GripVertical className="size-4" />
             </span>
-            {!isFull(slot.id) && (
-              <button onClick={onResize} className="flex h-7 items-center gap-1 rounded-md bg-card/90 px-2 text-xs font-medium hover:text-primary" aria-label={`Tamanho: ${SIZE_LABEL[slot.size]}. Trocar`}>
+            <div className="relative">
+              <button
+                onClick={() => setPicking((v) => !v)}
+                aria-expanded={picking}
+                className="flex h-7 items-center gap-1 rounded-md bg-card/90 px-2 text-xs font-medium hover:text-primary"
+                aria-label={`Tamanho: ${SIZE_LABEL[slot.size]}. Trocar`}
+              >
                 <Scaling className="size-3.5" /> {SIZE_LABEL[slot.size]}
               </button>
-            )}
+              {picking && (
+                <div className="absolute top-8 right-0 z-30 grid w-52 grid-cols-3 gap-1 rounded-xl border border-border bg-card p-1.5 shadow-lift">
+                  {SIZES.map((size) => (
+                    <button
+                      key={size}
+                      onClick={() => {
+                        onResize(size);
+                        setPicking(false);
+                      }}
+                      aria-pressed={slot.size === size}
+                      title={SIZE_HINT[size]}
+                      className={cn("flex flex-col items-center gap-1 rounded-lg p-2 text-[10px] hover:bg-secondary", slot.size === size && "bg-primary/15 text-primary")}
+                    >
+                      <SizeIcon size={size} />
+                      {SIZE_LABEL[size]}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <button onClick={onHide} className="grid size-7 place-items-center rounded-md bg-card/90 hover:text-destructive" aria-label={`Esconder ${WIDGETS[slot.id].label}`}>
               <EyeOff className="size-3.5" />
             </button>
@@ -123,6 +161,7 @@ export default function DiaryScreen({ go }: { go: Navigate }) {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
+  const [dragging, setDragging] = useState<WidgetId | null>(null);
   const [drawer, setDrawer] = useState(false);
   const [noSubjects, setNoSubjects] = useState(false);
   const doneBefore = useRef<number | null>(null);
@@ -164,6 +203,7 @@ export default function DiaryScreen({ go }: { go: Navigate }) {
   }
 
   function onDragEnd(e: DragEndEvent) {
+    setDragging(null);
     if (!e.over || e.active.id === e.over.id) return;
     const from = layout.findIndex((w) => w.id === e.active.id);
     const to = layout.findIndex((w) => w.id === e.over?.id);
@@ -236,13 +276,20 @@ export default function DiaryScreen({ go }: { go: Navigate }) {
         )}
       </div>
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-        <SortableContext items={visible.map((w) => w.id)} strategy={rectSortingStrategy}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={(e) => setDragging(e.active.id as WidgetId)}
+        onDragCancel={() => setDragging(null)}
+        onDragEnd={onDragEnd}
+      >
+        {/* estratégia nula: a grade não se reorganiza durante o arrasto (ver Tile) */}
+        <SortableContext items={visible.map((w) => w.id)} strategy={() => null}>
           <motion.div variants={listIn} initial="hidden" animate="show" className="grid grid-flow-dense auto-rows-[minmax(190px,auto)] gap-4 @xl:grid-cols-2 @4xl:grid-cols-3">
             {visible.map((w) => {
               const View = WIDGETS[w.id].view;
               return (
-              <Tile key={w.id} slot={w} editing={editing} onResize={() => patch(w.id, { size: NEXT_SIZE[w.size] })} onHide={() => patch(w.id, { enabled: false })}>
+              <Tile key={w.id} slot={w} editing={editing} onResize={(size) => patch(w.id, { size })} onHide={() => patch(w.id, { enabled: false })}>
                 <Suspense fallback={<Skeleton className="h-full min-h-40 rounded-2xl" />}>
                   <View d={d} go={go} />
                 </Suspense>
@@ -251,6 +298,14 @@ export default function DiaryScreen({ go }: { go: Navigate }) {
             })}
           </motion.div>
         </SortableContext>
+        <DragOverlay dropAnimation={null}>
+          {dragging && (
+            <div className="flex w-56 rotate-2 items-center gap-2 rounded-xl border border-primary bg-card px-3 py-2.5 text-sm font-medium shadow-lift">
+              <GripVertical className="size-4 text-primary" />
+              {WIDGETS[dragging].label}
+            </div>
+          )}
+        </DragOverlay>
       </DndContext>
 
       <Sheet open={drawer} onOpenChange={setDrawer} title="Adicionar widget" description="Os escondidos ficam aqui. Clique para pôr de volta no fim da grade.">
@@ -270,7 +325,7 @@ export default function DiaryScreen({ go }: { go: Navigate }) {
                 <span className="block font-medium">{WIDGETS[w.id].label}</span>
                 <span className="block text-xs text-muted-foreground">{WIDGETS[w.id].hint}</span>
               </span>
-              <span className="text-xs text-muted-foreground">{isFull(w.id) ? "largura toda" : SIZE_LABEL[w.size]}</span>
+              <span className="text-xs text-muted-foreground">{SIZE_LABEL[w.size]}</span>
             </button>
           ))}
         </div>

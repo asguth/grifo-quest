@@ -205,7 +205,7 @@ function Appearance() {
             void saveAsTheme();
           }}
         >
-          <Input className="w-auto min-w-48 flex-1" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome do tema (ex.: Meu escuro)" aria-label="Nome do tema" maxLength={40} />
+          <Input className="w-auto min-w-48 flex-1" value={name} onChange={(e) => setName(e.target.value)} placeholder="Dê um nome ao seu tema" aria-label="Nome do tema" maxLength={40} />
           <Button type="submit" size="sm" variant="secondary">
             <Save /> Salvar como tema
           </Button>
@@ -664,6 +664,7 @@ function System() {
       </Card>
 
       <Backups />
+      <ResetData />
 
       <Card title="Ajuda">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -683,6 +684,68 @@ function System() {
 
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
+  );
+}
+
+/**
+ * Zona de perigo: apaga matérias, questões, histórico e preferências e volta ao assistente inicial.
+ * Pede para digitar APAGAR; antes de apagar o app guarda um backup (dá para voltar em Restaurar).
+ */
+function ResetData() {
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const ok = typed.trim().toUpperCase() === "APAGAR";
+
+  async function reset() {
+    setBusy(true);
+    try {
+      await commands.resetDatabase();
+    } catch (e) {
+      toastError(e);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="space-y-3 rounded-lg border border-destructive/40 bg-destructive/5 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-60 flex-1">
+          <h2 className="font-semibold text-destructive">Começar do zero</h2>
+          <p className="text-sm text-muted-foreground">
+            Apaga matérias, questões, histórico, XP e preferências, e abre de novo a configuração inicial.
+          </p>
+        </div>
+        {!open && (
+          <Button size="sm" variant="destructive" onClick={() => setOpen(true)}>
+            <Trash2 /> Apagar todos os dados
+          </Button>
+        )}
+      </div>
+      {open && (
+        <form
+          className="space-y-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (ok) void reset();
+          }}
+        >
+          <p className="text-sm">
+            Antes de apagar, o app guarda uma cópia em Documentos › Grifo Quest › backups (dá para voltar em “Restaurar um backup”).
+            Chaves de API, modelos do Ollama e apostilas geradas continuam no PC. Para confirmar, digite <b>APAGAR</b>:
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Input autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="APAGAR" aria-label="Digite APAGAR para confirmar" className="w-40" />
+            <Button type="submit" size="sm" variant="destructive" disabled={!ok || busy}>
+              {busy ? "Apagando…" : "Apagar e recomeçar"}
+            </Button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => (setOpen(false), setTyped(""))}>
+              Cancelar
+            </Button>
+          </div>
+        </form>
+      )}
+    </section>
   );
 }
 

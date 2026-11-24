@@ -20,6 +20,9 @@ pub enum Route {
     Gemini,
     Openai,
     Grok,
+    Deepseek,
+    Glm,
+    Custom,
 }
 
 wire_enum! {
@@ -29,6 +32,9 @@ wire_enum! {
         Gemini = "gemini",
         Openai = "openai",
         Grok = "grok",
+        Deepseek = "deepseek",
+        Glm = "glm",
+        Custom = "custom",
     }
 }
 
@@ -41,6 +47,9 @@ impl Provider {
             Provider::Gemini => Cloud::Gemini.label(),
             Provider::Openai => Cloud::Openai.label(),
             Provider::Grok => Cloud::Grok.label(),
+            Provider::Deepseek => Cloud::Deepseek.label(),
+            Provider::Glm => Cloud::Glm.label(),
+            Provider::Custom => Cloud::Custom.label(),
         }
     }
 
@@ -49,6 +58,9 @@ impl Provider {
             Provider::Gemini => Some(Cloud::Gemini),
             Provider::Openai => Some(Cloud::Openai),
             Provider::Grok => Some(Cloud::Grok),
+            Provider::Deepseek => Some(Cloud::Deepseek),
+            Provider::Glm => Some(Cloud::Glm),
+            Provider::Custom => Some(Cloud::Custom),
             Provider::Ollama | Provider::Claude => None,
         }
     }
@@ -79,6 +91,9 @@ fn pick(route: Route, ollama_up: bool) -> Provider {
         Route::Gemini => Provider::Gemini,
         Route::Openai => Provider::Openai,
         Route::Grok => Provider::Grok,
+        Route::Deepseek => Provider::Deepseek,
+        Route::Glm => Provider::Glm,
+        Route::Custom => Provider::Custom,
         Route::Auto if ollama_up => Provider::Ollama,
         Route::Auto => Provider::Claude,
     }
@@ -101,7 +116,7 @@ pub async fn complete(app: &AppHandle, cfg: &AppConfig, task: Task, system: &str
             let (_, model) = task.route_and_model(cfg);
             ollama::chat(&cfg.ollama_url, model, &messages, json).await?
         }
-        Provider::Gemini | Provider::Openai | Provider::Grok => {
+        Provider::Gemini | Provider::Openai | Provider::Grok | Provider::Deepseek | Provider::Glm | Provider::Custom => {
             let c = provider.cloud().unwrap_or(Cloud::Gemini);
             // JSON pedido também no texto: nem todo modelo respeita só o `response_format`
             let only_json = if json { "
@@ -109,7 +124,7 @@ pub async fn complete(app: &AppHandle, cfg: &AppConfig, task: Task, system: &str
 Responda somente com JSON." } else { "" };
             let user = format!("{user}{only_json}");
             let messages = [ollama::Msg { role: "system", content: system }, ollama::Msg { role: "user", content: &user }];
-            cloud::chat(c, cfg.cloud_models.get(c), &messages, json).await?
+            cloud::chat(c, cfg.cloud_models.base_url(c), cfg.cloud_models.get(c), &messages, json).await?
         }
         Provider::Claude => {
             let only_json = if json { "\n\nResponda somente com o JSON pedido, sem texto antes ou depois." } else { "" };

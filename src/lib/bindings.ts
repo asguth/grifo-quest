@@ -40,6 +40,17 @@ export const commands = {
 	 *  banco, troca o arquivo e reinicia o app.
 	 */
 	restoreBackup: (name: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("restore_backup", { name }, options),
+	/**
+	 *  Apaga tudo (matérias, questões, histórico, preferências) e reinicia no assistente inicial.
+	 *  Antes guarda um backup "antes-de-apagar" na pasta de backups: dá para voltar em Restaurar.
+	 *  Chaves de API (cofre do Windows), modelos do Ollama e apostilas geradas não são apagados.
+	 */
+	resetDatabase: (options?: InvokeOptions) => __TAURI_INVOKE<null>("reset_database", undefined, options),
+	/**
+	 *  Responde à última fala do aluno em `history`. Devolve a resposta inteira (os pedaços chegam antes
+	 *  pelo evento `TutorToken`, quando a IA local está no ar).
+	 */
+	askTutor: (id: number, subjectId: number | null, topicId: number | null, history: TutorTurn[], options?: InvokeOptions) => __TAURI_INVOKE<string>("ask_tutor", { id, subjectId, topicId, history }, options),
 	setConfig: (config: AppConfig_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_config", { config }, options),
 	getUiPref: (key: UiKey, options?: InvokeOptions) => __TAURI_INVOKE<string | null>("get_ui_pref", { key }, options),
 	setUiPref: (key: UiKey, value: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_ui_pref", { key, value }, options),
@@ -186,6 +197,7 @@ export const events = {
 	plannerEvent: makeEvent<PlannerEvent_Serialize, PlannerEvent_Deserialize>("planner-event"),
 	studyEvent: makeEvent<StudyEvent, StudyEvent>("study-event"),
 	timerTick: makeEvent<TimerTick_Serialize, TimerTick_Deserialize>("timer-tick"),
+	tutorToken: makeEvent<TutorToken, TutorToken>("tutor-token"),
 	updateReady: makeEvent<UpdateReady_Serialize, UpdateReady_Deserialize>("update-ready"),
 	voiceLevel: makeEvent<VoiceLevel, VoiceLevel>("voice-level"),
 };
@@ -321,7 +333,12 @@ export type ClassState_Serialize = {
 	evaluation: Evaluation_Serialize | null,
 };
 
-export type Cloud = "gemini" | "openai" | "grok";
+export type Cloud = "gemini" | "openai" | "grok" | "deepseek" | "glm" | 
+/**
+ *  Qualquer serviço com API no formato da OpenAI (OpenRouter, Groq, Mistral, LM Studio…):
+ *  a pessoa informa o endereço.
+ */
+"custom";
 
 export type CloudModels = CloudModels_Serialize | CloudModels_Deserialize;
 
@@ -329,12 +346,22 @@ export type CloudModels_Deserialize = {
 	gemini?: string,
 	openai?: string,
 	grok?: string,
+	deepseek?: string,
+	glm?: string,
+	custom?: string,
+	/**  Endereço da "Outra IA" (ex.: https://openrouter.ai/api/v1). */
+	custom_url?: string,
 };
 
 export type CloudModels_Serialize = {
 	gemini: string,
 	openai: string,
 	grok: string,
+	deepseek: string,
+	glm: string,
+	custom: string,
+	/**  Endereço da "Outra IA" (ex.: https://openrouter.ai/api/v1). */
+	custom_url: string,
 };
 
 export type CloudStatus = {
@@ -344,6 +371,8 @@ export type CloudStatus = {
 	model: string,
 	/**  Página onde se cria a chave. */
 	key_page: string,
+	/**  Endereço da API (editável só na "Outra IA"). */
+	base_url: string,
 };
 
 export type Contest = Contest_Serialize | Contest_Deserialize;
@@ -919,7 +948,7 @@ export type Profile_Serialize = {
 	onboarded: boolean,
 };
 
-export type Provider = "ollama" | "claude" | "gemini" | "openai" | "grok";
+export type Provider = "ollama" | "claude" | "gemini" | "openai" | "grok" | "deepseek" | "glm" | "custom";
 
 /**  C/E (Cebraspe) ou múltipla escolha A–E. */
 export type QuestionFormat = "ce" | "ae";
@@ -999,7 +1028,7 @@ export type ReviewItem = {
  *  Escolha do usuário em Config → IA. `Auto` = Ollama, e Claude se o Ollama estiver fora do ar.
  *  Gemini/GPT/Grok usam a chave de API da pessoa.
  */
-export type Route = "auto" | "ollama" | "claude" | "gemini" | "openai" | "grok";
+export type Route = "auto" | "ollama" | "claude" | "gemini" | "openai" | "grok" | "deepseek" | "glm" | "custom";
 
 export type SessionInfo = SessionInfo_Serialize | SessionInfo_Deserialize;
 
@@ -1184,6 +1213,19 @@ export type TopicRef_Serialize = {
 };
 
 export type Trend = "melhorando" | "piorando" | "estavel" | "sem_dados";
+
+/**  Pedaço da resposta chegando (`id` = número da pergunta no front). */
+export type TutorToken = {
+	id: number,
+	text: string,
+};
+
+/**  Uma fala da conversa (o front guarda o histórico e manda junto a cada pergunta). */
+export type TutorTurn = {
+	/**  "aluno" ou "grifo" */
+	role: string,
+	text: string,
+};
 
 /**  Preferências da interface (`ui_<nome>` em `settings`). O front usa o tipo gerado nos bindings. */
 export type UiKey = "theme" | "home_layout" | "sound" | "sidebar_collapsed" | "welcome_on_boot" | "class_voice" | "tour_done" | "custom_themes" | "sound_volume";

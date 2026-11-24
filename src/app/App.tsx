@@ -78,6 +78,10 @@ export default function App() {
   }, []);
   useAppEvent("onboarding", () => setOnboarding(true));
   useAppEvent("tour", () => setTour(true));
+  useAppEvent("navigate", (s) => {
+    const target = toSlot(s);
+    if (target) setSlot(target);
+  });
   // Boas-vindas do Windows pedem uma tela ("foco" = Estudo).
   useTauriEvent(events.navigateTo, (s) => {
     const target = toSlot(s);

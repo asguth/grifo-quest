@@ -53,22 +53,44 @@ pub struct CloudModels {
     pub gemini: String,
     pub openai: String,
     pub grok: String,
+    pub deepseek: String,
+    pub glm: String,
+    pub custom: String,
+    /// Endereço da "Outra IA" (ex.: https://openrouter.ai/api/v1).
+    pub custom_url: String,
 }
 
 impl Default for CloudModels {
     fn default() -> Self {
         // Modelos rápidos e baratos de cada uma; Integrações lista os da conta para trocar.
-        Self { gemini: "gemini-2.5-flash".into(), openai: "gpt-4.1-mini".into(), grok: "grok-3-mini".into() }
+        Self {
+            gemini: "gemini-2.5-flash".into(),
+            openai: "gpt-4.1-mini".into(),
+            grok: "grok-3-mini".into(),
+            deepseek: "deepseek-chat".into(),
+            glm: "glm-4.6".into(),
+            custom: String::new(),
+            custom_url: String::new(),
+        }
     }
 }
 
 impl CloudModels {
     pub fn get(&self, c: crate::cloud::Cloud) -> &str {
+        use crate::cloud::Cloud;
         match c {
-            crate::cloud::Cloud::Gemini => &self.gemini,
-            crate::cloud::Cloud::Openai => &self.openai,
-            crate::cloud::Cloud::Grok => &self.grok,
+            Cloud::Gemini => &self.gemini,
+            Cloud::Openai => &self.openai,
+            Cloud::Grok => &self.grok,
+            Cloud::Deepseek => &self.deepseek,
+            Cloud::Glm => &self.glm,
+            Cloud::Custom => &self.custom,
         }
+    }
+
+    /// Endereço da API (o da "Outra IA" vem da config).
+    pub fn base_url(&self, c: crate::cloud::Cloud) -> &str {
+        if c == crate::cloud::Cloud::Custom { &self.custom_url } else { c.default_base_url() }
     }
 }
 

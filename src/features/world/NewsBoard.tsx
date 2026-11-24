@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Check, CheckCheck, ExternalLink, Loader2, RefreshCw, Sparkles } from "lucide-react";
-import { Chip, NativeSelect, SearchInput } from "@/components/fields";
+import { NativeSelect, SearchInput } from "@/components/fields";
 import { Skeleton } from "@/components/motion";
 import { toast, toastError } from "@/components/toast";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,17 @@ const TAG_LABEL: Record<string, string> = {
   previsto: "Previsto",
   prorrogacao: "Prorrogação",
   outros: "Outros",
+};
+
+/** Cor do ponto de cada etiqueta: fases do concurso em ordem (amarelo → verde), resto neutro. */
+const TAG_COLOR: Record<string, string> = {
+  previsto: "#8a7fb0",
+  edital: "#e0a84f",
+  inscricoes: "#d9b45a",
+  prova: "#c8644a",
+  resultado: "#5f8fa3",
+  nomeacao: "#6fae6a",
+  prorrogacao: "#c98a4a",
 };
 
 type Filter = "todas" | "nao_lidas" | "area";
@@ -129,38 +140,11 @@ export function NewsBoard() {
 
   return (
     <section ref={gridRef} className="space-y-4">
+      {/* 1º nível: busca, fonte e ações */}
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput value={q} onChange={setQ} placeholder="Buscar nas notícias" className="min-w-56 flex-1" />
-        <Button variant="ghost" size="sm" disabled={!unread} onClick={() => void readAll()}>
-          <CheckCheck /> Marcar tudo como lido
-        </Button>
-        <Button variant="secondary" size="sm" disabled={refreshing} onClick={() => void refresh()}>
-          <RefreshCw className={cn(refreshing && "animate-spin")} /> Atualizar
-        </Button>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-1.5">
-        {(
-          [
-            ["todas", `Todas (${items.length})`],
-            ["nao_lidas", `Não lidas (${unread})`],
-            ["area", "Da minha área"],
-          ] as const
-        ).map(([v, label]) => (
-          <Chip key={v} on={filter === v} onClick={() => setFilter(v)}>
-            {label}
-          </Chip>
-        ))}
-        <span className="mx-1 h-5 w-px bg-border" />
-        {Object.entries(TAG_LABEL)
-          .filter(([t]) => items.some((n) => tagsOf(n).includes(t)))
-          .map(([t, label]) => (
-            <Chip key={t} on={tag === t} onClick={() => setTag(tag === t ? null : t)}>
-              {label}
-            </Chip>
-          ))}
         {feeds.length > 1 && (
-          <NativeSelect value={feed ?? ""} onChange={(e) => setFeed(e.target.value || null)} className="ml-auto h-8 w-auto max-w-52 rounded-full text-xs" aria-label="Fonte">
+          <NativeSelect value={feed ?? ""} onChange={(e) => setFeed(e.target.value || null)} className="h-9 w-auto max-w-56" aria-label="Fonte">
             <option value="">Todas as fontes</option>
             {feeds.map((f) => (
               <option key={f} value={f}>
@@ -169,6 +153,55 @@ export function NewsBoard() {
             ))}
           </NativeSelect>
         )}
+        <Button variant="ghost" size="sm" disabled={!unread} onClick={() => void readAll()}>
+          <CheckCheck /> Marcar tudo como lido
+        </Button>
+        <Button variant="secondary" size="sm" disabled={refreshing} onClick={() => void refresh()}>
+          <RefreshCw className={cn(refreshing && "animate-spin")} /> Atualizar
+        </Button>
+      </div>
+
+      {/* 2º nível: qual leva (segmentado com contador) e etiquetas (fileira leve, rola se não couber) */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div role="tablist" aria-label="Quais notícias" className="inline-flex rounded-xl border border-border bg-card p-1">
+          {(
+            [
+              ["todas", "Todas", items.length],
+              ["nao_lidas", "Não lidas", unread],
+              ["area", "Da minha área", items.filter(isMine).length],
+            ] as const
+          ).map(([v, label, n]) => (
+            <button
+              key={v}
+              role="tab"
+              aria-selected={filter === v}
+              onClick={() => setFilter(v)}
+              className={cn("relative flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors", filter === v ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
+            >
+              {filter === v && <motion.span layoutId="news-filter" className="absolute inset-0 rounded-lg bg-primary" transition={spring.snappy} />}
+              <span className="relative">{label}</span>
+              <span className={cn("tabular relative text-xs", filter === v ? "opacity-80" : "opacity-60")}>{n}</span>
+            </button>
+          ))}
+        </div>
+        <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto py-1 [scrollbar-width:none]">
+          {Object.entries(TAG_LABEL)
+            .filter(([t]) => items.some((n) => tagsOf(n).includes(t)))
+            .map(([t, label]) => (
+              <button
+                key={t}
+                onClick={() => setTag(tag === t ? null : t)}
+                aria-pressed={tag === t}
+                className={cn(
+                  "flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs transition-colors",
+                  tag === t ? "bg-primary/15 font-medium text-primary ring-1 ring-primary/40" : "bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground",
+                )}
+              >
+                <span className="size-1.5 rounded-full" style={{ background: TAG_COLOR[t] ?? "var(--muted-foreground)" }} />
+                {label}
+              </button>
+            ))}
+        </div>
       </div>
 
       {shown.length === 0 ? (

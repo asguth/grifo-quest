@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft, BarChart3, BookX, Crosshair, Layers, ListChecks, Minus, Play, RefreshCw, Sun, Swords, Timer, TrendingDown, TrendingUp, type LucideIcon } from "lucide-react";
+import { ArrowLeft, BarChart3, BookX, Crosshair, Layers, ListChecks, MessageCircleQuestion, Minus, Play, RefreshCw, Sun, Swords, Timer, TrendingDown, TrendingUp, type LucideIcon } from "lucide-react";
 import { Mascot } from "@/components/Mascot";
 import { Count, Skeleton } from "@/components/motion";
 import { ProgressBar, ProgressRing } from "@/components/Progress";
@@ -25,6 +25,7 @@ import { getStudyTab, setStudyTab } from "./tabRequest";
 import { useAppEvent } from "@/lib/bus";
 
 const FocusScreen = lazy(() => import("@/features/focus/FocusScreen"));
+const TutorTab = lazy(() => import("./TutorTab"));
 
 type View = { k: "tabs" } | { k: "run"; s: SessionInfo } | { k: "report"; r: SessionReport } | { k: "review" };
 
@@ -34,6 +35,7 @@ const TABS: { id: Tab; label: string; icon: LucideIcon }[] = [
   { id: "cards", label: "Flashcards", icon: Layers },
   { id: "erros", label: "Erros", icon: BookX },
   { id: "desempenho", label: "Desempenho", icon: BarChart3 },
+  { id: "duvidas", label: "Tira-dúvidas", icon: MessageCircleQuestion },
   { id: "foco", label: "Foco", icon: Timer },
 ];
 
@@ -114,6 +116,11 @@ export default function StudyScreen() {
                 {tab === "cards" && <DeckTab review={() => setView({ k: "review" })} onChange={load} />}
                 {tab === "erros" && <ErrorsTab start={start} starting={starting} onChange={load} />}
                 {tab === "desempenho" && <PerformanceTab start={start} />}
+                {tab === "duvidas" && (
+                  <Suspense fallback={<Skeleton className="h-96 rounded-2xl" />}>
+                    <TutorTab />
+                  </Suspense>
+                )}
                 {tab === "foco" && (
                   <Suspense fallback={<Skeleton className="mx-auto size-56 rounded-full" />}>
                     <FocusScreen />

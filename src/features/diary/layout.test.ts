@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_LAYOUT, isFull, mergeLayout } from "./layout";
+import { DEFAULT_LAYOUT, mergeLayout, SIZE_GRID } from "./layout";
 
 describe("mergeLayout", () => {
   it("mantém a ordem e as escolhas salvas", () => {
@@ -36,14 +36,16 @@ describe("mergeLayout", () => {
 });
 
 describe("layout padrão da primeira abertura", () => {
-  it("fecha as linhas de 3 colunas sem buraco (1×1 = 1, 2×1 = 2; largura toda fica fora da conta)", () => {
-    const span = { s: 1, m: 2, l: 2 } as const;
-    const cols = DEFAULT_LAYOUT.filter((w) => w.enabled && !isFull(w.id)).reduce((n, w) => n + span[w.size], 0);
-    expect(cols % 3).toBe(0);
+  it("fecha as linhas de 3 colunas sem buraco", () => {
+    const cells = DEFAULT_LAYOUT.filter((w) => w.enabled).reduce((n, w) => n + SIZE_GRID[w.size][0] * SIZE_GRID[w.size][1], 0);
+    expect(cells % 3).toBe(0);
   });
-  it("mapa de calor e notícias ocupam a largura toda e ficam no fim", () => {
-    const enabled = DEFAULT_LAYOUT.filter((w) => w.enabled).map((w) => w.id);
-    expect(enabled.slice(-2)).toEqual(["heatmap", "news"]);
-    expect(isFull("heatmap") && isFull("news")).toBe(true);
+  it("mapa de calor e notícias começam com largura toda, no fim", () => {
+    const enabled = DEFAULT_LAYOUT.filter((w) => w.enabled);
+    expect(enabled.slice(-2).map((w) => [w.id, w.size])).toEqual([["heatmap", "w"], ["news", "w"]]);
+  });
+  it("tamanho salvo que não existe mais volta ao padrão", () => {
+    const [w] = mergeLayout([{ id: "news", size: "zz" as never }]);
+    expect(w.size).toBe("w");
   });
 });

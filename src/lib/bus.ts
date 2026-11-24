@@ -11,6 +11,8 @@ type AppEvents = {
   studyTab: string;
   /** Trocar a aba do Mundo (o widget da prova pede "exams"). */
   worldTab: string;
+  /** Ir para uma tela de qualquer lugar (ex.: "Ver resposta" no aviso do Tira-dúvidas). */
+  navigate: string;
   /** Tema aplicado (cores, fonte, movimento). */
   theme: Theme;
   /** Festa de nível novo. */

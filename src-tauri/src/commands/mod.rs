@@ -8,6 +8,7 @@ pub mod planner;
 pub mod study;
 pub mod subjects;
 pub mod timer;
+pub mod tutor;
 pub mod updater;
 pub mod voice;
 pub mod window;

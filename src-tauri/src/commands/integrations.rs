@@ -356,6 +356,8 @@ pub struct CloudStatus {
     pub model: String,
     /// Página onde se cria a chave.
     pub key_page: String,
+    /// Endereço da API (editável só na "Outra IA").
+    pub base_url: String,
 }
 
 #[tauri::command]
@@ -371,6 +373,7 @@ pub async fn cloud_status(pool: State<'_, SqlitePool>) -> AppResult<Vec<CloudSta
                 has_key: cloud::key(c)?.is_some(),
                 model: cfg.cloud_models.get(c).to_string(),
                 key_page: c.key_page().into(),
+                base_url: cfg.cloud_models.base_url(c).to_string(),
             })
         })
         .collect()
@@ -386,6 +389,7 @@ pub fn set_cloud_key(cloud: Cloud, key: String) -> AppResult<()> {
 /// Modelos de texto da conta; serve também para testar a chave.
 #[tauri::command]
 #[specta::specta]
-pub async fn cloud_models(cloud: Cloud) -> AppResult<Vec<String>> {
-    cloud::list_models(cloud).await
+pub async fn cloud_models(pool: State<'_, SqlitePool>, cloud: Cloud) -> AppResult<Vec<String>> {
+    let cfg = settings::load::<AppConfig>(&pool).await?;
+    cloud::list_models(cloud, cfg.cloud_models.base_url(cloud)).await
 }

@@ -1,3 +1,4 @@
+import { getVersion } from "@tauri-apps/api/app";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { PanelLeftClose, PanelLeftOpen, Pause, Play } from "lucide-react";
@@ -28,6 +29,8 @@ function useBadges(slot: SlotId) {
 export function Sidebar({ slot, go }: { slot: SlotId; go: Navigate }) {
   const [collapsed, setCollapsed] = useState(false);
   const [timer, setTimer] = useTimer();
+  const [version, setVersion] = useState("");
+  useEffect(() => void getVersion().then(setVersion, (e) => warn("versão do app", e)), []);
   const onBreak = timer.mode === "pomodoro" && timer.phase === "break";
   const badges = useBadges(slot);
   const badgeBySlot = badgeOf(badges);
@@ -166,6 +169,12 @@ export function Sidebar({ slot, go }: { slot: SlotId; go: Navigate }) {
           {collapsed ? <PanelLeftOpen className="size-4 shrink-0" /> : <PanelLeftClose className="size-4 shrink-0" />}
           {!collapsed && "Recolher"}
         </button>
+        {/* versão bem discreta no canto (para saber o que está instalado sem abrir a Config) */}
+        {version && (
+          <p className={cn("tabular pointer-events-none px-3 text-[10px] text-muted-foreground opacity-35 select-none", collapsed && "px-0 text-center")} aria-label={`Versão ${version}`}>
+            v{version}
+          </p>
+        )}
       </div>
     </motion.nav>
   );

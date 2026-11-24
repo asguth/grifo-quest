@@ -143,7 +143,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
                 {id === "voce" && (
                   <div className="space-y-5">
                     <Field label="Como o Grifo te chama?" id="ob-name">
-                      <Input id="ob-name" autoFocus value={p.name} onChange={(e) => set({ name: e.target.value })} placeholder="Alberto" className="max-w-xs" />
+                      <Input id="ob-name" autoFocus value={p.name} onChange={(e) => set({ name: e.target.value })} placeholder="Seu nome ou apelido" className="max-w-xs" />
                     </Field>
                     <Field label="Área que você mira">
                       <div className="flex flex-wrap gap-2">

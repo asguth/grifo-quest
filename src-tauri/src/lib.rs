@@ -24,9 +24,9 @@ use tauri_specta::{collect_commands, collect_events};
 type SetupResult = Result<(), Box<dyn std::error::Error>>;
 
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
-    use commands::{classroom, config, diary, integrations, log, material, planner, study, subjects, timer, updater, voice, window, world};
+    use commands::{classroom, config, diary, integrations, log, material, planner, study, subjects, timer, tutor, updater, voice, window, world};
     tauri_specta::Builder::<tauri::Wry>::new()
-        .events(collect_events![classroom::ClassEvent, material::GrifoEvent, sys::IntegrationEvent, planner::PlannerEvent, timer::TimerTick, study::StudyEvent, window::NavigateTo, voice::VoiceLevel, updater::UpdateReady])
+        .events(collect_events![classroom::ClassEvent, material::GrifoEvent, sys::IntegrationEvent, planner::PlannerEvent, timer::TimerTick, study::StudyEvent, window::NavigateTo, voice::VoiceLevel, updater::UpdateReady, tutor::TutorToken])
         .commands(collect_commands![
         subjects::list_subjects,
         subjects::create_subject,
@@ -50,6 +50,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         config::backup_database,
         config::list_backups,
         config::restore_backup,
+        config::reset_database,
+        tutor::ask_tutor,
         config::set_config,
         config::get_ui_pref,
         config::set_ui_pref,

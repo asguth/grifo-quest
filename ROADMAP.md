@@ -57,6 +57,14 @@ Legenda: 🔵 planejado · ⚪ ideia (sem compromisso) · ✋ depende de você
 
 ## Entregue
 
+### 0.2.3 (nov/2026)
+- **Tira-dúvidas** (aba do Estudo, "Pergunte ao Grifo"): chat com a IA sobre a matéria ou o tópico, usando o material do tópico; a resposta vem escrevendo (Ollama) e, se você sair da aba, o Grifinho avisa quando responder.
+- **Avisos** com o Grifinho flutuante e balão de fala (com botão de ação quando faz sentido).
+- **Outras IAs**: DeepSeek, GLM (Z.ai) e "Outra IA" com qualquer API no formato da OpenAI (OpenRouter, Groq, Mistral, LM Studio…); modelo digitável com sugestões.
+- **Editar início**: arrastar não deforma nem espalha os cards (nada se mexe até soltar); 6 tamanhos (1×1, 2×1, 3×1, 1×2, 2×2, 3×2) em qualquer widget, escolhidos por miniatura.
+- **Começar do zero**: apagar todos os dados em Config → Sistema (digita APAGAR; guarda backup antes) e volta ao assistente.
+- Filtros do Mundo redesenhados (segmentado com contadores + etiquetas com cor); versão discreta no canto do menu; exemplos sem nome pessoal.
+
 ### 0.2.2 (nov/2026)
 - **Importar edital sem IA** quando o edital segue o formato das bancas (títulos em maiúsculas + itens 1, 2, 3…): exato e instantâneo. Testado em 4 editais reais e ao vivo: ANPD (14 matérias/105 tópicos), ANA 2024 Cebraspe (19/153), Dataprev FGV (52/549), TJRJ FGV (9/77).
 - Leitura robusta de edital oficial: títulos que quebram de linha, títulos corridos no meio do parágrafo, partes em algarismos romanos (de uma matéria ou de um cargo), subitens quando a matéria tem um item só, cabeçalho/rodapé e número de página fora, acentos decompostos (NFC), começo do conteúdo escolhido pelo que rende itens (edital cita "objetos de avaliação" antes da lista).
