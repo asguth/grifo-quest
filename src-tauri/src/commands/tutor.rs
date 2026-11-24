@@ -14,7 +14,7 @@ use crate::error::{AppError, AppResult};
 use crate::settings::{self, AppConfig};
 use crate::cloud::{self, Cloud};
 use crate::commands::integrations;
-use crate::{claude, ollama};
+use crate::{claude, codex, ollama};
 
 /// Uma fala da conversa (o front guarda o histórico e manda junto a cada pergunta).
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -71,7 +71,7 @@ async fn context(pool: &SqlitePool, subject_id: Option<i32>, topic_id: Option<i3
 /// Claude Code instalado, nuvem com chave salva).
 #[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct TutorModel {
-    /// `auto`, `ollama:<modelo>`, `claude` ou `cloud:<serviço>`
+    /// `auto`, `ollama:<modelo>`, `claude`, `chatgpt` ou `cloud:<serviço>`
     pub id: String,
     pub label: String,
     /// Grupo na lista ("No seu PC", "Assinatura", "Nuvem")
@@ -82,16 +82,19 @@ pub struct TutorModel {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn tutor_models(pool: State<'_, SqlitePool>) -> AppResult<Vec<TutorModel>> {
+pub async fn tutor_models(app: AppHandle, pool: State<'_, SqlitePool>) -> AppResult<Vec<TutorModel>> {
     let cfg: AppConfig = settings::load(&pool).await?;
-    let (local, claude) = tokio::join!(ollama::list_models(&cfg.ollama_url), integrations::claude_version(&cfg.claude_cli));
+    let (local, claude, gpt) = tokio::join!(ollama::list_models(&cfg.ollama_url), integrations::claude_account(&cfg.claude_cli), codex::logged_in(&app));
     let model = |id: String, label: &str, group: &str, detail: &str| TutorModel { id, label: label.into(), group: group.into(), detail: detail.into() };
     let mut out = vec![model(AUTO.into(), "Automático", "", "segue Config → IA")];
     for m in local.unwrap_or_default() {
         out.push(model(format!("{OLLAMA}{m}"), &m, "No seu PC (Ollama)", "grátis, escreve ao vivo"));
     }
     if claude.is_some() {
-        out.push(model(CLAUDE.into(), "Claude", "Assinatura", "Claude Code: caprichado, mais lento"));
+        out.push(model(CLAUDE.into(), "Claude", "Assinatura", "caprichado, mais lento"));
+    }
+    if gpt {
+        out.push(model(CHATGPT.into(), "ChatGPT", "Assinatura", "sua conta do ChatGPT"));
     }
     for c in Cloud::ALL.iter().copied() {
         let name = cfg.cloud_models.get(c);
@@ -105,12 +108,14 @@ pub async fn tutor_models(pool: State<'_, SqlitePool>) -> AppResult<Vec<TutorMod
 const AUTO: &str = "auto";
 const OLLAMA: &str = "ollama:";
 const CLAUDE: &str = "claude";
+const CHATGPT: &str = "chatgpt";
 const CLOUD: &str = "cloud:";
 
 /// Quem responde: o escolhido na conversa ou, no automático, a rota de tarefas de Config → IA.
 enum Choice {
     Ollama(String),
     Claude,
+    Chatgpt,
     Cloud(Cloud),
 }
 
@@ -118,6 +123,7 @@ async fn choose(cfg: &AppConfig, model: Option<&str>) -> AppResult<Choice> {
     match model.unwrap_or(AUTO) {
         AUTO => {}
         CLAUDE => return Ok(Choice::Claude),
+        CHATGPT => return Ok(Choice::Chatgpt),
         m if m.starts_with(OLLAMA) => return Ok(Choice::Ollama(m[OLLAMA.len()..].to_string())),
         m if m.starts_with(CLOUD) => {
             let c = Cloud::parse(&m[CLOUD.len()..]).ok_or_else(|| AppError::Invalid(format!("IA desconhecida: {m}")))?;
@@ -129,6 +135,7 @@ async fn choose(cfg: &AppConfig, model: Option<&str>) -> AppResult<Choice> {
         // no Automático o `provider_for` só escolhe o Ollama com placa de vídeo e Ollama no ar
         ai::Provider::Ollama => Choice::Ollama(cfg.task_model.clone()),
         ai::Provider::Claude => Choice::Claude,
+        ai::Provider::Chatgpt => Choice::Chatgpt,
         p => p.cloud().map_or(Choice::Claude, Choice::Cloud),
     })
 }
@@ -174,6 +181,21 @@ pub async fn ask_tutor(
             let name = cfg.cloud_models.get(c);
             let text = cloud::chat(c, cfg.cloud_models.base_url(c), name, &messages, false).await?;
             (text, format!("{} · {name}", c.label()))
+        }
+        Choice::Chatgpt => {
+            let conversation = recent
+                .iter()
+                .map(|t| format!("{}: {}", if t.role == "aluno" { "ALUNO" } else { "GRIFO" }, t.text))
+                .collect::<Vec<_>>()
+                .join("
+
+");
+            let text = codex::run(&app, &format!("{system}
+
+{conversation}
+
+GRIFO:")).await?;
+            (text, "ChatGPT".to_string())
         }
         Choice::Claude => {
             // O CLI recebe um texto só: a conversa vai transcrita.

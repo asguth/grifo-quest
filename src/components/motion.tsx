@@ -4,10 +4,10 @@ import { ease } from "@/lib/motion";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
-/** Liga/desliga as animações de toda a janela conforme Config → Aparência (o Windows também conta, via "user"). */
+/** Liga/desliga as animações de toda a janela conforme Config → Aparência (só a chave do app decide; ver index.css). */
 export function MotionRoot({ children }: { children: ReactNode }) {
   const { motion: on } = useTheme();
-  return <MotionConfig reducedMotion={on ? "user" : "always"}>{children}</MotionConfig>;
+  return <MotionConfig reducedMotion={on ? "never" : "always"}>{children}</MotionConfig>;
 }
 
 /** Número que conta até o valor (sobe rápido e assenta). */

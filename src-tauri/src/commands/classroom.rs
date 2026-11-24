@@ -1,5 +1,8 @@
 //! Sala de aula: o professor (usuário) explica em blocos; o avaliador oculto marca lacunas;
-//! o orquestrador escolhe o aluno e a lacuna; o aluno pergunta em streaming (Ollama).
+//! o orquestrador escolhe o aluno e a lacuna; o aluno pergunta.
+//! O roteiro (pontos-chave do tópico) sai da IA de tarefas em segundos: a apostila do Grifo
+//! (minutos no Claude) não é mais pré-requisito. Com o Ollama, avaliador e aluno são duas chamadas e
+//! o aluno escreve ao vivo; nas outras IAs é uma chamada só (avaliação + perguntas), bem mais rápido.
 
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
@@ -7,14 +10,14 @@ use tauri::{AppHandle, State};
 use tauri_plugin_opener::OpenerExt;
 use tauri_specta::Event;
 
-use crate::ai::{self, Task};
-use crate::commands::material::{self, GrifoJobs};
+use std::collections::HashMap;
+
+use crate::ai::{self, Provider, Task};
 use crate::db::{self, classes::{self, ClassReport, TopicMaterial, TopicRef}};
 use crate::domain::classroom::{self, Evaluation, Student};
 use crate::domain::text::{head, tail};
 use crate::domain::xp;
 use crate::error::{AppError, AppResult};
-use crate::grifo::MaterialKind;
 use crate::ollama;
 use crate::settings::{self, AppConfig};
 
@@ -75,12 +78,43 @@ pub async fn set_topic_material(pool: State<'_, SqlitePool>, topic_id: i32, text
     classes::set_material(&pool, topic_id, &text, None).await
 }
 
+const OUTLINE_SYSTEM: &str = "Você prepara o roteiro de uma aula para concurso público no Brasil. \
+Escreva de 8 a 12 pontos-chave do tópico, do básico ao avançado, em Markdown, um por linha no formato \
+'- **Conceito**: o essencial em 1 ou 2 frases'. Inclua definição, requisitos, prazos e números que caem em prova, \
+exceções e a pegadinha mais comum das bancas. Cite a lei/artigo quando houver. Sem introdução nem conclusão.";
+
+/// Roteiro da aula: o material do tópico se já existir (colado ou de antes); senão a IA de tarefas
+/// escreve os pontos-chave (segundos) e eles ficam salvos no tópico. `regenerate` refaz.
+#[tauri::command]
+#[specta::specta]
+pub async fn prepare_class(app: AppHandle, pool: State<'_, SqlitePool>, topic_id: i32, regenerate: bool) -> AppResult<TopicMaterial> {
+    let current = classes::material(&pool, topic_id).await?;
+    if !regenerate && current.material.as_deref().is_some_and(|m| !m.trim().is_empty()) {
+        return Ok(current);
+    }
+    let (topic, subject): (String, String) =
+        sqlx::query_as("SELECT t.name, s.name FROM topics t JOIN subjects s ON s.id = t.subject_id WHERE t.id = ?")
+            .bind(topic_id)
+            .fetch_optional(&*pool)
+            .await?
+            .ok_or_else(|| AppError::Invalid("Tópico não encontrado".into()))?;
+    let cfg: AppConfig = settings::load(&pool).await?;
+    let user = format!("Matéria: {subject}\nTópico: {topic}");
+    let (text, _) = ai::complete(&app, &cfg, Task::Text, OUTLINE_SYSTEM, &user, false).await?;
+    let text = text.trim();
+    if text.is_empty() {
+        return Err(AppError::Invalid("A IA não devolveu o roteiro. Tente de novo.".into()));
+    }
+    classes::set_material(&pool, topic_id, text, None).await?;
+    classes::material(&pool, topic_id).await
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn start_class(pool: State<'_, SqlitePool>, topic_id: i32) -> AppResult<i32> {
     let reference = classes::material(&pool, topic_id).await?.material.unwrap_or_default();
     if reference.trim().is_empty() {
-        return Err(AppError::Invalid("Cole ou gere o material de referência do tópico antes da aula".into()));
+        return Err(AppError::Invalid("Prepare o roteiro do tópico antes da aula".into()));
     }
     classes::create(&pool, topic_id, &reference).await
 }
@@ -116,21 +150,36 @@ pub async fn send_explanation(
 
     let _ = ClassEvent::Evaluating { class_id }.emit(&app);
     let teacher = teacher_text(&lines);
-    let evaluation = evaluate(&app, &cfg, &row.reference_text, &teacher).await?;
-    let _ = ClassEvent::Board { class_id, evaluation: evaluation.clone() }.emit(&app);
-
-    let last = lines.iter().rev().find_map(|l| l.student);
+    let topic = topic_name(&pool, row.topic_id).await?;
     let turn = lines.iter().filter(|l| l.role == Speaker::Student).count();
-    let (student, gap) = classroom::next_turn(&evaluation, last, turn);
-    let _ = ClassEvent::Asking { class_id, student }.emit(&app);
+    let last = lines.iter().rev().find_map(|l| l.student);
 
-    let system = student_system(student);
-    let user = student_prompt(&lines, gap.as_deref());
-    let messages = [ollama::Msg { role: "system", content: &system }, ollama::Msg { role: "user", content: &user }];
-    let question = ollama::chat_stream(&cfg.ollama_url, &cfg.student_model, &messages, |t| {
-        let _ = ClassEvent::Token { class_id, student, text: t.to_string() }.emit(&app);
-    })
-    .await?;
+    let question = if ai::provider_for(&cfg, Task::Evaluator).await == Provider::Ollama {
+        let evaluation = evaluate(&app, &cfg, &row.reference_text, &teacher).await?;
+        let _ = ClassEvent::Board { class_id, evaluation: evaluation.clone() }.emit(&app);
+        let (student, gap) = classroom::next_turn(&evaluation, last, turn);
+        let _ = ClassEvent::Asking { class_id, student }.emit(&app);
+        let system = student_system(student, &topic);
+        let user = student_prompt(&lines, gap.as_deref());
+        let messages = [ollama::Msg { role: "system", content: &system }, ollama::Msg { role: "user", content: &user }];
+        let mut on_token = |t: &str| {
+            let _ = ClassEvent::Token { class_id, student, text: t.to_string() }.emit(&app);
+        };
+        let (q, _) = ai::stream(&app, &cfg, Task::Student, &messages, &mut on_token).await?;
+        (student, q, evaluation)
+    } else {
+        let (evaluation, mut questions) = evaluate_and_ask(&app, &cfg, &row.reference_text, &lines, &topic).await?;
+        let _ = ClassEvent::Board { class_id, evaluation: evaluation.clone() }.emit(&app);
+        let (student, _) = classroom::next_turn(&evaluation, last, turn);
+        let _ = ClassEvent::Asking { class_id, student }.emit(&app);
+        let q = questions
+            .remove(student_key(student))
+            .filter(|q| !q.trim().is_empty())
+            .or_else(|| questions.into_values().find(|q| !q.trim().is_empty()))
+            .unwrap_or_else(|| "Pode dar um exemplo disso?".into());
+        (student, q, evaluation)
+    };
+    let (student, question, evaluation) = question;
     let question = question.trim().to_string();
     let _ = ClassEvent::Done { class_id, student, text: question.clone() }.emit(&app);
 
@@ -166,12 +215,13 @@ fn teacher_text(lines: &[Line]) -> String {
     lines.iter().filter(|l| l.role == Speaker::Teacher).map(|l| l.text.as_str()).collect::<Vec<_>>().join("\n\n")
 }
 
-const EVALUATOR_SYSTEM: &str = "Você é um avaliador rigoroso e OCULTO de uma aula. Compare a EXPLICAÇÃO do professor \
+const EVALUATOR_SYSTEM_BASE: &str = "Você é um avaliador rigoroso e OCULTO de uma aula. Compare a EXPLICAÇÃO do professor \
 com o MATERIAL DE REFERÊNCIA. Liste os conceitos importantes do material (no máximo 12) e classifique cada um em: \
 cobertos (explicado corretamente), rasos (mencionado sem profundidade), omitidos (não mencionado ainda), \
 erros (explicado de forma errada ou contraditória com o material). Cada item é um TEMA curto (até 8 palavras) \
-e NUNCA revela a resposta correta. Responda SOMENTE com JSON no formato \
-{\"cobertos\":[],\"rasos\":[],\"omitidos\":[],\"erros\":[]}.";
+e NUNCA revela a resposta correta.";
+
+const EVALUATOR_SYSTEM: &str = "Responda SOMENTE com JSON no formato {\"cobertos\":[],\"rasos\":[],\"omitidos\":[],\"erros\":[]}.";
 
 async fn evaluate(app: &AppHandle, cfg: &AppConfig, reference: &str, teacher: &str) -> AppResult<Evaluation> {
     let user = format!(
@@ -179,18 +229,72 @@ async fn evaluate(app: &AppHandle, cfg: &AppConfig, reference: &str, teacher: &s
         head(reference, MAX_REFERENCE_CHARS),
         tail(teacher, 8_000)
     );
-    let (raw, _) = ai::complete(app, cfg, Task::Evaluator, EVALUATOR_SYSTEM, &user, true).await?;
+    let system = format!("{EVALUATOR_SYSTEM_BASE} {EVALUATOR_SYSTEM}");
+    let (raw, _) = ai::complete(app, cfg, Task::Evaluator, &system, &user, true).await?;
     ai::parse_object(&raw, "Avaliação da aula")
 }
 
-fn student_system(s: Student) -> String {
+fn student_system(s: Student, topic: &str) -> String {
     format!(
-        "Você é {name}, aluno(a) numa turma. Você NÃO sabe nada sobre a matéria e nunca dá respostas: só pergunta. \
+        "Você é {name}, aluno(a) numa aula sobre \"{topic}\". Você NÃO sabe nada sobre a matéria e nunca dá respostas: só pergunta. \
          {persona} Faça UMA pergunta curta (no máximo 2 frases), em português do Brasil, tom coloquial, \
          sem saudação e sem explicar nada.",
         name = s.name(),
         persona = s.persona()
     )
+}
+
+async fn topic_name(pool: &SqlitePool, topic_id: i32) -> AppResult<String> {
+    Ok(sqlx::query_scalar("SELECT name FROM topics WHERE id = ?").bind(topic_id).fetch_optional(pool).await?.unwrap_or_default())
+}
+
+/// Chave do aluno no JSON das perguntas (o mesmo texto do enum no front).
+fn student_key(s: Student) -> &'static str {
+    match s {
+        Student::Curioso => "curioso",
+        Student::Literal => "literal",
+        Student::Confuso => "confuso",
+        Student::Advogado => "advogado",
+        Student::Pragmatico => "pragmatico",
+        Student::Timido => "timido",
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct TurnAnswer {
+    #[serde(flatten)]
+    evaluation: Evaluation,
+    #[serde(default)]
+    perguntas: HashMap<String, String>,
+}
+
+/// Uma chamada só (CLIs e nuvem): avalia e já traz a pergunta de cada aluno, cada um mirando o tipo
+/// de lacuna que o orquestrador dá a ele. Depois `next_turn` escolhe quem fala.
+async fn evaluate_and_ask(app: &AppHandle, cfg: &AppConfig, reference: &str, lines: &[Line], topic: &str) -> AppResult<(Evaluation, HashMap<String, String>)> {
+    let personas = classroom::STUDENTS
+        .iter()
+        .map(|s| format!("- \"{}\" ({}): {}", student_key(*s), s.name(), s.persona()))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let system = format!(
+        "{EVALUATOR_SYSTEM_BASE}\n\nDepois, escreva a próxima pergunta de CADA aluno da turma. Os alunos não sabem nada da matéria \
+         e nunca dão respostas: só perguntam, em no máximo 2 frases, tom coloquial, sem saudação, sem repetir perguntas já feitas. \
+         confuso e advogado miram os ERROS; curioso e pragmatico, os OMITIDOS; literal e timido, os RASOS \
+         (sem lacuna do tipo, perguntam sobre o que o professor acabou de dizer). Nunca revele a resposta na pergunta.\n\
+         Alunos:\n{personas}\n\n\
+         Responda SOMENTE com JSON no formato {{\"cobertos\":[],\"rasos\":[],\"omitidos\":[],\"erros\":[],\
+         \"perguntas\":{{\"curioso\":\"\",\"literal\":\"\",\"confuso\":\"\",\"advogado\":\"\",\"pragmatico\":\"\",\"timido\":\"\"}}}}."
+    );
+    let asked: Vec<&str> = lines.iter().filter(|l| l.role == Speaker::Student).rev().take(6).map(|l| l.text.as_str()).collect();
+    let user = format!(
+        "TÓPICO DA AULA: {topic}\n\nMATERIAL DE REFERÊNCIA:\n{}\n\nEXPLICAÇÃO DO PROFESSOR ATÉ AGORA:\n{}\n\nPERGUNTAS JÁ FEITAS:\n{}",
+        head(reference, MAX_REFERENCE_CHARS),
+        tail(&teacher_text(lines), 8_000),
+        if asked.is_empty() { "(nenhuma)".to_string() } else { asked.join("\n") }
+    );
+    let (raw, _) = ai::complete(app, cfg, Task::Evaluator, &system, &user, true).await?;
+    let a: TurnAnswer = ai::parse_object(&raw, "Avaliação da aula")?;
+    Ok((a.evaluation, a.perguntas))
 }
 
 fn student_prompt(lines: &[Line], gap: Option<&str>) -> String {
@@ -204,21 +308,6 @@ fn student_prompt(lines: &[Line], gap: Option<&str>) -> String {
         tail(&teacher, 6_000),
         if asked.is_empty() { "(nenhuma)".to_string() } else { asked.join("\n") }
     )
-}
-
-// ---------- Grifo: gerar apostila ----------
-
-/// Roda a skill do Grifo pelo Claude CLI e anexa o resultado ao tópico como material de referência.
-#[tauri::command]
-#[specta::specta]
-pub async fn generate_apostila(
-    app: AppHandle,
-    pool: State<'_, SqlitePool>,
-    jobs: State<'_, GrifoJobs>,
-    topic_id: i32,
-) -> AppResult<TopicMaterial> {
-    material::generate(&app, &pool, &jobs, topic_id, MaterialKind::Resumo, true).await?;
-    classes::material(&pool, topic_id).await
 }
 
 #[tauri::command]

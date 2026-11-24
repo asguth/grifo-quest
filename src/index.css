@@ -58,11 +58,11 @@
     @apply font-sans;
     }
 }
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
-}
+/* Só a chave do app desliga o movimento. Sem `iteration-count: 1`, loops infinitos (brilho, spinner,
+   estrelas) rodavam a 0,01 ms por volta e piscavam "ultra rápido". O "mostrar animações" do Windows
+   não conta: muito notebook vem com ele desligado sem o usuário saber. */
 .reduce-motion *, .reduce-motion *::before, .reduce-motion *::after {
-  animation-duration: 0.01ms !important; transition-duration: 0.01ms !important;
+  animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important;
 }
 
 /* Números alinhados (timer, XP, %) sem precisar de fonte mono. */

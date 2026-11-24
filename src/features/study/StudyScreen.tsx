@@ -74,6 +74,8 @@ export default function StudyScreen() {
     }
   };
 
+  const [generate, setGenerate] = useState(false);
+
   const back = () => {
     setView({ k: "tabs" });
     load();
@@ -94,7 +96,14 @@ export default function StudyScreen() {
               </Button>
               <h1 className="text-lg font-semibold">Revisão do dia</h1>
             </header>
-            <CardReview onDone={back} />
+            <CardReview
+              onDone={back}
+              onGenerate={() => {
+                setTab("cards");
+                setGenerate(true);
+                back();
+              }}
+            />
           </div>
         )}
         {view.k === "tabs" && (
@@ -113,7 +122,7 @@ export default function StudyScreen() {
               <motion.div key={tab} role="tabpanel" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, transition: { duration: 0.1 } }} transition={spring.soft}>
                 {tab === "hoje" && <Home home={home} error={homeError} retry={load} starting={starting} start={start} setTab={setTab} review={() => setView({ k: "review" })} />}
                 {tab === "questoes" && <PracticeTab starting={starting} start={start} hasTopics={home?.has_topics ?? true} onImported={load} />}
-                {tab === "cards" && <DeckTab review={() => setView({ k: "review" })} onChange={load} />}
+                {tab === "cards" && <DeckTab review={() => setView({ k: "review" })} onChange={load} generate={generate} onGenerateChange={setGenerate} />}
                 {tab === "erros" && <ErrorsTab start={start} starting={starting} onChange={load} />}
                 {tab === "desempenho" && <PerformanceTab start={start} />}
                 {tab === "duvidas" && (

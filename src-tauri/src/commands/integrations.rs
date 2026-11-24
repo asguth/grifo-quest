@@ -1,4 +1,4 @@
-//! Config → Integrações: diagnóstico e ações de um clique (Ollama, Claude CLI, MCP, Grifo).
+//! Config → Integrações: diagnóstico e ações de um clique (Ollama, Claude, ChatGPT, MCP, voz).
 
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -15,7 +15,7 @@ use crate::sys::{self, progress};
 use crate::ai::Route;
 use crate::cloud::{self, Cloud};
 use crate::gpu::{self, GpuInfo};
-use crate::{claude, grifo, ollama};
+use crate::{claude, codex, grifo, ollama};
 
 #[derive(Debug, Serialize, specta::Type)]
 pub struct IntegrationsStatus {
@@ -26,6 +26,11 @@ pub struct IntegrationsStatus {
     /// Modelos que a configuração usa (alunos, avaliador, tarefas), sem repetição.
     pub wanted_models: Vec<String>,
     pub claude_version: Option<String>,
+    /// Conta logada no Claude Code (`None` = sem login ou CLI ausente).
+    pub claude_account: Option<Account>,
+    /// ChatGPT pela assinatura (Codex CLI).
+    pub chatgpt_version: Option<String>,
+    pub chatgpt_logged_in: bool,
     pub grifo_version: String,
     pub mcp_built: bool,
     pub mcp_code: bool,
@@ -55,6 +60,31 @@ fn which(name: &str) -> Option<PathBuf> {
     let out = cmd.arg(name).stdout(Stdio::piped()).stderr(Stdio::null()).output().ok()?;
     let first = String::from_utf8_lossy(&out.stdout).lines().next()?.trim().to_string();
     (out.status.success() && !first.is_empty()).then(|| PathBuf::from(first))
+}
+
+/// Quem está logado (mostrado como "Conectado como …").
+#[derive(Debug, Clone, Serialize, specta::Type)]
+pub struct Account {
+    pub email: Option<String>,
+    /// pro, max, team… (o que o CLI informar)
+    pub plan: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AuthStatus {
+    #[serde(default)]
+    logged_in: bool,
+    email: Option<String>,
+    subscription_type: Option<String>,
+}
+
+/// `claude auth status` (JSON). Sem login ou CLI antigo = `None`.
+pub(crate) async fn claude_account(cli: &str) -> Option<Account> {
+    let run = claude::command(cli).args(["auth", "status", "--json"]).output();
+    let out = tokio::time::timeout(Duration::from_secs(20), run).await.ok()?.ok()?;
+    let s: AuthStatus = serde_json::from_slice(&out.stdout).ok()?;
+    s.logged_in.then_some(Account { email: s.email, plan: s.subscription_type })
 }
 
 fn mcp_exe() -> AppResult<PathBuf> {
@@ -89,8 +119,15 @@ fn mcp_in_desktop() -> bool {
 #[specta::specta]
 pub async fn integrations_status(app: AppHandle, pool: State<'_, SqlitePool>) -> AppResult<IntegrationsStatus> {
     let cfg = settings::load::<AppConfig>(&pool).await?;
-    let (models, version, code, gpu) =
-        tokio::join!(ollama::list_models(&cfg.ollama_url), claude_version(&cfg.claude_cli), mcp_in_claude_code(&cfg.claude_cli), gpu::info());
+    let (models, version, account, code, gpu, gpt_version, gpt_in) = tokio::join!(
+        ollama::list_models(&cfg.ollama_url),
+        claude_version(&cfg.claude_cli),
+        claude_account(&cfg.claude_cli),
+        mcp_in_claude_code(&cfg.claude_cli),
+        gpu::info(),
+        codex::version(&app),
+        codex::logged_in(&app),
+    );
     let mut wanted = vec![cfg.student_model.clone(), cfg.evaluator_model.clone(), cfg.task_model.clone()];
     wanted.sort();
     wanted.dedup();
@@ -99,7 +136,10 @@ pub async fn integrations_status(app: AppHandle, pool: State<'_, SqlitePool>) ->
         ollama_running: models.is_ok(),
         ollama_models: models.unwrap_or_default(),
         wanted_models: wanted,
+        claude_account: account.filter(|_| version.is_some()),
         claude_version: version,
+        chatgpt_logged_in: gpt_in && gpt_version.is_some(),
+        chatgpt_version: gpt_version,
         grifo_version: grifo::bundled_version(&app)?,
         mcp_built: mcp_exe()?.exists(),
         mcp_code: code,
@@ -243,16 +283,119 @@ pub async fn install_claude(app: AppHandle, pool: State<'_, SqlitePool>) -> AppR
     Ok(())
 }
 
-/// Abre um terminal com o `claude` para o login (a assinatura é sua: o app não vê a senha).
+type Pipe = Box<dyn tokio::io::AsyncRead + Unpin + Send>;
+
+/// Repassa os links que um login de CLI imprime (evento `target`), caso o navegador não abra sozinho.
+async fn narrate_links(app: AppHandle, target: &'static str, pipe: Option<Pipe>) {
+    let Some(pipe) = pipe else { return };
+    let mut lines = BufReader::new(pipe).lines();
+    while let Ok(Some(line)) = lines.next_line().await {
+        if let Some(url) = line.split_whitespace().find(|w| w.starts_with("https://")) {
+            progress(&app, target, url, None);
+        }
+    }
+}
+
+/// Entra na conta do Claude pelo navegador (`claude auth login`), sem terminal: o CLI abre a página
+/// de login e espera a pessoa autorizar. Devolve a frase de sucesso.
 #[tauri::command]
 #[specta::specta]
-pub async fn claude_login(pool: State<'_, SqlitePool>) -> AppResult<()> {
+pub async fn claude_login(app: AppHandle, pool: State<'_, SqlitePool>) -> AppResult<String> {
+    let cli = settings::load::<AppConfig>(&pool).await?.claude_cli;
+    let mut cmd = claude::command(&cli);
+    cmd.args(["auth", "login", "--claudeai"]).stdout(Stdio::piped()).stderr(Stdio::piped());
+    let mut child = cmd.spawn().map_err(|e| AppError::Invalid(format!("Não consegui abrir o login do Claude: {e}")))?;
+    progress(&app, "claude", "Abrindo a página de login no navegador…", None);
+    let out = child.stdout.take().map(|p| Box::new(p) as Pipe);
+    let err = child.stderr.take().map(|p| Box::new(p) as Pipe);
+    let wait = async {
+        tokio::join!(narrate_links(app.clone(), "claude-login", out), narrate_links(app.clone(), "claude-login", err), child.wait()).2
+    };
+    match tokio::time::timeout(Duration::from_secs(10 * 60), wait).await {
+        Ok(Ok(s)) if s.success() => {}
+        Ok(_) => return Err(AppError::Invalid("O login do Claude não terminou. Tente de novo ou use \"Entrar pelo terminal\".".into())),
+        Err(_) => return Err(AppError::Invalid("O login do Claude expirou (10 min). Tente de novo.".into())),
+    }
+    let account = claude_account(&cli).await;
+    if !codex::logged_in(&app).await {
+        adopt(&pool, Route::Claude, |r| r == Route::Chatgpt).await?;
+    }
+    Ok(match account.and_then(|a| a.email) {
+        Some(email) => format!("Claude conectado: {email}"),
+        None => "Claude conectado".into(),
+    })
+}
+
+/// Plano B do login: terminal com o `claude auth login` (quando o navegador não volta para o app).
+#[tauri::command]
+#[specta::specta]
+pub async fn claude_login_terminal(pool: State<'_, SqlitePool>) -> AppResult<()> {
     let cli = settings::load::<AppConfig>(&pool).await?.claude_cli;
     std::process::Command::new("cmd")
-        .args(["/C", "start", "Claude Code - login", "cmd", "/K", &cli])
+        .args(["/C", "start", "Claude Code - login", "cmd", "/K", &cli, "auth", "login"])
         .spawn()
         .map_err(|e| AppError::Invalid(format!("Não consegui abrir o terminal: {e}")))?;
     Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn claude_logout(pool: State<'_, SqlitePool>) -> AppResult<()> {
+    let cli = settings::load::<AppConfig>(&pool).await?.claude_cli;
+    claude::command(&cli).args(["auth", "logout"]).output().await?;
+    Ok(())
+}
+
+/// Depois de conectar uma IA de assinatura: as tarefas que estavam numa IA que não funciona aqui
+/// (a outra assinatura sem login, ou Ollama sem placa de vídeo) passam para a recém-conectada.
+async fn adopt(pool: &SqlitePool, to: Route, dead: impl Fn(Route) -> bool) -> AppResult<()> {
+    let local = gpu::info().await.local_ai;
+    let mut cfg = settings::load::<AppConfig>(pool).await?;
+    let unusable = |r: Route| dead(r) || (!local && matches!(r, Route::Auto | Route::Ollama));
+    let before = (cfg.material_route, cfg.evaluator);
+    if unusable(cfg.material_route) {
+        cfg.material_route = to;
+    }
+    if unusable(cfg.evaluator) {
+        cfg.evaluator = to;
+    }
+    if before != (cfg.material_route, cfg.evaluator) {
+        settings::save(pool, &cfg).await?;
+    }
+    Ok(())
+}
+
+// ---------- ChatGPT pela assinatura (Codex CLI) ----------
+
+#[tauri::command]
+#[specta::specta]
+pub async fn install_chatgpt(app: AppHandle) -> AppResult<()> {
+    codex::install(&app).await
+}
+
+/// Login com a conta do ChatGPT no navegador. Devolve a frase de sucesso.
+#[tauri::command]
+#[specta::specta]
+pub async fn chatgpt_login(app: AppHandle, pool: State<'_, SqlitePool>) -> AppResult<String> {
+    progress(&app, "chatgpt", "Abrindo a página de login no navegador…", None);
+    codex::login(&app).await?;
+    let cli = settings::load::<AppConfig>(&pool).await?.claude_cli;
+    if claude_account(&cli).await.is_none() {
+        adopt(&pool, Route::Chatgpt, |r| r == Route::Claude).await?;
+    }
+    Ok("ChatGPT conectado".into())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn chatgpt_logout(app: AppHandle) -> AppResult<()> {
+    codex::logout(&app).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn test_chatgpt(app: AppHandle) -> AppResult<String> {
+    codex::run(&app, "Responda apenas com a palavra OK.").await
 }
 
 #[tauri::command]

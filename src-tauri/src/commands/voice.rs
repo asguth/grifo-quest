@@ -165,8 +165,8 @@ pub async fn voice_stop(app: AppHandle, state: State<'_, VoiceState>) -> AppResu
     Ok(audio::clean_transcript(&String::from_utf8_lossy(&out.stdout)))
 }
 
-/// Baixa um arquivo grande mostrando o progresso (eventos `voice`).
-async fn download(app: &AppHandle, url: &str, to: &Path, label: &str) -> AppResult<()> {
+/// Baixa um arquivo grande mostrando o progresso (eventos `target`).
+pub(crate) async fn download(app: &AppHandle, target: &str, url: &str, to: &Path, label: &str) -> AppResult<()> {
     let res = sys::http()
         .get(url)
         .send()
@@ -190,7 +190,7 @@ async fn download(app: &AppHandle, url: &str, to: &Path, label: &str) -> AppResu
         if pct != last_pct {
             last_pct = pct;
             let mb = got / 1_048_576;
-            progress(app, "voice", format!("Baixando {label}: {mb} MB"), frac);
+            progress(app, target, format!("Baixando {label}: {mb} MB"), frac);
         }
     }
     file.flush().await?;
@@ -236,7 +236,7 @@ pub async fn install_voice(app: AppHandle) -> AppResult<()> {
     std::fs::create_dir_all(&d)?;
     if find_exe(&d).is_none() {
         let zip = d.join("whisper.zip");
-        download(&app, &whisper_zip_url().await?, &zip, "whisper.cpp").await?;
+        download(&app, "voice", &whisper_zip_url().await?, &zip, "whisper.cpp").await?;
         progress(&app, "voice", "Descompactando…", None);
         let mut unzip = sys::hidden_command("powershell");
         unzip.args(["-NoProfile", "-Command", "Expand-Archive", "-Force", "-LiteralPath"]).arg(&zip).arg("-DestinationPath").arg(d.join("bin"));
@@ -249,7 +249,7 @@ pub async fn install_voice(app: AppHandle) -> AppResult<()> {
         }
     }
     if !d.join(MODEL_FILE).exists() {
-        download(&app, MODEL_URL, &d.join(MODEL_FILE), "modelo de voz").await?;
+        download(&app, "voice", MODEL_URL, &d.join(MODEL_FILE), "modelo de voz").await?;
     }
     Ok(())
 }

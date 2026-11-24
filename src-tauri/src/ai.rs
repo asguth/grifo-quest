@@ -1,4 +1,5 @@
-//! Roteador de IA: decide se uma tarefa de texto roda no Ollama (local, grátis) ou no Claude CLI.
+//! Roteador de IA: decide se uma tarefa de texto roda no Ollama (local, grátis), no Claude CLI, no
+//! ChatGPT pela assinatura (Codex CLI) ou numa IA com chave de API.
 //! Tarefas que precisam de web ou da skill completa do Grifo chamam o Claude direto, fora daqui.
 
 use serde::{Deserialize, Serialize};
@@ -7,7 +8,7 @@ use tauri::{AppHandle, Manager};
 use crate::cloud::{self, Cloud};
 use crate::error::AppResult;
 use crate::settings::AppConfig;
-use crate::{claude, ollama};
+use crate::{claude, codex, ollama};
 
 /// Escolha do usuário em Config → IA. `Auto` = Ollama, e Claude se o Ollama estiver fora do ar.
 /// Gemini/GPT/Grok usam a chave de API da pessoa.
@@ -17,6 +18,8 @@ pub enum Route {
     Auto,
     Ollama,
     Claude,
+    /// ChatGPT pela assinatura (login com a conta, sem chave).
+    Chatgpt,
     Gemini,
     Openai,
     Grok,
@@ -29,6 +32,7 @@ wire_enum! {
     pub enum Provider {
         Ollama = "ollama",
         Claude = "claude",
+        Chatgpt = "chatgpt",
         Gemini = "gemini",
         Openai = "openai",
         Grok = "grok",
@@ -44,6 +48,7 @@ impl Provider {
         match self {
             Provider::Ollama => "Ollama",
             Provider::Claude => "Claude",
+            Provider::Chatgpt => "ChatGPT",
             Provider::Gemini => Cloud::Gemini.label(),
             Provider::Openai => Cloud::Openai.label(),
             Provider::Grok => Cloud::Grok.label(),
@@ -61,7 +66,7 @@ impl Provider {
             Provider::Deepseek => Some(Cloud::Deepseek),
             Provider::Glm => Some(Cloud::Glm),
             Provider::Custom => Some(Cloud::Custom),
-            Provider::Ollama | Provider::Claude => None,
+            Provider::Ollama | Provider::Claude | Provider::Chatgpt => None,
         }
     }
 }
@@ -73,6 +78,8 @@ pub enum Task {
     Text,
     /// Avaliador oculto da sala: `evaluator` + `evaluator_model`.
     Evaluator,
+    /// Alunos da sala: mesma IA do avaliador (a sala inteira numa IA só), `student_model` no Ollama.
+    Student,
 }
 
 impl Task {
@@ -80,6 +87,7 @@ impl Task {
         match self {
             Task::Text => (cfg.material_route, &cfg.task_model),
             Task::Evaluator => (cfg.evaluator, &cfg.evaluator_model),
+            Task::Student => (cfg.evaluator, &cfg.student_model),
         }
     }
 }
@@ -88,6 +96,7 @@ fn pick(route: Route, ollama_up: bool) -> Provider {
     match route {
         Route::Ollama => Provider::Ollama,
         Route::Claude => Provider::Claude,
+        Route::Chatgpt => Provider::Chatgpt,
         Route::Gemini => Provider::Gemini,
         Route::Openai => Provider::Openai,
         Route::Grok => Provider::Grok,
@@ -107,32 +116,84 @@ pub async fn provider_for(cfg: &AppConfig, task: Task) -> Provider {
     pick(route, up)
 }
 
-/// Uma resposta de texto. `json = true` pede só JSON (o Ollama garante pelo `format`; ao Claude vai no prompt).
+/// Uma resposta de texto. `json = true` pede só JSON (o Ollama garante pelo `format`; aos outros vai no prompt).
 pub async fn complete(app: &AppHandle, cfg: &AppConfig, task: Task, system: &str, user: &str, json: bool) -> AppResult<(String, Provider)> {
-    let provider = provider_for(cfg, task).await;
     let messages = [ollama::Msg { role: "system", content: system }, ollama::Msg { role: "user", content: user }];
+    run(app, cfg, task, &messages, json, None).await
+}
+
+/// Conversa com pedaços ao vivo (`on_token`): só o Ollama transmite; os outros entregam a resposta
+/// inteira de uma vez, num pedaço só. Serve para a sala funcionar em qualquer IA.
+pub async fn stream(app: &AppHandle, cfg: &AppConfig, task: Task, messages: &[ollama::Msg<'_>], on_token: &mut (dyn FnMut(&str) + Send)) -> AppResult<(String, Provider)> {
+    run(app, cfg, task, messages, false, Some(on_token)).await
+}
+
+async fn run(
+    app: &AppHandle,
+    cfg: &AppConfig,
+    task: Task,
+    messages: &[ollama::Msg<'_>],
+    json: bool,
+    mut on_token: Option<&mut (dyn FnMut(&str) + Send)>,
+) -> AppResult<(String, Provider)> {
+    let provider = provider_for(cfg, task).await;
+    let only_json = if json { "
+
+Responda somente com o JSON pedido, sem texto antes ou depois." } else { "" };
     let text = match provider {
         Provider::Ollama => {
             let (_, model) = task.route_and_model(cfg);
-            ollama::chat(&cfg.ollama_url, model, &messages, json).await?
+            match on_token.as_mut() {
+                Some(f) => ollama::chat_stream(&cfg.ollama_url, model, messages, |t| f(t)).await?,
+                None => ollama::chat(&cfg.ollama_url, model, messages, json).await?,
+            }
         }
         Provider::Gemini | Provider::Openai | Provider::Grok | Provider::Deepseek | Provider::Glm | Provider::Custom => {
             let c = provider.cloud().unwrap_or(Cloud::Gemini);
             // JSON pedido também no texto: nem todo modelo respeita só o `response_format`
-            let only_json = if json { "
-
-Responda somente com JSON." } else { "" };
-            let user = format!("{user}{only_json}");
-            let messages = [ollama::Msg { role: "system", content: system }, ollama::Msg { role: "user", content: &user }];
-            cloud::chat(c, cfg.cloud_models.base_url(c), cfg.cloud_models.get(c), &messages, json).await?
+            let mut owned: Vec<(String, String)> = messages.iter().map(|m| (m.role.to_string(), m.content.to_string())).collect();
+            if let Some(last) = owned.last_mut() {
+                last.1.push_str(only_json);
+            }
+            let msgs: Vec<ollama::Msg> = owned.iter().map(|(r, c)| ollama::Msg { role: r, content: c }).collect();
+            cloud::chat(c, cfg.cloud_models.base_url(c), cfg.cloud_models.get(c), &msgs, json).await?
         }
-        Provider::Claude => {
-            let only_json = if json { "\n\nResponda somente com o JSON pedido, sem texto antes ou depois." } else { "" };
-            let cwd = app.path().app_data_dir()?;
-            claude::run(&cfg.claude_cli, &format!("{system}\n\n{user}{only_json}"), &cwd, &[]).await?
+        Provider::Claude | Provider::Chatgpt => {
+            // Os CLIs recebem um texto só: a conversa vai transcrita.
+            let prompt = format!("{}{only_json}", transcript(messages));
+            if provider == Provider::Claude {
+                claude::run(&cfg.claude_cli, &prompt, &app.path().app_data_dir()?, &[]).await?
+            } else {
+                codex::run(app, &prompt).await?
+            }
         }
     };
+    if provider != Provider::Ollama
+        && let Some(f) = on_token
+    {
+        f(&text);
+    }
     Ok((text, provider))
+}
+
+/// Mensagens de chat num texto único (para os CLIs): sistema primeiro, depois as falas.
+fn transcript(messages: &[ollama::Msg<'_>]) -> String {
+    match messages {
+        [sys, user] if sys.role == "system" && user.role == "user" => format!("{}
+
+{}", sys.content, user.content),
+        _ => messages
+            .iter()
+            .map(|m| match m.role {
+                "system" => m.content.to_string(),
+                "user" => format!("USUÁRIO: {}", m.content),
+                _ => format!("VOCÊ: {}", m.content),
+            })
+            .collect::<Vec<_>>()
+            .join("
+
+"),
+    }
 }
 
 /// O primeiro objeto JSON de um texto livre (o modelo às vezes fala antes/depois).

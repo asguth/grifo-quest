@@ -4,6 +4,7 @@ mod wire;
 mod ai;
 mod claude;
 mod cloud;
+mod codex;
 mod commands;
 mod db;
 mod domain;
@@ -88,7 +89,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         classroom::send_explanation,
         classroom::finish_class,
         classroom::list_class_reports,
-        classroom::generate_apostila,
+        classroom::prepare_class,
         classroom::open_material,
         classroom::open_link,
         material::list_materials,
@@ -109,6 +110,12 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         integrations::test_ollama,
         integrations::install_claude,
         integrations::claude_login,
+        integrations::claude_login_terminal,
+        integrations::claude_logout,
+        integrations::install_chatgpt,
+        integrations::chatgpt_login,
+        integrations::chatgpt_logout,
+        integrations::test_chatgpt,
         integrations::test_claude,
         integrations::connect_mcp,
         config::get_profile,
@@ -124,6 +131,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         study::finish_session,
         study::explain_question,
         study::cards_due,
+        study::generate_cards,
+        study::save_cards,
         study::review_card,
         study::cards_from_material,
         study::card_from_question,

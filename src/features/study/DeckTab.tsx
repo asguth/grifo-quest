@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "motion/react";
-import { Layers, Pencil, Play, Plus, Trash2 } from "lucide-react";
+import { Layers, Pencil, Play, Plus, Sparkles, Trash2 } from "lucide-react";
 import { Chip, NativeSelect, SearchInput } from "@/components/fields";
 import { Skeleton } from "@/components/motion";
 import { toast, toastError } from "@/components/toast";
@@ -15,8 +15,9 @@ import { itemIn, listIn } from "@/lib/motion";
 import { NEW_CARDS_PER_DAY } from "@/lib/rules";
 import { sfx } from "@/lib/sound";
 import { cn, warn } from "@/lib/utils";
+import { CardGenerator } from "./CardGenerator";
 
-const SOURCE: Record<string, string> = { grifo: "Grifo", erro: "Erro", manual: "Seu" };
+const SOURCE: Record<string, string> = { grifo: "IA", erro: "Erro", manual: "Seu" };
 /** Mostra no máximo isso de uma vez (baralho grande não trava a tela). */
 const PAGE = 120;
 
@@ -29,8 +30,19 @@ function dueLabel(c: DeckCard, today: string) {
 
 type Editor = { id: number | null; subject: number | null; topic: number | null; front: string; back: string };
 
-/** Baralho: revisar o dia, achar, criar, editar e apagar cartões. */
-export function DeckTab({ review, onChange }: { review: () => void; onChange: () => void }) {
+/** Baralho: revisar o dia, gerar com IA, achar, criar, editar e apagar cartões. */
+export function DeckTab({
+  review,
+  onChange,
+  generate = false,
+  onGenerateChange,
+}: {
+  review: () => void;
+  onChange: () => void;
+  /** Gaveta "Gerar com IA" aberta (controlada pela tela de Estudo, que abre de outros lugares). */
+  generate?: boolean;
+  onGenerateChange?: (open: boolean) => void;
+}) {
   const [cards, setCards] = useState<DeckCard[] | null>(null);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [filter, setFilter] = useState<number | "all" | "none">("all");
@@ -98,8 +110,11 @@ export function DeckTab({ review, onChange }: { review: () => void; onChange: ()
             {plural(cards.length, "cartão", "cartões")} · repetição espaçada: o que você lembra volta cada vez mais tarde. Até {NEW_CARDS_PER_DAY} novos por dia.
           </p>
         </div>
-        <Button variant="secondary" onClick={() => setEditor({ id: null, subject: null, topic: null, front: "", back: "" })}>
+        <Button variant="ghost" onClick={() => setEditor({ id: null, subject: null, topic: null, front: "", back: "" })}>
           <Plus /> Novo cartão
+        </Button>
+        <Button variant="secondary" onClick={() => onGenerateChange?.(true)}>
+          <Sparkles /> Gerar com IA
         </Button>
         <Button size="lg" disabled={due + fresh === 0} onClick={review}>
           <Play /> Revisar agora
@@ -110,8 +125,12 @@ export function DeckTab({ review, onChange }: { review: () => void; onChange: ()
         <div className="space-y-2 rounded-2xl border border-dashed border-border p-10 text-center">
           <p className="font-semibold">Seu baralho está vazio</p>
           <p className="mx-auto max-w-lg text-sm text-muted-foreground">
-            Crie cartões à mão (lei seca, prazos, exceções), gere pelo Grifo em Matérias → 📖 → Flashcards → Salvar no baralho, ou vire flashcard a questão que errar.
+            Gere cartões com a IA a partir de um tópico do edital ou de um texto seu, crie à mão (lei seca, prazos, exceções) ou vire flashcard a
+            questão que errar.
           </p>
+          <Button className="mt-2" onClick={() => onGenerateChange?.(true)}>
+            <Sparkles /> Gerar meus primeiros cartões
+          </Button>
         </div>
       ) : (
         <>
@@ -167,6 +186,21 @@ export function DeckTab({ review, onChange }: { review: () => void; onChange: ()
           {shown.length > PAGE && <p className="text-center text-xs text-muted-foreground">Mostrando {PAGE} de {shown.length}. Use a busca para achar o resto.</p>}
         </>
       )}
+
+      <Sheet
+        open={generate}
+        onOpenChange={(o) => onGenerateChange?.(o)}
+        title="Gerar flashcards com IA"
+        description="Tópico do edital, tema livre ou texto colado. Você revisa antes de salvar."
+      >
+        <CardGenerator
+          subjects={subjects}
+          onSaved={() => {
+            void load();
+            onChange();
+          }}
+        />
+      </Sheet>
 
       <Sheet open={editor !== null} onOpenChange={(o) => !o && setEditor(null)} title={editor?.id ? "Editar cartão" : "Novo cartão"} description="Ctrl+Enter salva. Uma ideia por cartão: pergunta curta, resposta curta.">
         {editor && (

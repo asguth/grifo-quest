@@ -251,7 +251,7 @@ function Appearance() {
           <Label htmlFor="motion">Animações e cena de fundo</Label>
           <Switch id="motion" checked={theme.motion} onCheckedChange={(v) => update({ ...theme, motion: v })} />
         </div>
-        <p className="text-xs text-muted-foreground">Desligado, o app fica estático (útil se o movimento incomodar). O Windows com “mostrar animações” desligado também reduz.</p>
+        <p className="text-xs text-muted-foreground">Desligado, o app fica estático (útil se o movimento incomodar).</p>
       </Card>
 
       <Button variant="secondary" onClick={() => update(DEFAULT_THEME)}>
@@ -456,6 +456,7 @@ function routeOptions(local: boolean, clouds: CloudStatus[], current: Route): [R
   const all: [Route, string][] = [
     ...(local ? ([["auto", "Automático"], ["ollama", "Ollama"]] as [Route, string][]) : []),
     ["claude", "Claude"],
+    ["chatgpt", "ChatGPT"],
     ...clouds.filter((c) => c.has_key).map((c) => [c.id, c.label] as [Route, string]),
   ];
   if (!all.some(([v]) => v === current)) all.push([current, current === "auto" ? "Automático" : current]);
@@ -529,13 +530,13 @@ function Ai() {
       <Card title="Quem faz cada tarefa">
         <p className="text-xs text-muted-foreground">
           {local ? "Automático = Ollama, e o Claude só se o Ollama estiver fora do ar. " : ""}
-          Gemini, GPT e Grok aparecem aqui depois de salvar a chave em Integrações. Rastreador e apostila completa sempre usam o Claude
-          (precisam de internet e da skill inteira).
+          Claude e ChatGPT usam a sua assinatura (conecte em Integrações). IAs por chave de API aparecem aqui depois de salvar a chave.
+          O rastreador de concursos sempre usa o Claude (precisa de busca na internet).
         </p>
         {(
           [
             ["material_route", "Materiais rápidos do Grifo (resumo, questões, flashcards…)"],
-            ["evaluator", "Avaliador oculto da Sala de aula"],
+            ["evaluator", "Sala de aula (avaliador e alunos)"],
           ] as const
         ).map(([key, label]) => (
           <div key={key} className="flex flex-wrap items-center justify-between gap-2 text-sm">

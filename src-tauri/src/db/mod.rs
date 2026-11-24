@@ -32,6 +32,18 @@ pub async fn open(path: &Path) -> AppResult<SqlitePool> {
 /// Exercita as consultas reais (SQL em string não é checado pelo compilador) num banco temporário.
 #[cfg(test)]
 mod tests {
+    /// Abre uma cópia de banco real (`GQ_DB=caminho`) pelo mesmo caminho do app: roda as migrações pendentes.
+    #[test]
+    #[ignore]
+    fn open_real_copy() {
+        let path = std::env::var("GQ_DB").expect("GQ_DB");
+        tauri::async_runtime::block_on(async {
+            let pool = super::open(std::path::Path::new(&path)).await.unwrap();
+            let v: i64 = sqlx::query_scalar("SELECT MAX(version) FROM _sqlx_migrations").fetch_one(&pool).await.unwrap();
+            assert_eq!(v, 10);
+        });
+    }
+
     use crate::db::{classes, diary, exams, logs, player, sessions, study, subjects, world};
     use crate::domain::study::{CardState, NewQuestion, QuestionFormat};
     use crate::ai::Provider;
@@ -179,6 +191,11 @@ mod tests {
             let qs: Vec<NewQuestion> = (0..10).map(|i| q(&format!("Afirmação número {i} sobre princípios"))).collect();
             assert_eq!(study::insert_questions(&pool, topic, Some("Cebraspe"), Provider::Ollama, &qs).await.unwrap(), 10);
             assert_eq!(study::insert_questions(&pool, topic, None, Provider::Ollama, &qs[..1]).await.unwrap(), 0, "repetida pela impressão digital");
+            // migração 0010: questão de outra IA não some mais no INSERT OR IGNORE
+            let other = [q("Afirmação escrita pelo ChatGPT")];
+            assert_eq!(study::insert_questions(&pool, topic, None, Provider::Chatgpt, &other).await.unwrap(), 1);
+            assert_eq!(study::insert_questions(&pool, topic, None, Provider::Openai, &[q("Afirmação da API do GPT")]).await.unwrap(), 1);
+            sqlx::query("DELETE FROM questions WHERE source <> 'ollama'").execute(&pool).await.unwrap();
             let first = study::pick_for_topic(&pool, topic, "[]").await.unwrap().unwrap();
             let row = study::question(&pool, first).await.unwrap();
             let xp_before = player::xp(&pool).await.unwrap();

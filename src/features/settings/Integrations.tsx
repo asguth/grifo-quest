@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { motion } from "motion/react";
-import { Bot, Cpu, Feather, Loader2, Mic, Plug, RefreshCw, Sparkles } from "lucide-react";
+import { Check, ChevronDown, Cpu, ExternalLink, KeyRound, Loader2, LogOut, Mic, Plug, RefreshCw } from "lucide-react";
 import { Skeleton } from "@/components/motion";
 import { EventProgress, type ProgressEntry } from "@/components/Progress";
 import { toast, toastError } from "@/components/toast";
@@ -16,7 +16,7 @@ type Tone = "ok" | "warn" | "off";
 const TONE: Record<Tone, string> = {
   ok: "bg-success/15 text-success",
   warn: "bg-primary/15 text-primary",
-  off: "bg-destructive/15 text-destructive",
+  off: "bg-secondary text-muted-foreground",
 };
 
 function Pill({ tone, children }: { tone: Tone; children: ReactNode }) {
@@ -28,7 +28,7 @@ function Pill({ tone, children }: { tone: Tone; children: ReactNode }) {
   );
 }
 
-function Row(props: { icon: typeof Bot; name: string; tone: Tone; status: string; text: string; children?: ReactNode; log?: ReactNode }) {
+function Row(props: { icon: typeof Cpu; name: string; tone: Tone; status: string; text: string; children?: ReactNode; log?: ReactNode }) {
   const Icon = props.icon;
   return (
     <motion.li variants={itemIn} className="flex gap-4 rounded-xl border border-border bg-card p-4 shadow-soft">
@@ -52,11 +52,103 @@ function Row(props: { icon: typeof Bot; name: string; tone: Tone; status: string
 function useProgress() {
   const [p, setP] = useState<Record<string, ProgressEntry>>({});
   useTauriEvent(events.integrationEvent, (e) => setP((old) => ({ ...old, [e.target]: e })));
-  const clear = (t: string) => setP(({ [t]: _, ...rest }) => rest);
+  const clear = (...ts: string[]) => setP((old) => Object.fromEntries(Object.entries(old).filter(([k]) => !ts.includes(k))));
   return [p, clear] as const;
 }
 
 const gb = (mb: number) => `${Math.round(mb / 1024)} GB`;
+const PLAN: Record<string, string> = { pro: "Pro", max: "Max", team: "Team", enterprise: "Enterprise", free: "Grátis" };
+
+/** Marca de cada IA (letra no quadrado colorido: sem logotipo de terceiros). */
+function Badge({ letter, className }: { letter: string; className: string }) {
+  return <span className={cn("grid size-12 shrink-0 place-items-center rounded-2xl text-xl font-bold text-white shadow-soft", className)}>{letter}</span>;
+}
+
+type AccountProps = {
+  badge: ReactNode;
+  name: string;
+  /** Para quem é ("quem assina o Claude Pro ou Max") */
+  who: string;
+  connected: boolean;
+  installed: boolean;
+  account?: string;
+  busy: boolean;
+  disabled: boolean;
+  progress?: ProgressEntry;
+  loginUrl?: string;
+  onConnect: () => void;
+  onTest: () => void;
+  onLogout: () => void;
+  extra?: ReactNode;
+};
+
+/** Cartão grande de uma IA por assinatura: um botão faz tudo (baixa se faltar e abre o login no navegador). */
+function AccountCard(p: AccountProps) {
+  return (
+    <motion.div
+      variants={itemIn}
+      className={cn(
+        "flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-soft transition-colors",
+        p.connected ? "border-success/50" : "border-border",
+      )}
+    >
+      <div className="flex items-start gap-3">
+        {p.badge}
+        <div className="min-w-0 flex-1">
+          <h3 className="text-lg font-semibold">{p.name}</h3>
+          <p className="text-sm text-muted-foreground">{p.who}</p>
+        </div>
+        {p.connected && (
+          <span className="grid size-7 place-items-center rounded-full bg-success text-white" aria-label="Conectado">
+            <Check className="size-4" />
+          </span>
+        )}
+      </div>
+
+      {p.connected ? (
+        <p className="rounded-lg bg-success/10 px-3 py-2 text-sm">
+          <b className="text-success">Conectado</b>
+          {p.account ? <span className="text-muted-foreground"> · {p.account}</span> : null}
+        </p>
+      ) : (
+        <ol className="space-y-1 text-sm text-muted-foreground">
+          <li className={cn(p.installed && "text-success")}>1. {p.installed ? "Conector instalado ✓" : "O app baixa o conector oficial (um clique)"}</li>
+          <li>2. O navegador abre: entre com sua conta e clique em autorizar</li>
+          <li>3. Volte para cá: pronto</li>
+        </ol>
+      )}
+
+      <EventProgress entry={p.progress} />
+      {p.busy && p.loginUrl && (
+        <p className="text-xs text-muted-foreground">
+          O navegador não abriu?{" "}
+          <button className="font-medium text-primary underline-offset-2 hover:underline" onClick={() => commands.openLink(p.loginUrl ?? "").catch(toastError)}>
+            Abrir a página de login <ExternalLink className="inline size-3" />
+          </button>
+        </p>
+      )}
+
+      <div className="mt-auto flex flex-wrap gap-2">
+        {p.connected ? (
+          <>
+            <Button variant="secondary" disabled={p.disabled} onClick={p.onTest}>
+              {p.busy && <Loader2 className="animate-spin" />} Testar
+            </Button>
+            <Button variant="ghost" disabled={p.disabled} onClick={p.onLogout}>
+              <LogOut /> Sair
+            </Button>
+          </>
+        ) : (
+          <Button size="lg" className="w-full" disabled={p.disabled} onClick={p.onConnect}>
+            {p.busy ? <Loader2 className="animate-spin" /> : null}
+            {p.busy ? "Aguardando o login no navegador…" : `Conectar ${p.name}`}
+          </Button>
+        )}
+      </div>
+      {p.extra}
+    </motion.div>
+  );
+}
 
 /**
  * `setup`: assistente inicial. Antes de olhar o status, ajusta os modelos à placa de vídeo; sem placa
@@ -66,6 +158,7 @@ export function Integrations({ setup = false }: { setup?: boolean }) {
   const [s, setS] = useState<IntegrationsStatus | null>(null);
   const [checking, setChecking] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [advanced, setAdvanced] = useState(false);
   const hasPtVoice = useHasPtVoice();
   const [progress, clear] = useProgress();
 
@@ -80,9 +173,12 @@ export function Integrations({ setup = false }: { setup?: boolean }) {
       setChecking(false);
     }
   }, [setup]);
-  useEffect(() => void check(), [check]);
+  useEffect(() => {
+    void check();
+  }, [check]);
 
-  async function act(key: string, fn: () => Promise<unknown>, ok?: string) {
+  /** Roda uma ação longa com botão ocupado, aviso no fim e status atualizado. `targets` = progressos a limpar. */
+  async function act(key: string, fn: () => Promise<unknown>, ok?: string, targets: string[] = [key]) {
     setBusy(key);
     try {
       const r = await fn();
@@ -91,7 +187,7 @@ export function Integrations({ setup = false }: { setup?: boolean }) {
       toastError(e);
     } finally {
       setBusy(null);
-      clear(key === "pull" ? "model" : key);
+      clear(...targets);
       void check();
     }
   }
@@ -99,7 +195,11 @@ export function Integrations({ setup = false }: { setup?: boolean }) {
   if (!s) {
     return (
       <div className="space-y-3">
-        {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
+        <div className="grid gap-3 @2xl:grid-cols-2">
+          <Skeleton className="h-60 rounded-2xl" />
+          <Skeleton className="h-60 rounded-2xl" />
+        </div>
+        {[0, 1].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
       </div>
     );
   }
@@ -108,137 +208,144 @@ export function Integrations({ setup = false }: { setup?: boolean }) {
   const ollamaTone: Tone = !s.ollama_installed ? "off" : !s.ollama_running || missing.length ? "warn" : "ok";
   const ollamaStatus = !s.ollama_installed ? "Não instalado" : !s.ollama_running ? "Instalado, parado" : missing.length ? "Falta modelo" : "Pronto";
   const local = s.gpu.local_ai;
-  const cloudReady = s.cloud_keys > 0;
-  const checks = [!!s.claude_version, s.mcp_code || s.mcp_desktop, s.voice_installed, ...(local ? [ollamaTone === "ok"] : [])];
-  const ready = checks.filter(Boolean).length;
+  const claudeOn = !!s.claude_account;
+  const anyAi = claudeOn || s.chatgpt_logged_in || s.cloud_keys > 0 || (local && ollamaTone === "ok");
   const spin = (k: string) => busy === k && <Loader2 className="animate-spin" />;
+  const plan = s.claude_account?.plan ? (PLAN[s.claude_account.plan] ?? s.claude_account.plan) : null;
+
+  const connectClaude = () =>
+    act(
+      "claude",
+      async () => {
+        if (!s.claude_version) await commands.installClaude();
+        return commands.claudeLogin();
+      },
+      "Claude conectado",
+      ["claude", "claude-login"],
+    );
+  const connectChatgpt = () =>
+    act(
+      "chatgpt",
+      async () => {
+        if (!s.chatgpt_version) await commands.installChatgpt();
+        return commands.chatgptLogin();
+      },
+      "ChatGPT conectado",
+      ["chatgpt", "chatgpt-login"],
+    );
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <p className="flex-1 text-sm text-muted-foreground">
-          <span className="font-semibold text-foreground">
-            {ready} de {checks.length}
-          </span> integrações prontas. Cada botão faz tudo sozinho; você só confirma o que o Windows pedir.
-        </p>
-        <Button size="sm" variant="secondary" onClick={() => void check()} disabled={checking}>
-          <RefreshCw className={cn(checking && "animate-spin")} /> Verificar de novo
-        </Button>
-      </div>
+    <div className="space-y-6">
+      <section className="space-y-3">
+        <div className="flex items-start gap-3">
+          <div className="flex-1">
+            <h2 className="text-lg font-semibold">{anyAi ? "Sua IA está conectada" : "Conecte uma IA"}</h2>
+            <p className="text-sm text-muted-foreground">
+              Use a assinatura que você já tem. Sem chave, sem terminal: o navegador abre, você entra com a sua conta e pronto. Uma basta;
+              com as duas, você escolhe quem faz cada tarefa em Config → IA.
+            </p>
+          </div>
+          <Button size="sm" variant="ghost" onClick={() => void check()} disabled={checking} aria-label="Verificar de novo">
+            <RefreshCw className={cn(checking && "animate-spin")} />
+          </Button>
+        </div>
+
+        <motion.div variants={listIn} initial="hidden" animate="show" className="grid gap-3 @2xl:grid-cols-2">
+          <AccountCard
+            badge={<Badge letter="C" className="bg-[#d97757]" />}
+            name="Claude"
+            who="Para quem assina o Claude Pro ou Max."
+            connected={claudeOn}
+            installed={!!s.claude_version}
+            account={[s.claude_account?.email, plan].filter(Boolean).join(" · ")}
+            busy={busy === "claude" || busy === "test-claude"}
+            disabled={!!busy}
+            progress={progress.claude}
+            loginUrl={progress["claude-login"]?.text}
+            onConnect={() => void connectClaude()}
+            onTest={() => void act("test-claude", commands.testClaude)}
+            onLogout={() => void act("logout-claude", commands.claudeLogout, "Claude desconectado")}
+            extra={
+              !claudeOn &&
+              s.claude_version && (
+                <button className="self-start text-xs text-muted-foreground hover:text-foreground" disabled={!!busy} onClick={() => commands.claudeLoginTerminal().catch(toastError)}>
+                  Prefere o terminal? Entrar pelo terminal
+                </button>
+              )
+            }
+          />
+          <AccountCard
+            badge={<Badge letter="G" className="bg-[#10a37f]" />}
+            name="ChatGPT"
+            who="Para quem assina o ChatGPT Plus, Pro ou Business."
+            connected={s.chatgpt_logged_in}
+            installed={!!s.chatgpt_version}
+            account={s.chatgpt_version ? `conector v${s.chatgpt_version}` : undefined}
+            busy={busy === "chatgpt" || busy === "test-chatgpt"}
+            disabled={!!busy}
+            progress={progress.chatgpt}
+            loginUrl={progress["chatgpt-login"]?.text}
+            onConnect={() => void connectChatgpt()}
+            onTest={() => void act("test-chatgpt", commands.testChatgpt)}
+            onLogout={() => void act("logout-chatgpt", commands.chatgptLogout, "ChatGPT desconectado")}
+          />
+        </motion.div>
+      </section>
 
       <motion.ul variants={listIn} initial="hidden" animate="show" className="space-y-3">
         {local ? (
-        <Row
-          icon={Cpu}
-          name="Ollama (IA local)"
-          tone={ollamaTone}
-          status={ollamaStatus}
-          text={
-            s.ollama_running
-              ? `Modelos baixados: ${s.ollama_models.join(", ") || "nenhum"}. Usado nas tarefas simples, nos alunos da Sala e no avaliador.`
-              : `Roda a IA na sua ${s.gpu.name ?? "placa de vídeo"} (${gb(s.gpu.vram_mb)}), de graça e offline. Modelo que cabe: ${s.gpu.model} (${s.gpu.model_size}). Faz resumos, questões rápidas e a Sala de aula.`
-          }
-          log={<EventProgress entry={progress.ollama ?? progress.model} />}
-        >
-          {!s.ollama_installed && (
-            <Button disabled={!!busy} onClick={() => void act("ollama", commands.installOllama, "Ollama instalado")}>
-              {spin("ollama")} Instalar Ollama
-            </Button>
-          )}
-          {s.ollama_installed && !s.ollama_running && (
-            <Button disabled={!!busy} onClick={() => void act("start", commands.startOllama, "Ollama rodando")}>
-              {spin("start")} Abrir Ollama
-            </Button>
-          )}
-          {s.ollama_running &&
-            missing.map((m) => (
-              <Button key={m} disabled={!!busy} onClick={() => void act("pull", () => commands.pullModel(m), `${m} baixado`)}>
-                {spin("pull")} Baixar {m}
+          <Row
+            icon={Cpu}
+            name="IA grátis no seu PC (Ollama)"
+            tone={ollamaTone}
+            status={ollamaStatus}
+            text={
+              s.ollama_running
+                ? `Modelos baixados: ${s.ollama_models.join(", ") || "nenhum"}. Usado nas tarefas simples, nos alunos da Sala e no avaliador.`
+                : `Roda na sua ${s.gpu.name ?? "placa de vídeo"} (${gb(s.gpu.vram_mb)}), de graça e offline. Modelo que cabe: ${s.gpu.model} (${s.gpu.model_size}).`
+            }
+            log={<EventProgress entry={progress.ollama ?? progress.model} />}
+          >
+            {!s.ollama_installed && (
+              <Button disabled={!!busy} onClick={() => void act("ollama", commands.installOllama, "Ollama instalado")}>
+                {spin("ollama")} Instalar Ollama
               </Button>
-            ))}
-          {s.ollama_running && !missing.length && (
-            <Button variant="secondary" disabled={!!busy} onClick={() => void act("test-ollama", commands.testOllama)}>
-              {spin("test-ollama")} Testar
-            </Button>
-          )}
-        </Row>
+            )}
+            {s.ollama_installed && !s.ollama_running && (
+              <Button disabled={!!busy} onClick={() => void act("start", commands.startOllama, "Ollama rodando")}>
+                {spin("start")} Abrir Ollama
+              </Button>
+            )}
+            {s.ollama_running &&
+              missing.map((m) => (
+                <Button key={m} disabled={!!busy} onClick={() => void act("pull", () => commands.pullModel(m), `${m} baixado`, ["model"])}>
+                  {spin("pull")} Baixar {m}
+                </Button>
+              ))}
+            {s.ollama_running && !missing.length && (
+              <Button variant="secondary" disabled={!!busy} onClick={() => void act("test-ollama", commands.testOllama)}>
+                {spin("test-ollama")} Testar
+              </Button>
+            )}
+          </Row>
         ) : (
           !setup && (
             <Row
               icon={Cpu}
-              name="Ollama (IA local)"
+              name="IA grátis no seu PC (Ollama)"
               tone="off"
               status="Indisponível"
-              text={`Nenhuma placa de vídeo dedicada com 4 GB ou mais${s.gpu.name ? ` (achei: ${s.gpu.name})` : ""}. As tarefas de IA vão para o Claude.`}
+              text={`Precisa de placa de vídeo dedicada com 4 GB ou mais${s.gpu.name ? ` (achei: ${s.gpu.name})` : ""}. Use o Claude ou o ChatGPT acima.`}
             />
           )
         )}
-
-        <Row
-          icon={Bot}
-          name="Claude Code (sua assinatura)"
-          tone={s.claude_version ? "ok" : "off"}
-          status={s.claude_version ? s.claude_version : "Não encontrado"}
-          text="Faz o que precisa de internet ou de capricho: rastreador de concursos, matérias pelo cargo e a apostila completa do Grifo."
-          log={<EventProgress entry={progress.claude} />}
-        >
-          {!s.claude_version ? (
-            <Button disabled={!!busy} onClick={() => void act("claude", commands.installClaude, "Claude Code instalado. Agora faça o login.")}>
-              {spin("claude")} Instalar Claude Code
-            </Button>
-          ) : (
-            <>
-              <Button variant="secondary" disabled={!!busy} onClick={() => void act("login", commands.claudeLogin, "Faça o login no terminal que abriu")}>
-                Entrar / trocar conta
-              </Button>
-              <Button variant="secondary" disabled={!!busy} onClick={() => void act("test-claude", commands.testClaude)}>
-                {spin("test-claude")} Testar
-              </Button>
-            </>
-          )}
-        </Row>
-
-        <Row
-          icon={Sparkles}
-          name="Outras IAs (sua chave de API)"
-          tone={cloudReady ? "ok" : "warn"}
-          status={cloudReady ? "Conectado" : "Opcional"}
-          text="Gemini, GPT, Grok, DeepSeek, GLM ou qualquer IA com API no formato da OpenAI. Cole a chave e escolha em Config → IA quem faz cada tarefa. A chave fica no Cofre de Credenciais do Windows, e o uso é cobrado na sua conta do serviço."
-        >
-          <div className="w-full">
-            <CloudKeys onChange={() => void check()} />
-          </div>
-        </Row>
-
-        <Row
-          icon={Plug}
-          name="Seus dados no Claude (MCP)"
-          tone={s.mcp_code || s.mcp_desktop ? "ok" : s.mcp_built ? "warn" : "off"}
-          status={[s.mcp_code && "Claude Code", s.mcp_desktop && "Claude Desktop"].filter(Boolean).join(" + ") || (s.mcp_built ? "Não conectado" : "Não compilado")}
-          text={
-            s.mcp_built
-              ? "Deixa o Claude ler seu progresso (somente leitura): \"quais tópicos eu mais erro?\", \"como foi minha semana?\"."
-              : "O servidor ainda não foi compilado. Rode `cargo build -p grifo-quest-mcp --release` uma vez."
-          }
-        >
-          {s.mcp_built && (
-            <>
-              <Button variant={s.mcp_code ? "secondary" : "default"} disabled={!!busy} onClick={() => void act("mcp-code", () => commands.connectMcp("claude_code"))}>
-                {spin("mcp-code")} {s.mcp_code ? "Reconectar" : "Conectar"} ao Claude Code
-              </Button>
-              <Button variant={s.mcp_desktop ? "secondary" : "default"} disabled={!!busy} onClick={() => void act("mcp-desktop", () => commands.connectMcp("claude_desktop"))}>
-                {spin("mcp-desktop")} {s.mcp_desktop ? "Reconectar" : "Conectar"} ao Claude Desktop
-              </Button>
-            </>
-          )}
-        </Row>
 
         <Row
           icon={Mic}
           name="Voz na sala de aula"
           tone={s.voice_installed && hasPtVoice ? "ok" : "warn"}
           status={!s.voice_installed ? "Não baixada" : hasPtVoice ? "Pronta" : "Falta a voz pt-BR do Windows"}
-          text="Você fala, o seu PC transcreve (whisper.cpp oficial, roda no processador e não usa a internet depois de baixar). Os alunos respondem com as vozes do Windows."
+          text="Você fala, o seu PC transcreve (roda no processador e não usa a internet depois de baixar). Os alunos respondem com as vozes do Windows."
           log={<EventProgress entry={progress.voice} />}
         >
           {!s.voice_installed && (
@@ -252,15 +359,57 @@ export function Integrations({ setup = false }: { setup?: boolean }) {
             </Button>
           )}
         </Row>
-
-        <Row
-          icon={Feather}
-          name="Grifo (skill de materiais)"
-          tone="ok"
-          status={`Embutida · v${s.grifo_version || "?"}`}
-          text="Vem dentro do app. Funciona com o Ollama (rápido) e com o Claude (apostila completa) — não precisa instalar o plugin."
-        />
       </motion.ul>
+
+      {!setup && (
+        <section className="rounded-2xl border border-border">
+          <button
+            className="flex w-full items-center gap-3 p-4 text-left"
+            onClick={() => setAdvanced((a) => !a)}
+            aria-expanded={advanced}
+          >
+            <KeyRound className="size-5 text-muted-foreground" />
+            <span className="flex-1">
+              <span className="block font-medium">Avançado: chave de API e conexão com o Claude Desktop</span>
+              <span className="block text-xs text-muted-foreground">
+                Gemini, GPT pela API, Grok, DeepSeek… cobrados por uso na sua conta do serviço. {s.cloud_keys > 0 && `${s.cloud_keys} chave(s) salva(s).`}
+              </span>
+            </span>
+            <ChevronDown className={cn("size-4 text-muted-foreground transition-transform", advanced && "rotate-180")} />
+          </button>
+          {advanced && (
+            <div className="space-y-5 border-t border-border p-4">
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Cole a chave e escolha em Config → IA quem faz cada tarefa. A chave fica no Cofre de Credenciais do Windows.
+                </p>
+                <CloudKeys onChange={() => void check()} />
+              </div>
+              <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
+                <Plug className="size-4 text-primary" />
+                <span className="flex-1 text-sm">
+                  <b>Seus dados no Claude (MCP)</b>{" "}
+                  <span className="text-muted-foreground">
+                    · {[s.mcp_code && "Claude Code", s.mcp_desktop && "Claude Desktop"].filter(Boolean).join(" + ") || "não conectado"} — o Claude lê seu progresso (só leitura).
+                  </span>
+                </span>
+                {s.mcp_built ? (
+                  <>
+                    <Button size="sm" variant="secondary" disabled={!!busy} onClick={() => void act("mcp-code", () => commands.connectMcp("claude_code"))}>
+                      {spin("mcp-code")} {s.mcp_code ? "Reconectar" : "Conectar"} Claude Code
+                    </Button>
+                    <Button size="sm" variant="secondary" disabled={!!busy} onClick={() => void act("mcp-desktop", () => commands.connectMcp("claude_desktop"))}>
+                      {spin("mcp-desktop")} {s.mcp_desktop ? "Reconectar" : "Conectar"} Claude Desktop
+                    </Button>
+                  </>
+                ) : (
+                  <span className="text-xs text-muted-foreground">servidor não compilado</span>
+                )}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }

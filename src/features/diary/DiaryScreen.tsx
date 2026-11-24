@@ -2,7 +2,7 @@ import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } fr
 import { closestCenter, DndContext, DragOverlay, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { AnimatePresence, motion, useAnimationControls, useReducedMotionConfig } from "motion/react";
-import { Check, EyeOff, GripVertical, LayoutGrid, Play, Plus, RotateCcw, Scaling } from "lucide-react";
+import { Check, EyeOff, FlaskConical, GripVertical, LayoutGrid, Play, Plus, RotateCcw, Scaling } from "lucide-react";
 import type { Navigate } from "@/app/nav";
 import { celebrateLevel } from "@/components/LevelUp";
 import { Mascot, tierOf } from "@/components/Mascot";
@@ -270,9 +270,17 @@ export default function DiaryScreen({ go }: { go: Navigate }) {
             </Button>
           </>
         ) : (
-          <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
-            <LayoutGrid /> Editar início
-          </Button>
+          <>
+            {/* Só no `pnpm tauri dev` (o Vite tira do build): mostra a festa de nível novo sem mexer no XP. */}
+            {import.meta.env.DEV && (
+              <Button size="sm" variant="outline" className="border-dashed" onClick={() => celebrateLevel((levelBefore.current ?? 1) + 1)} title="Só no modo dev: não grava XP">
+                <FlaskConical /> Upar (dev)
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
+              <LayoutGrid /> Editar início
+            </Button>
+          </>
         )}
       </div>
 

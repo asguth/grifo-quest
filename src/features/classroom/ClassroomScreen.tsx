@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotionConfig } from "motion/react";
-import { Loader2, Mic, Volume2, VolumeX } from "lucide-react";
+import { ArrowLeft, BookOpen, Loader2, Mic, Pencil, RefreshCw, Send, Sparkles, Volume2, VolumeX } from "lucide-react";
+import { Skeleton } from "@/components/motion";
+import { ProgressRing } from "@/components/Progress";
 import { toast, toastError } from "@/components/toast";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   commands,
@@ -17,58 +18,96 @@ import {
 } from "@/lib/bindings";
 import { accTone, formatDate, plural } from "@/lib/format";
 import { useKey, useTauriEvent } from "@/lib/hooks";
-import { spring } from "@/lib/motion";
+import { itemIn, listIn, spring } from "@/lib/motion";
 import { getFlag, saveFlag } from "@/lib/prefs";
 import { CLASS_XP } from "@/lib/rules";
 import { sfx } from "@/lib/sound";
 import { useHasPtVoice } from "@/lib/speech";
-import { errorMessage, warn } from "@/lib/utils";
+import { cn, errorMessage, warn } from "@/lib/utils";
+import { coverage, outlineItems } from "./outline";
 import { Avatar } from "./students";
 import { TopicPicker } from "./TopicPicker";
 import { speak, stopSpeaking, useVoice } from "./voice";
 
 type Msg = { role: "teacher" | "student"; student?: Student; text: string };
 
+/**
+ * Sala de aula: escolha o tópico → o Grifo monta o roteiro em segundos → você explica para 6 alunos
+ * que não sabem nada → boletim. A apostila do Grifo não é mais necessária (era lenta demais).
+ */
 export default function ClassroomScreen() {
   const [topics, setTopics] = useState<TopicRef[]>([]);
   const [topicId, setTopicId] = useState<number | null>(null);
   const [classId, setClassId] = useState<number | null>(null);
   const [report, setReport] = useState<ClassReport | null>(null);
-  const [error, setError] = useState("");
-
   const [open, setOpen] = useState<OpenClassInfo[]>([]);
 
   const loadTopics = useCallback(() => {
-    commands.listAllTopics().then(setTopics, (e) => setError(errorMessage(e)));
+    commands.listAllTopics().then(setTopics, toastError);
     commands.openClasses().then(setOpen, (e) => (warn("aulas em andamento", e), setOpen([])));
   }, []);
-  useEffect(loadTopics, [loadTopics]);
+  useEffect(() => {
+    loadTopics();
+  }, [loadTopics]);
 
   const topic = topics.find((t) => t.id === topicId) ?? null;
+
+  async function start(id: number) {
+    try {
+      setClassId(await commands.startClass(id));
+      setTopicId(id);
+      setReport(null);
+      sfx("nav");
+    } catch (e) {
+      toastError(e);
+    }
+  }
 
   if (classId !== null && topic) {
     return (
       <Lesson
         classId={classId}
         topic={topic}
+        onExit={() => {
+          setClassId(null);
+          loadTopics();
+        }}
         onFinish={(r) => {
           setReport(r);
           setClassId(null);
+          loadTopics();
           sfx("chime");
         }}
       />
     );
   }
 
-  return (
-    <div className="mx-auto max-w-5xl space-y-5">
-      <h1 className="retro text-sm text-primary">Sala de aula</h1>
-      <p className="text-sm text-muted-foreground">
-        Explique o tópico para 6 alunos que não sabem nada da matéria. Um avaliador oculto compara sua explicação com o material e os
-        alunos perguntam exatamente onde você ficou fraco.
-      </p>
+  if (report) {
+    return (
+      <ReportScreen
+        report={report}
+        onAgain={() => void start(report.topic_id)}
+        onBack={() => setReport(null)}
+      />
+    );
+  }
 
-      {report && <ReportCard report={report} onClose={() => setReport(null)} />}
+  return (
+    <div className="mx-auto max-w-6xl space-y-5">
+      <header className="flex flex-wrap items-end gap-4">
+        <div className="min-w-0 flex-1 space-y-1">
+          <h1 className="retro text-sm text-primary">Sala de aula</h1>
+          <p className="text-sm text-muted-foreground">Ensinar é o jeito mais rápido de aprender. Explique o tópico para a turma; quem não entende pergunta.</p>
+        </div>
+        <ol className="flex flex-wrap gap-2 text-xs">
+          {["Escolha o tópico", "Explique (voz ou texto)", "Veja o boletim"].map((s, i) => (
+            <li key={s} className="flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1">
+              <span className="grid size-4 place-items-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">{i + 1}</span>
+              {s}
+            </li>
+          ))}
+        </ol>
+      </header>
 
       {open.map((o) => (
         <motion.div
@@ -85,7 +124,6 @@ export default function ClassroomScreen() {
             onClick={() => {
               setTopicId(o.topic_id);
               setClassId(o.id);
-              setReport(null);
             }}
           >
             Continuar
@@ -96,130 +134,143 @@ export default function ClassroomScreen() {
         </motion.div>
       ))}
 
-      <div className="grid gap-5 @2xl:grid-cols-[320px_minmax(0,1fr)]">
-        <div className="space-y-2">
-          <Label>Tópico</Label>
+      <div className="grid gap-5 @3xl:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+        <div className="space-y-3">
           <TopicPicker topics={topics} value={topicId} onChange={setTopicId} />
           {topics.length === 0 && <p className="text-xs text-muted-foreground">Cadastre tópicos em Matérias primeiro.</p>}
           <History topicId={topicId} />
         </div>
 
         {topic ? (
-          <MaterialPanel
-            key={topic.id}
-            topic={topic}
-            onChanged={loadTopics}
-            onStart={async () => {
-              try {
-                setClassId(await commands.startClass(topic.id));
-                setReport(null);
-                setError("");
-              } catch (e) {
-                setError(errorMessage(e));
-              }
-            }}
-          />
+          <Prep key={topic.id} topic={topic} onStart={() => void start(topic.id)} />
         ) : (
-          <p className="self-center text-center text-muted-foreground">Escolha um tópico para preparar a aula.</p>
+          <div className="grid place-items-center rounded-2xl border border-dashed border-border p-10 text-center">
+            <div className="space-y-3">
+              <div className="flex justify-center gap-1">
+                {(["curioso", "literal", "confuso", "advogado", "pragmatico", "timido"] as Student[]).map((s, i) => (
+                  <motion.div key={s} animate={{ y: [0, -3, 0] }} transition={{ repeat: Infinity, duration: 2.4 + i * 0.2, delay: i * 0.2 }}>
+                    <Avatar student={s} scale={4} />
+                  </motion.div>
+                ))}
+              </div>
+              <p className="font-medium">A turma está esperando</p>
+              <p className="text-sm text-muted-foreground">Escolha um tópico à esquerda. O roteiro fica pronto em segundos.</p>
+            </div>
+          </div>
         )}
       </div>
-      {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );
 }
 
-function MaterialPanel({ topic, onStart, onChanged }: { topic: TopicRef; onStart: () => void; onChanged: () => void }) {
-  const [text, setText] = useState("");
-  const [path, setPath] = useState<string | null>(null);
-  const [status, setStatus] = useState("");
+/** Roteiro do tópico: a IA monta os pontos-chave (ou você cola o seu material) e a aula começa. */
+function Prep({ topic, onStart }: { topic: TopicRef; onStart: () => void }) {
+  const [text, setText] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    commands.getTopicMaterial(topic.id).then(
-      (m) => {
+  const prepare = useCallback(
+    async (regenerate: boolean) => {
+      setBusy(true);
+      setError("");
+      try {
+        const m = await commands.prepareClass(topic.id, regenerate);
         setText(m.material ?? "");
-        setPath(m.material_path);
-      },
-      (e) => setStatus(errorMessage(e)),
-    );
-  }, [topic.id]);
+        if (regenerate) toast("Roteiro refeito", "success");
+      } catch (e) {
+        setError(errorMessage(e));
+        setText((t) => t ?? "");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [topic.id],
+  );
+  useEffect(() => {
+    void prepare(false);
+  }, [prepare]);
 
-  async function save(value = text) {
+  async function save(value: string) {
     try {
       await commands.setTopicMaterial(topic.id, value);
-      setStatus("Material salvo");
-      onChanged();
+      setText(value);
     } catch (e) {
-      setStatus(errorMessage(e));
+      toastError(e);
     }
   }
 
-  async function importFile(file: File) {
-    const content = await file.text();
-    setText(content);
-    await save(content);
-  }
-
-  async function grifo() {
-    setBusy(true);
-    setStatus("O Grifo está montando a apostila pelo Claude… pode levar alguns minutos.");
-    try {
-      const m = await commands.generateApostila(topic.id);
-      setText(m.material ?? "");
-      setPath(m.material_path);
-      setStatus("Apostila gerada e anexada como material de referência");
-      onChanged();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  }
+  const items = useMemo(() => outlineItems(text ?? ""), [text]);
+  const ready = !!text?.trim() && !busy;
 
   return (
-    <section className="space-y-3 rounded-lg border border-border bg-card p-4">
-      <h2 className="font-semibold">
-        Material de referência — {topic.name} <span className="text-sm text-muted-foreground">({topic.subject})</span>
-      </h2>
-      <Textarea
-        rows={12}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onBlur={() => void save()}
-        placeholder="Cole aqui o trecho da lei, o resumo ou a apostila do Grifo (.md)…"
-        aria-label="Material de referência"
-      />
-      <div className="flex flex-wrap items-center gap-2">
-        <Button variant="secondary" onClick={() => void save()}>
-          Salvar
+    <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-soft">
+      <header className="flex flex-wrap items-start gap-3">
+        <BookOpen className="mt-0.5 size-5 text-primary" />
+        <div className="min-w-0 flex-1">
+          <h2 className="font-semibold">{topic.name}</h2>
+          <p className="text-xs text-muted-foreground">{topic.subject} · roteiro da aula: o avaliador oculto compara sua explicação com ele</p>
+        </div>
+        <Button size="sm" variant="ghost" disabled={busy} onClick={() => setEditing((e) => !e)}>
+          <Pencil /> {editing ? "Ver roteiro" : "Editar / colar material"}
         </Button>
-        <label className="cursor-pointer rounded-md border border-border px-3 py-1.5 text-sm hover:bg-secondary">
-          Importar .md/.txt
-          <input
-            type="file"
-            accept=".md,.txt,.markdown"
-            className="hidden"
-            onChange={(e) => e.target.files?.[0] && void importFile(e.target.files[0])}
-          />
-        </label>
-        <Button variant="secondary" disabled={busy} onClick={() => void grifo()}>
-          {busy ? "Gerando…" : "Gerar apostila com o Grifo"}
+        <Button size="sm" variant="ghost" disabled={busy} onClick={() => void prepare(true)} title="A IA escreve outro roteiro">
+          <RefreshCw className={cn(busy && "animate-spin")} /> Refazer
         </Button>
-        {path && (
-          <Button variant="ghost" onClick={() => commands.openMaterial(topic.id).catch(toastError)}>
-            Abrir apostila
-          </Button>
-        )}
+      </header>
+
+      {text === null || (busy && !text) ? (
+        <div className="space-y-2" aria-live="polite">
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Sparkles className="size-4 text-primary" /> O Grifo está montando o roteiro…
+          </p>
+          {[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-9 rounded-lg" />)}
+        </div>
+      ) : editing ? (
+        <Textarea
+          rows={14}
+          defaultValue={text}
+          onBlur={(e) => void save(e.target.value)}
+          placeholder="Cole aqui o trecho da lei, seu resumo ou anotações. Uma linha por ponto: - **Conceito**: explicação"
+          aria-label="Material de referência"
+        />
+      ) : items.length > 0 ? (
+        <motion.ol variants={listIn} initial="hidden" animate="show" className="max-h-[48vh] space-y-1.5 overflow-y-auto pr-1">
+          {items.map((it, i) => (
+            <motion.li key={i} variants={itemIn} className="flex gap-3 rounded-lg bg-secondary/50 px-3 py-2 text-sm">
+              <span className="tabular w-5 shrink-0 text-right font-semibold text-primary">{i + 1}</span>
+              <span>
+                {it.title && <b>{it.title}: </b>}
+                <span className="text-muted-foreground">{it.text}</span>
+              </span>
+            </motion.li>
+          ))}
+        </motion.ol>
+      ) : text.trim() ? (
+        <p className="max-h-[48vh] overflow-y-auto text-sm whitespace-pre-wrap text-muted-foreground">{text}</p>
+      ) : (
+        <p className="text-sm text-muted-foreground">Sem roteiro ainda.</p>
+      )}
+
+      {error && (
+        <p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+          {error} <span className="text-muted-foreground">Confira a IA em Config → Integrações, ou cole seu material em “Editar”.</span>
+        </p>
+      )}
+
+      <div className="mt-auto flex flex-wrap items-center gap-3 border-t border-border pt-4">
+        <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+          Explique em blocos curtos. Segure <kbd className="rounded bg-secondary px-1">Espaço</kbd> para falar. Vale +{CLASS_XP} XP.
+        </p>
+        <Button size="lg" disabled={!ready} onClick={onStart}>
+          Começar a aula
+        </Button>
       </div>
-      {status && <p className="text-sm text-muted-foreground">{status}</p>}
-      <Button onClick={onStart} disabled={!text.trim() || busy}>
-        Começar a aula
-      </Button>
     </section>
   );
 }
 
-function Lesson({ classId, topic, onFinish }: { classId: number; topic: TopicRef; onFinish: (r: ClassReport) => void }) {
+function Lesson({ classId, topic, onFinish, onExit }: { classId: number; topic: TopicRef; onFinish: (r: ClassReport) => void; onExit: () => void }) {
   const [students, setStudents] = useState<StudentInfo[]>([]);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [draft, setDraft] = useState("");
@@ -243,7 +294,9 @@ function Lesson({ classId, topic, onFinish }: { classId: number; topic: TopicRef
     useCallback((text: string) => {
       setDraft((d) => (d.trim() ? `${d.trim()} ${text}` : text));
       sfx("coin");
-      requestAnimationFrame(() => input.current?.focus());
+      requestAnimationFrame(() => {
+        input.current?.focus();
+      });
     }, []),
     useCallback((msg: string) => toast(msg, "error"), []),
   );
@@ -339,11 +392,19 @@ function Lesson({ classId, topic, onFinish }: { classId: number; topic: TopicRef
   }
 
   const nameOf = useMemo(() => new Map(students.map((s) => [s.id, s.name])), [students]);
+  const score = coverage(board);
+  const taught = messages.some((m) => m.role === "teacher");
 
   return (
     <div className="mx-auto flex h-full max-w-6xl flex-col gap-4">
       <header className="flex flex-wrap items-center gap-3">
-        <h1 className="retro min-w-0 flex-1 truncate text-sm text-primary">Aula: {topic.name}</h1>
+        <Button size="sm" variant="ghost" onClick={onExit} aria-label="Sair da aula (ela fica salva para continuar)" title="Sair (a aula fica salva para continuar)">
+          <ArrowLeft />
+        </Button>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate font-semibold">{topic.name}</h1>
+          <p className="truncate text-xs text-muted-foreground">{topic.subject}</p>
+        </div>
         <button
           onClick={toggleAloud}
           disabled={!hasVoice}
@@ -354,15 +415,14 @@ function Lesson({ classId, topic, onFinish }: { classId: number; topic: TopicRef
           {aloud && hasVoice ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
           {aloud && hasVoice ? "Com voz" : "Sem voz"}
         </button>
-        <Button variant="secondary" onClick={() => void finish()} disabled={busy}>
-          Encerrar aula e ver boletim
+        <Button onClick={() => void finish()} disabled={busy || !taught}>
+          Encerrar e ver boletim
         </Button>
       </header>
 
       <div className="grid gap-4 @4xl:grid-cols-[minmax(0,1fr)_300px]">
         {/* Turma em semicírculo */}
         <div className="relative h-64 overflow-hidden rounded-2xl border border-border bg-gradient-to-b from-card to-secondary/40">
-          {/* Fala do aluno num balão central: nas pontas do semicírculo ele saía cortado. */}
           <AnimatePresence>
             {speaker && (bubble || busy) && !thinking && (
               <motion.div
@@ -379,6 +439,11 @@ function Lesson({ classId, topic, onFinish }: { classId: number; topic: TopicRef
               </motion.div>
             )}
           </AnimatePresence>
+          {thinking && (
+            <p className="absolute inset-x-0 top-4 z-20 flex items-center justify-center gap-2 text-sm text-muted-foreground" aria-live="polite">
+              <Loader2 className="size-4 animate-spin" /> A turma está pensando no que você disse…
+            </p>
+          )}
           {students.map((s, i) => {
             const angle = Math.PI * (i / Math.max(1, students.length - 1));
             const x = 50 - 42 * Math.cos(angle);
@@ -386,23 +451,6 @@ function Lesson({ classId, topic, onFinish }: { classId: number; topic: TopicRef
             const isActive = active === s.id;
             return (
               <div key={s.id} className="absolute flex -translate-x-1/2 flex-col items-center" style={{ left: `${x}%`, top: `${y}%`, zIndex: isActive ? 10 : 1 }}>
-                <AnimatePresence>
-                  {thinking && (
-                    <motion.span
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ delay: i * 0.08 }}
-                      className="absolute bottom-full mb-1 rounded-full bg-background px-2 text-xs text-muted-foreground shadow-soft"
-                      aria-hidden
-                    >
-                      <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1.2, delay: i * 0.15 }}>
-                        • • •
-                      </motion.span>
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-                {/* parado: respira; pensando: inclina a cabeça; perguntando: levanta a mão e pula; falando: pulsa */}
                 <motion.div
                   animate={
                     reduce
@@ -434,20 +482,35 @@ function Lesson({ classId, topic, onFinish }: { classId: number; topic: TopicRef
           })}
         </div>
 
-        {/* Quadro-negro: o que você cobriu aparece escrito a giz */}
-        <aside className="rounded-xl border-[6px] border-[#6b4f33] bg-[#22382b] p-3 text-[#e9efe2] shadow-[inset_0_0_30px_rgba(0,0,0,0.35)]">
-          <h2 className="retro mb-2 text-[10px] opacity-80">Quadro</h2>
-          {!board ? (
-            <p className="text-sm opacity-60">Os temas que você cobrir aparecem aqui.</p>
-          ) : (
-            <ul className="space-y-1 text-sm" style={{ fontFamily: "'Segoe Print', 'Comic Sans MS', cursive" }}>
-              {[...board.cobertos.map((c) => ["✓", c, 1] as const), ...board.rasos.map((c) => ["~", c, 0.65] as const)].map(([mark, c, op], i) => (
+        {/* Quadro: nota ao vivo + temas cobertos; os que faltam só aparecem como contagem */}
+        <aside className="flex flex-col gap-3 rounded-xl border-[6px] border-[#6b4f33] bg-[#22382b] p-3 text-[#e9efe2] shadow-[inset_0_0_30px_rgba(0,0,0,0.35)]">
+          <div className="flex items-center gap-3">
+            <ProgressRing value={score / 100} size={64} stroke={6} tone="stroke-[#9be29b]" label={`Cobertura ${score}%`}>
+              <span className="retro text-[11px]">{score}</span>
+            </ProgressRing>
+            <div className="text-xs leading-relaxed opacity-85">
+              <p className="retro text-[10px] opacity-80">Quadro</p>
+              {board ? (
+                <>
+                  <p>{plural(board.cobertos.length, "tema coberto", "temas cobertos")}</p>
+                  {board.omitidos.length > 0 && <p>faltam {plural(board.omitidos.length, "tema", "temas")}</p>}
+                  {board.erros.length > 0 && <p className="text-[#ffb4a8]">{plural(board.erros.length, "erro", "erros")} a corrigir</p>}
+                </>
+              ) : (
+                <p>A nota sobe conforme você explica.</p>
+              )}
+            </div>
+          </div>
+          {board && (
+            <ul className="max-h-44 space-y-1 overflow-y-auto text-sm" style={{ fontFamily: "'Segoe Print', 'Comic Sans MS', cursive" }}>
+              {[...board.cobertos.map((c) => ["✓", c, 1] as const), ...board.rasos.map((c) => ["~", c, 0.65] as const), ...board.erros.map((c) => ["✗", c, 0.9] as const)].map(([mark, c, op], i) => (
                 <motion.li
                   key={`${mark}${c}`}
                   initial={{ clipPath: "inset(0 100% 0 0)" }}
                   animate={{ clipPath: "inset(0 0% 0 0)" }}
                   transition={{ duration: 0.7, delay: i * 0.12, ease: "easeOut" }}
                   style={{ opacity: op }}
+                  className={mark === "✗" ? "text-[#ffb4a8]" : undefined}
                 >
                   {mark} {c}
                 </motion.li>
@@ -458,20 +521,31 @@ function Lesson({ classId, topic, onFinish }: { classId: number; topic: TopicRef
       </div>
 
       <div ref={log} className="min-h-40 flex-1 space-y-2 overflow-y-auto rounded-2xl border border-border bg-card p-3">
-        {messages.length === 0 && <p className="text-sm text-muted-foreground">Comece explicando o primeiro bloco do conteúdo. Segure Espaço para falar.</p>}
+        {messages.length === 0 && (
+          <div className="space-y-1 p-2 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">Comece pelo começo: o que é {topic.name}?</p>
+            <p>Explique um bloco curto (3–5 frases). A cada bloco, um aluno pergunta sobre o que ficou faltando.</p>
+          </div>
+        )}
         {messages.map((m, i) => (
           <motion.div
             key={i}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={spring.soft}
-            className={m.role === "teacher" ? "ml-auto max-w-[80%] rounded-2xl rounded-br-sm bg-secondary p-2.5" : "max-w-[80%]"}
+            className={m.role === "teacher" ? "ml-auto max-w-[80%] rounded-2xl rounded-br-sm bg-primary/12 p-2.5" : "flex max-w-[85%] gap-2"}
           >
-            <p className="text-xs text-muted-foreground">{m.role === "teacher" ? "Você" : (nameOf.get(m.student as Student) ?? "Aluno")}</p>
-            <p className="whitespace-pre-wrap">{m.text}</p>
+            {m.role === "student" && m.student && (
+              <span className="shrink-0 pt-1">
+                <Avatar student={m.student} scale={3} />
+              </span>
+            )}
+            <div className={m.role === "student" ? "rounded-2xl rounded-tl-sm bg-secondary p-2.5" : undefined}>
+              <p className="text-xs text-muted-foreground">{m.role === "teacher" ? "Você" : (nameOf.get(m.student as Student) ?? "Aluno")}</p>
+              <p className="whitespace-pre-wrap">{m.text}</p>
+            </div>
           </motion.div>
         ))}
-        {thinking && <p className="text-sm text-muted-foreground">A turma está pensando…</p>}
       </div>
 
       <div className="flex items-stretch gap-2">
@@ -516,20 +590,18 @@ function Lesson({ classId, topic, onFinish }: { classId: number; topic: TopicRef
             )}
           </AnimatePresence>
         </div>
-        <div className="flex flex-col gap-2">
-          <Button
-            variant={voice.phase === "recording" ? "destructive" : "secondary"}
-            onClick={() => void (voice.phase === "recording" ? voice.stop() : voice.start())}
-            disabled={busy || voice.phase === "transcribing"}
-            aria-label={voice.phase === "recording" ? "Parar e transcrever" : "Falar"}
-            title="Falar (ou segure Espaço)"
-            className="h-full min-w-12"
-          >
-            <Mic />
-          </Button>
-        </div>
-        <Button onClick={() => void send()} disabled={busy || !draft.trim()} className="h-auto min-w-24">
-          {busy ? <Loader2 className="animate-spin" /> : null} Explicar
+        <Button
+          variant={voice.phase === "recording" ? "destructive" : "secondary"}
+          onClick={() => void (voice.phase === "recording" ? voice.stop() : voice.start())}
+          disabled={busy || voice.phase === "transcribing"}
+          aria-label={voice.phase === "recording" ? "Parar e transcrever" : "Falar"}
+          title="Falar (ou segure Espaço)"
+          className="h-auto min-w-12"
+        >
+          <Mic />
+        </Button>
+        <Button onClick={() => void send()} disabled={busy || !draft.trim()} className="h-auto min-w-28">
+          {busy ? <Loader2 className="animate-spin" /> : <Send />} Explicar
         </Button>
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
@@ -537,49 +609,62 @@ function Lesson({ classId, topic, onFinish }: { classId: number; topic: TopicRef
   );
 }
 
-function ReportCard({ report, onClose }: { report: ClassReport; onClose?: () => void }) {
-  const e = report.evaluation;
-  const score = report.coverage_score ?? 0;
-  const color = accTone(score / 100);
+function ReportScreen({ report, onAgain, onBack }: { report: ClassReport; onAgain: () => void; onBack: () => void }) {
+  const score = Math.round(report.coverage_score ?? 0);
+  const verdict = score >= 85 ? "Aula de mestre!" : score >= 60 ? "Boa aula" : "Ainda tem lacunas";
   return (
-    <section className="space-y-3 rounded-lg border-2 border-primary bg-card p-4">
-      <header className="flex items-center justify-between">
-        <h2 className="font-semibold">
-          Boletim — {report.topic} <span className="text-sm text-muted-foreground">{formatDate(report.held_at)}</span>
-        </h2>
-        {onClose && (
-          <Button size="sm" variant="ghost" onClick={onClose}>
-            Fechar
-          </Button>
-        )}
-      </header>
-      <div className="flex items-baseline gap-3">
-        <span className={`retro text-3xl ${color}`}>{Math.round(score)}</span>
-        <span className="text-sm text-muted-foreground">de cobertura · +{CLASS_XP} XP</span>
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={spring.soft} className="mx-auto max-w-3xl space-y-5">
+      <section className="flex flex-wrap items-center gap-6 rounded-2xl border-2 border-primary bg-card p-6 shadow-lift">
+        <ProgressRing value={score / 100} size={120} stroke={10} tone={score >= 60 ? "stroke-success" : "stroke-primary"} label={`Cobertura ${score}%`}>
+          <span className={cn("retro text-2xl", accTone(score / 100))}>{score}</span>
+        </ProgressRing>
+        <div className="min-w-0 flex-1 space-y-1">
+          <p className="retro text-xs text-primary">Boletim</p>
+          <h1 className="text-2xl font-semibold">{verdict}</h1>
+          <p className="text-sm text-muted-foreground">
+            {report.topic} · +{CLASS_XP} XP ·{" "}
+            {report.next_review_days ? `reaula em ${plural(report.next_review_days, "dia", "dias")}` : "ciclo de revisão concluído!"}
+          </p>
+        </div>
+      </section>
+      <ReportLists e={report.evaluation} />
+      <div className="flex flex-wrap gap-2">
+        <Button size="lg" onClick={onAgain}>
+          Dar outra aula deste tópico
+        </Button>
+        <Button size="lg" variant="secondary" onClick={onBack}>
+          Escolher outro tópico
+        </Button>
       </div>
-      <p className="text-sm">
-        {report.next_review_days ? `Reaula em ${plural(report.next_review_days, "dia", "dias")}.` : "Ciclo de revisão concluído para este tópico!"}
-      </p>
-      <div className="grid gap-3 text-sm @lg:grid-cols-3">
-        <List title="Erros" items={e.erros} className="text-destructive" />
-        <List title="Omitidos" items={e.omitidos} className="text-primary" />
-        <List title="Rasos" items={e.rasos} className="text-muted-foreground" />
-      </div>
-    </section>
+    </motion.div>
   );
 }
 
-function List({ title, items, className }: { title: string; items: string[]; className: string }) {
+function ReportLists({ e }: { e: Evaluation }) {
+  const groups: [string, string[], string][] = [
+    ["Você explicou bem", e.cobertos, "text-success"],
+    ["Ficou raso", e.rasos, "text-primary"],
+    ["Faltou falar", e.omitidos, "text-muted-foreground"],
+    ["Explicou errado", e.erros, "text-destructive"],
+  ];
   return (
-    <div>
-      <h3 className={`font-medium ${className}`}>
-        {title} ({items.length})
-      </h3>
-      <ul className="list-inside list-disc text-muted-foreground">
-        {items.map((i) => (
-          <li key={i}>{i}</li>
-        ))}
-      </ul>
+    <div className="grid gap-3 @lg:grid-cols-2">
+      {groups.map(([title, items, tone]) => (
+        <div key={title} className="rounded-xl border border-border bg-card p-4">
+          <h3 className={cn("mb-2 text-sm font-semibold", tone)}>
+            {title} ({items.length})
+          </h3>
+          {items.length ? (
+            <ul className="list-inside list-disc space-y-0.5 text-sm text-muted-foreground">
+              {items.map((i) => (
+                <li key={i}>{i}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">—</p>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -592,18 +677,20 @@ function History({ topicId }: { topicId: number | null }) {
   }, [topicId]);
   if (reports.length === 0) return null;
   return (
-    <div className="space-y-2 pt-3">
+    <div className="space-y-2 rounded-xl border border-border bg-card p-3">
       <h3 className="text-sm font-medium">Boletins anteriores</h3>
       <ul className="space-y-1 text-sm">
         {reports.slice(0, 8).map((r) => (
           <li key={r.id}>
-            <button className="text-left hover:text-primary" onClick={() => setOpen(open?.id === r.id ? null : r)}>
-              <b>{Math.round(r.coverage_score ?? 0)}</b> · {r.topic} <span className="text-muted-foreground">{formatDate(r.held_at)}</span>
+            <button className="flex w-full items-center gap-2 text-left hover:text-primary" onClick={() => setOpen(open?.id === r.id ? null : r)}>
+              <b className={cn("tabular w-7", accTone((r.coverage_score ?? 0) / 100))}>{Math.round(r.coverage_score ?? 0)}</b>
+              <span className="min-w-0 flex-1 truncate">{r.topic}</span>
+              <span className="text-xs text-muted-foreground">{formatDate(r.held_at)}</span>
             </button>
           </li>
         ))}
       </ul>
-      {open && <ReportCard report={open} />}
+      {open && <ReportLists e={open.evaluation} />}
     </div>
   );
 }

@@ -102,8 +102,11 @@ export const commands = {
 	/**  Encerra a aula: boletim com nota de cobertura, XP e reaula agendada (1/7/30 dias). */
 	finishClass: (classId: number, options?: InvokeOptions) => __TAURI_INVOKE<ClassReport_Serialize>("finish_class", { classId }, options),
 	listClassReports: (topicId: number | null, options?: InvokeOptions) => __TAURI_INVOKE<ClassReport_Serialize[]>("list_class_reports", { topicId }, options),
-	/**  Roda a skill do Grifo pelo Claude CLI e anexa o resultado ao tópico como material de referência. */
-	generateApostila: (topicId: number, options?: InvokeOptions) => __TAURI_INVOKE<TopicMaterial_Serialize>("generate_apostila", { topicId }, options),
+	/**
+	 *  Roteiro da aula: o material do tópico se já existir (colado ou de antes); senão a IA de tarefas
+	 *  escreve os pontos-chave (segundos) e eles ficam salvos no tópico. `regenerate` refaz.
+	 */
+	prepareClass: (topicId: number, regenerate: boolean, options?: InvokeOptions) => __TAURI_INVOKE<TopicMaterial_Serialize>("prepare_class", { topicId, regenerate }, options),
 	openMaterial: (topicId: number, options?: InvokeOptions) => __TAURI_INVOKE<null>("open_material", { topicId }, options),
 	openLink: (url: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("open_link", { url }, options),
 	listMaterials: (topicId: number, options?: InvokeOptions) => __TAURI_INVOKE<Material_Serialize[]>("list_materials", { topicId }, options),
@@ -135,8 +138,19 @@ export const commands = {
 	testOllama: (options?: InvokeOptions) => __TAURI_INVOKE<string>("test_ollama", undefined, options),
 	/**  Instalador oficial do Claude Code. Se o `claude` não estiver no PATH depois, aponta a config pro exe novo. */
 	installClaude: (options?: InvokeOptions) => __TAURI_INVOKE<null>("install_claude", undefined, options),
-	/**  Abre um terminal com o `claude` para o login (a assinatura é sua: o app não vê a senha). */
-	claudeLogin: (options?: InvokeOptions) => __TAURI_INVOKE<null>("claude_login", undefined, options),
+	/**
+	 *  Entra na conta do Claude pelo navegador (`claude auth login`), sem terminal: o CLI abre a página
+	 *  de login e espera a pessoa autorizar. Devolve a frase de sucesso.
+	 */
+	claudeLogin: (options?: InvokeOptions) => __TAURI_INVOKE<string>("claude_login", undefined, options),
+	/**  Plano B do login: terminal com o `claude auth login` (quando o navegador não volta para o app). */
+	claudeLoginTerminal: (options?: InvokeOptions) => __TAURI_INVOKE<null>("claude_login_terminal", undefined, options),
+	claudeLogout: (options?: InvokeOptions) => __TAURI_INVOKE<null>("claude_logout", undefined, options),
+	installChatgpt: (options?: InvokeOptions) => __TAURI_INVOKE<null>("install_chatgpt", undefined, options),
+	/**  Login com a conta do ChatGPT no navegador. Devolve a frase de sucesso. */
+	chatgptLogin: (options?: InvokeOptions) => __TAURI_INVOKE<string>("chatgpt_login", undefined, options),
+	chatgptLogout: (options?: InvokeOptions) => __TAURI_INVOKE<null>("chatgpt_logout", undefined, options),
+	testChatgpt: (options?: InvokeOptions) => __TAURI_INVOKE<string>("test_chatgpt", undefined, options),
 	testClaude: (options?: InvokeOptions) => __TAURI_INVOKE<string>("test_claude", undefined, options),
 	/**
 	 *  Registra o servidor MCP do Grifo Quest no Claude Code (`claude mcp add`) ou no Claude Desktop (JSON, com backup).
@@ -165,6 +179,13 @@ export const commands = {
 	/**  Explicação mais detalhada de uma questão (Markdown), pela IA de tarefas. */
 	explainQuestion: (questionId: number, userAnswer: string, options?: InvokeOptions) => __TAURI_INVOKE<string>("explain_question", { questionId, userAnswer }, options),
 	cardsDue: (limit: number, options?: InvokeOptions) => __TAURI_INVOKE<CardRow_Serialize[]>("cards_due", { limit }, options),
+	/**
+	 *  A IA de tarefas escreve `count` cartões sobre um tópico do edital, um tema livre e/ou um texto colado.
+	 *  Nada é salvo aqui: o front mostra a prévia e chama `save_cards` com os escolhidos.
+	 */
+	generateCards: (topicId: number | null, theme: string, sourceText: string, count: number, options?: InvokeOptions) => __TAURI_INVOKE<CardDraft[]>("generate_cards", { topicId, theme, sourceText, count }, options),
+	/**  Salva no baralho os cartões escolhidos da prévia. Devolve quantos entraram (repetidos ficam de fora). */
+	saveCards: (topicId: number | null, cards: CardDraft[], options?: InvokeOptions) => __TAURI_INVOKE<number>("save_cards", { topicId, cards }, options),
 	reviewCard: (cardId: number, grade: Grade, options?: InvokeOptions) => __TAURI_INVOKE<number>("review_card", { cardId, grade }, options),
 	/**  Copia os cartões de um material de flashcards do Grifo para o baralho. Devolve quantos novos. */
 	cardsFromMaterial: (materialId: number, options?: InvokeOptions) => __TAURI_INVOKE<number>("cards_from_material", { materialId }, options),
@@ -204,6 +225,23 @@ export const events = {
 };
 
 /* Types */
+/**  Quem está logado (mostrado como "Conectado como …"). */
+export type Account = Account_Serialize | Account_Deserialize;
+
+/**  Quem está logado (mostrado como "Conectado como …"). */
+export type Account_Deserialize = {
+	email?: string | null,
+	/**  pro, max, team… (o que o CLI informar) */
+	plan?: string | null,
+};
+
+/**  Quem está logado (mostrado como "Conectado como …"). */
+export type Account_Serialize = {
+	email: string | null,
+	/**  pro, max, team… (o que o CLI informar) */
+	plan: string | null,
+};
+
 export type AnswerResult = AnswerResult_Serialize | AnswerResult_Deserialize;
 
 export type AnswerResult_Deserialize = {
@@ -272,6 +310,12 @@ export type BackupFile = {
 	kb: number,
 };
 
+/**  Rascunho de cartão (a IA sugere; a pessoa revisa antes de salvar). */
+export type CardDraft = {
+	front: string,
+	back: string,
+};
+
 export type CardRow = CardRow_Serialize | CardRow_Deserialize;
 
 export type CardRow_Deserialize = {
@@ -280,6 +324,10 @@ export type CardRow_Deserialize = {
 	back: string,
 	topic?: string | null,
 	source: string,
+	/**  Nunca revisado (contador azul do Anki). */
+	is_new: boolean,
+	/**  Próximo intervalo (dias) de cada nota, na ordem Errei/Difícil/Bom/Fácil (os botões do Anki). */
+	next: number[],
 };
 
 export type CardRow_Serialize = {
@@ -288,6 +336,10 @@ export type CardRow_Serialize = {
 	back: string,
 	topic: string | null,
 	source: string,
+	/**  Nunca revisado (contador azul do Anki). */
+	is_new: boolean,
+	/**  Próximo intervalo (dias) de cada nota, na ordem Errei/Difícil/Bom/Fácil (os botões do Anki). */
+	next: number[],
 };
 
 export type ClassEvent = ClassEvent_Serialize | ClassEvent_Deserialize;
@@ -691,6 +743,11 @@ export type IntegrationsStatus_Deserialize = {
 	/**  Modelos que a configuração usa (alunos, avaliador, tarefas), sem repetição. */
 	wanted_models: string[],
 	claude_version?: string | null,
+	/**  Conta logada no Claude Code (`None` = sem login ou CLI ausente). */
+	claude_account?: Account_Deserialize | null,
+	/**  ChatGPT pela assinatura (Codex CLI). */
+	chatgpt_version?: string | null,
+	chatgpt_logged_in: boolean,
 	grifo_version: string,
 	mcp_built: boolean,
 	mcp_code: boolean,
@@ -711,6 +768,11 @@ export type IntegrationsStatus_Serialize = {
 	/**  Modelos que a configuração usa (alunos, avaliador, tarefas), sem repetição. */
 	wanted_models: string[],
 	claude_version: string | null,
+	/**  Conta logada no Claude Code (`None` = sem login ou CLI ausente). */
+	claude_account: Account_Serialize | null,
+	/**  ChatGPT pela assinatura (Codex CLI). */
+	chatgpt_version: string | null,
+	chatgpt_logged_in: boolean,
 	grifo_version: string,
 	mcp_built: boolean,
 	mcp_code: boolean,
@@ -949,7 +1011,7 @@ export type Profile_Serialize = {
 	onboarded: boolean,
 };
 
-export type Provider = "ollama" | "claude" | "gemini" | "openai" | "grok" | "deepseek" | "glm" | "custom";
+export type Provider = "ollama" | "claude" | "chatgpt" | "gemini" | "openai" | "grok" | "deepseek" | "glm" | "custom";
 
 /**  C/E (Cebraspe) ou múltipla escolha A–E. */
 export type QuestionFormat = "ce" | "ae";
@@ -1029,7 +1091,9 @@ export type ReviewItem = {
  *  Escolha do usuário em Config → IA. `Auto` = Ollama, e Claude se o Ollama estiver fora do ar.
  *  Gemini/GPT/Grok usam a chave de API da pessoa.
  */
-export type Route = "auto" | "ollama" | "claude" | "gemini" | "openai" | "grok" | "deepseek" | "glm" | "custom";
+export type Route = "auto" | "ollama" | "claude" | 
+/**  ChatGPT pela assinatura (login com a conta, sem chave). */
+"chatgpt" | "gemini" | "openai" | "grok" | "deepseek" | "glm" | "custom";
 
 export type SessionInfo = SessionInfo_Serialize | SessionInfo_Deserialize;
 
@@ -1226,7 +1290,7 @@ export type TutorAnswer = {
  *  Claude Code instalado, nuvem com chave salva).
  */
 export type TutorModel = {
-	/**  `auto`, `ollama:<modelo>`, `claude` ou `cloud:<serviço>` */
+	/**  `auto`, `ollama:<modelo>`, `claude`, `chatgpt` ou `cloud:<serviço>` */
 	id: string,
 	label: string,
 	/**  Grupo na lista ("No seu PC", "Assinatura", "Nuvem") */

@@ -15,7 +15,7 @@ import { FlashcardDeck } from "./FlashcardDeck";
 import { parseFlashcards } from "./flashcards";
 import { PAPER_DESK, paperDocument } from "./paper";
 
-const PROVIDER_LABEL: Record<string, string> = { ollama: "Ollama", claude: "Claude", gemini: "Gemini", openai: "GPT", grok: "Grok", deepseek: "DeepSeek", glm: "GLM", custom: "Outra IA" };
+const PROVIDER_LABEL: Record<string, string> = { ollama: "Ollama", claude: "Claude", chatgpt: "ChatGPT", gemini: "Gemini", openai: "GPT", grok: "Grok", deepseek: "DeepSeek", glm: "GLM", custom: "Outra IA" };
 
 const KINDS: { id: MaterialKind; label: string; hint: string; icon: typeof FileText }[] = [
   { id: "resumo", label: "Resumo", hint: "Teoria enxuta com caixas de dica e pegadinha", icon: BookOpenText },

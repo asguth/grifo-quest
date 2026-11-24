@@ -289,6 +289,17 @@ pub struct CardRow {
     pub back: String,
     pub topic: Option<String>,
     pub source: String,
+    /// Nunca revisado (contador azul do Anki).
+    pub is_new: bool,
+    #[serde(skip)]
+    pub ease: f64,
+    #[serde(skip)]
+    pub interval_days: i32,
+    #[serde(skip)]
+    pub reps: i32,
+    /// Próximo intervalo (dias) de cada nota, na ordem Errei/Difícil/Bom/Fácil (os botões do Anki).
+    #[sqlx(skip)]
+    pub next: Vec<i32>,
 }
 
 /// Cartões novos que entram por dia (o resto espera: evita a avalanche de revisões dias depois).
@@ -299,11 +310,13 @@ pub const NEW_CARDS_PER_DAY: i32 = 20;
 pub async fn cards_due(pool: &SqlitePool, limit: i32) -> AppResult<Vec<CardRow>> {
     Ok(sqlx::query_as(
         "SELECT * FROM (
-           SELECT c.id, c.front, c.back, t.name AS topic, c.source FROM card_state c LEFT JOIN topics t ON t.id = c.topic_id
+           SELECT c.id, c.front, c.back, t.name AS topic, c.source, c.is_new, c.ease, c.interval_days, c.reps
+           FROM card_state c LEFT JOIN topics t ON t.id = c.topic_id
            WHERE c.due_at <= date('now','localtime') AND NOT c.is_new ORDER BY c.due_at, c.id)
          UNION ALL
          SELECT * FROM (
-           SELECT c.id, c.front, c.back, t.name AS topic, c.source FROM card_state c LEFT JOIN topics t ON t.id = c.topic_id
+           SELECT c.id, c.front, c.back, t.name AS topic, c.source, c.is_new, c.ease, c.interval_days, c.reps
+           FROM card_state c LEFT JOIN topics t ON t.id = c.topic_id
            WHERE c.is_new ORDER BY c.id LIMIT ?2)
          LIMIT ?1",
     )

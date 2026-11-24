@@ -1,6 +1,6 @@
 [package]
 name = "grifo-quest-mcp"
-version = "0.2.4"
+version = "0.3.0"
 edition = "2024"
 license-file = "../LICENSE"
 description = "Servidor MCP (stdio, somente leitura) com os dados do Grifo Quest"

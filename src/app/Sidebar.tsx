@@ -48,7 +48,7 @@ export function Sidebar({ slot, go }: { slot: SlotId; go: Navigate }) {
       transition={spring.soft}
       className="relative z-10 flex shrink-0 flex-col gap-1 border-r border-border bg-card/80 px-3 py-4 backdrop-blur-md"
     >
-      <div className="mb-4 flex h-10 items-center gap-2.5 overflow-hidden px-1.5">
+      <div className={cn("mb-4 flex h-10 items-center gap-2.5 overflow-hidden", collapsed ? "justify-center" : "px-1.5")}>
         <span className="shrink-0">
           <Mascot scale={2} />
         </span>
@@ -70,7 +70,9 @@ export function Sidebar({ slot, go }: { slot: SlotId; go: Navigate }) {
             data-tour={s.id}
             title={collapsed ? s.label : undefined}
             className={cn(
-              "group relative flex h-10 items-center gap-3 rounded-lg px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+              // recolhido: ícone no centro exato (com px-3 ele ficava 3 px para a esquerda)
+              "group relative flex h-10 items-center gap-3 rounded-lg text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+              collapsed ? "justify-center px-0" : "px-3",
               active ? "text-primary-foreground" : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground",
             )}
           >
@@ -164,7 +166,7 @@ export function Sidebar({ slot, go }: { slot: SlotId; go: Navigate }) {
         <button
           onClick={toggle}
           aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
-          className="flex h-9 w-full items-center gap-3 rounded-lg px-3 text-xs text-muted-foreground hover:bg-secondary/70 hover:text-foreground"
+          className={cn("flex h-9 w-full items-center gap-3 rounded-lg text-xs text-muted-foreground hover:bg-secondary/70 hover:text-foreground", collapsed ? "justify-center px-0" : "px-3")}
         >
           {collapsed ? <PanelLeftOpen className="size-4 shrink-0" /> : <PanelLeftClose className="size-4 shrink-0" />}
           {!collapsed && "Recolher"}

@@ -472,7 +472,104 @@ pub async fn explain_question(app: AppHandle, pool: State<'_, SqlitePool>, quest
 #[tauri::command]
 #[specta::specta]
 pub async fn cards_due(pool: State<'_, SqlitePool>, limit: i32) -> AppResult<Vec<repo::CardRow>> {
-    repo::cards_due(&pool, limit.clamp(1, 200)).await
+    let mut cards = repo::cards_due(&pool, limit.clamp(1, 200)).await?;
+    for c in &mut cards {
+        let state = rules::CardState { ease: c.ease, interval_days: c.interval_days, reps: c.reps };
+        c.next = [Grade::Again, Grade::Hard, Grade::Good, Grade::Easy].map(|g| rules::review(state, g).interval_days).to_vec();
+    }
+    Ok(cards)
+}
+
+/// Rascunho de cartão (a IA sugere; a pessoa revisa antes de salvar).
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct CardDraft {
+    pub front: String,
+    pub back: String,
+}
+
+#[derive(Deserialize)]
+struct DraftJson {
+    #[serde(default)]
+    cartoes: Vec<DraftItem>,
+}
+
+#[derive(Deserialize)]
+struct DraftItem {
+    #[serde(default, alias = "front", alias = "pergunta")]
+    frente: String,
+    #[serde(default, alias = "back", alias = "resposta")]
+    verso: String,
+}
+
+const CARDS_SYSTEM: &str = "Você cria flashcards no estilo Anki para concurso público no Brasil. Regras: uma ideia por cartão; \
+frente = pergunta curta e direta (sem 'explique'); verso = resposta curta (até 2 frases), com a lei/artigo quando houver; \
+priorize prazos, números, requisitos, exceções e pegadinhas de banca; nada de cartão repetido ou óbvio. \
+Responda SOMENTE com JSON no formato {\"cartoes\":[{\"frente\":\"\",\"verso\":\"\"}]}.";
+
+/// A IA de tarefas escreve `count` cartões sobre um tópico do edital, um tema livre e/ou um texto colado.
+/// Nada é salvo aqui: o front mostra a prévia e chama `save_cards` com os escolhidos.
+#[tauri::command]
+#[specta::specta]
+pub async fn generate_cards(
+    app: AppHandle,
+    pool: State<'_, SqlitePool>,
+    topic_id: Option<i32>,
+    theme: String,
+    source_text: String,
+    count: i32,
+) -> AppResult<Vec<CardDraft>> {
+    let count = count.clamp(3, 40) as usize;
+    let mut context = Vec::new();
+    if let Some(id) = topic_id {
+        let (topic, subject, material): (String, String, Option<String>) = sqlx::query_as(
+            "SELECT t.name, s.name, t.material FROM topics t JOIN subjects s ON s.id = t.subject_id WHERE t.id = ?",
+        )
+        .bind(id)
+        .fetch_optional(&*pool)
+        .await?
+        .ok_or_else(|| AppError::Invalid("Tópico não encontrado".into()))?;
+        context.push(format!("Matéria: {subject}\nTópico do edital: {topic}"));
+        if let Some(m) = material.filter(|m| !m.trim().is_empty()) {
+            context.push(format!("Material do tópico (use como base):\n{}", crate::domain::text::head(&m, 6_000)));
+        }
+    }
+    if !theme.trim().is_empty() {
+        context.push(format!("Foco pedido: {}", theme.trim()));
+    }
+    if !source_text.trim().is_empty() {
+        context.push(format!("Texto para transformar em cartões (só o que está nele):\n{}", crate::domain::text::head(source_text.trim(), 12_000)));
+    }
+    if context.is_empty() {
+        return Err(AppError::Invalid("Escolha um tópico, escreva um tema ou cole um texto".into()));
+    }
+    let cfg: AppConfig = settings::load(&pool).await?;
+    let user = format!("{}\n\nCrie exatamente {count} cartões.", context.join("\n\n"));
+    let (raw, _) = ai::complete(&app, &cfg, Task::Text, CARDS_SYSTEM, &user, true).await?;
+    let parsed: DraftJson = ai::parse_object(&raw, "Flashcards")?;
+    let mut seen = HashSet::new();
+    let cards: Vec<CardDraft> = parsed
+        .cartoes
+        .into_iter()
+        .map(|c| CardDraft { front: c.frente.trim().to_string(), back: c.verso.trim().to_string() })
+        .filter(|c| !c.front.is_empty() && !c.back.is_empty() && seen.insert(c.front.to_lowercase()))
+        .take(count)
+        .collect();
+    if cards.is_empty() {
+        return Err(AppError::Invalid("A IA não devolveu cartões. Tente de novo.".into()));
+    }
+    Ok(cards)
+}
+
+/// Salva no baralho os cartões escolhidos da prévia. Devolve quantos entraram (repetidos ficam de fora).
+#[tauri::command]
+#[specta::specta]
+pub async fn save_cards(pool: State<'_, SqlitePool>, topic_id: Option<i32>, cards: Vec<CardDraft>) -> AppResult<i32> {
+    let cards: Vec<(String, String)> = cards
+        .into_iter()
+        .map(|c| (c.front.trim().to_string(), c.back.trim().to_string()))
+        .filter(|(f, b)| !f.is_empty() && !b.is_empty())
+        .collect();
+    repo::insert_cards(&pool, topic_id, CardSource::Grifo, &cards).await
 }
 
 #[tauri::command]
