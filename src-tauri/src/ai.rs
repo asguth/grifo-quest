@@ -53,7 +53,7 @@ impl Provider {
         }
     }
 
-    fn cloud(self) -> Option<Cloud> {
+    pub fn cloud(self) -> Option<Cloud> {
         match self {
             Provider::Gemini => Some(Cloud::Gemini),
             Provider::Openai => Some(Cloud::Openai),

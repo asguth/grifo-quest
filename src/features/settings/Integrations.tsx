@@ -121,7 +121,7 @@ export function Integrations({ setup = false }: { setup?: boolean }) {
             {ready} de {checks.length}
           </span> integrações prontas. Cada botão faz tudo sozinho; você só confirma o que o Windows pedir.
         </p>
-        <Button size="sm" variant="ghost" onClick={() => void check()} disabled={checking}>
+        <Button size="sm" variant="secondary" onClick={() => void check()} disabled={checking}>
           <RefreshCw className={cn(checking && "animate-spin")} /> Verificar de novo
         </Button>
       </div>

@@ -48,9 +48,10 @@ export const commands = {
 	resetDatabase: (options?: InvokeOptions) => __TAURI_INVOKE<null>("reset_database", undefined, options),
 	/**
 	 *  Responde à última fala do aluno em `history`. Devolve a resposta inteira (os pedaços chegam antes
-	 *  pelo evento `TutorToken`, quando a IA local está no ar).
+	 *  pelo evento `TutorToken` quando quem responde é o Ollama). `model` vem de `tutor_models`.
 	 */
-	askTutor: (id: number, subjectId: number | null, topicId: number | null, history: TutorTurn[], options?: InvokeOptions) => __TAURI_INVOKE<string>("ask_tutor", { id, subjectId, topicId, history }, options),
+	askTutor: (id: number, subjectId: number | null, topicId: number | null, history: TutorTurn[], model: string | null, options?: InvokeOptions) => __TAURI_INVOKE<TutorAnswer>("ask_tutor", { id, subjectId, topicId, history, model }, options),
+	tutorModels: (options?: InvokeOptions) => __TAURI_INVOKE<TutorModel[]>("tutor_models", undefined, options),
 	setConfig: (config: AppConfig_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_config", { config }, options),
 	getUiPref: (key: UiKey, options?: InvokeOptions) => __TAURI_INVOKE<string | null>("get_ui_pref", { key }, options),
 	setUiPref: (key: UiKey, value: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_ui_pref", { key, value }, options),
@@ -1214,6 +1215,26 @@ export type TopicRef_Serialize = {
 
 export type Trend = "melhorando" | "piorando" | "estavel" | "sem_dados";
 
+/**  Resposta inteira e quem a escreveu (o rótulo aparece embaixo da fala do Grifo). */
+export type TutorAnswer = {
+	text: string,
+	by: string,
+};
+
+/**
+ *  Uma IA que o Tira-dúvidas pode usar agora (só aparece o que está pronto: modelo baixado no Ollama,
+ *  Claude Code instalado, nuvem com chave salva).
+ */
+export type TutorModel = {
+	/**  `auto`, `ollama:<modelo>`, `claude` ou `cloud:<serviço>` */
+	id: string,
+	label: string,
+	/**  Grupo na lista ("No seu PC", "Assinatura", "Nuvem") */
+	group: string,
+	/**  Detalhe curto ("grátis, escreve ao vivo", "gemini-2.5-flash") */
+	detail: string,
+};
+
 /**  Pedaço da resposta chegando (`id` = número da pergunta no front). */
 export type TutorToken = {
 	id: number,
@@ -1228,7 +1249,11 @@ export type TutorTurn = {
 };
 
 /**  Preferências da interface (`ui_<nome>` em `settings`). O front usa o tipo gerado nos bindings. */
-export type UiKey = "theme" | "home_layout" | "sound" | "sidebar_collapsed" | "welcome_on_boot" | "class_voice" | "tour_done" | "custom_themes" | "sound_volume";
+export type UiKey = "theme" | "home_layout" | "sound" | "sidebar_collapsed" | "welcome_on_boot" | "class_voice" | "tour_done" | "custom_themes" | "sound_volume" | 
+/**  IA escolhida no Tira-dúvidas (`id` de `tutor_models`) */
+"tutor_model" | 
+/**  Mundo: estilo de visualização e ordem das notícias (JSON) */
+"news_view";
 
 export type UpdateInfo = UpdateInfo_Serialize | UpdateInfo_Deserialize;
 

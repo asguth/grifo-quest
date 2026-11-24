@@ -202,6 +202,10 @@ wire_enum! {
         TourDone = "tour_done",
         CustomThemes = "custom_themes",
         SoundVolume = "sound_volume",
+        /// IA escolhida no Tira-dúvidas (`id` de `tutor_models`)
+        TutorModel = "tutor_model",
+        /// Mundo: estilo de visualização e ordem das notícias (JSON)
+        NewsView = "news_view",
     }
 }
 

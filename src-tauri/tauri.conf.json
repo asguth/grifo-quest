@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Grifo Quest",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "identifier": "dev.grifoquest.app",
   "build": {
     "beforeDevCommand": "node scripts/sidecar.mjs && pnpm dev",
@@ -13,6 +13,7 @@
     "windows": [
       {
         "label": "main",
+        "create": false,
         "title": "Grifo Quest",
         "width": 1040,
         "height": 740,
@@ -25,6 +26,7 @@
       },
       {
         "label": "quick",
+        "create": false,
         "title": "Lançamento rápido",
         "width": 420,
         "height": 260,

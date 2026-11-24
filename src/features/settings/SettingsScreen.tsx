@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import {
   commands,
   type AppConfig_Serialize as AppConfig,
@@ -44,6 +43,7 @@ import {
 } from "@/lib/theme";
 import { installUpdate, useUpdate } from "@/lib/update";
 import { errorMessage, warn } from "@/lib/utils";
+import { TagInput, splitTags } from "@/components/TagInput";
 import { Integrations } from "./Integrations";
 
 type Tab = "integracoes" | "aparencia" | "pomodoro" | "concursos" | "ia" | "sistema";
@@ -254,7 +254,7 @@ function Appearance() {
         <p className="text-xs text-muted-foreground">Desligado, o app fica estático (útil se o movimento incomodar). O Windows com “mostrar animações” desligado também reduz.</p>
       </Card>
 
-      <Button variant="ghost" onClick={() => update(DEFAULT_THEME)}>
+      <Button variant="secondary" onClick={() => update(DEFAULT_THEME)}>
         Restaurar tema padrão
       </Button>
     </div>
@@ -314,8 +314,8 @@ function useAppConfig() {
 
 function ContestsAndNews() {
   const { cfg, setCfg, save, status } = useAppConfig();
-  const [keywords, setKeywords] = useState("");
-  useEffect(() => setKeywords(cfg?.keywords.join("\n") ?? ""), [cfg?.keywords]);
+  // sugestões a partir da própria área ("Proteção de dados / regulação" → duas fichas)
+  const suggestions = cfg ? splitTags(cfg.interest_area.replace(/\//g, ",")).filter((t) => t.length <= 40) : [];
 
   return (
     <div className="space-y-4">
@@ -330,22 +330,19 @@ function ContestsAndNews() {
               placeholder="Proteção de dados / regulação / TI no governo federal"
             />
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="keywords">Palavras-chave (uma por linha) — filtram notícias e viram itens do rastreador</Label>
-            <Textarea id="keywords" rows={4} value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder={"ANPD\nLGPD\nanalista de TI"} />
+          <div className="space-y-1.5">
+            <Label htmlFor="keywords">Palavras-chave</Label>
+            <p className="text-xs text-muted-foreground">Escreva e aperte Enter para adicionar. Elas filtram as notícias e viram itens do rastreador.</p>
+            <TagInput
+              id="keywords"
+              value={cfg.keywords}
+              onChange={(keywords) => setCfg({ ...cfg, keywords })}
+              placeholder="Ex.: ANPD, LGPD, analista de TI"
+              suggestions={suggestions}
+            />
           </div>
           <div className="flex items-center gap-3">
-            <Button
-              onClick={() =>
-                void save({
-                  ...cfg,
-                  keywords: keywords
-                    .split("\n")
-                    .map((k) => k.trim())
-                    .filter(Boolean),
-                })
-              }
-            >
+            <Button onClick={() => void save(cfg)}>
               Salvar
             </Button>
             <span className="text-sm text-accent">{status}</span>
@@ -599,7 +596,7 @@ function System() {
         <div className="flex items-center justify-between gap-3">
           <Label htmlFor="welcome">Boas-vindas ao ligar o PC (janela compacta com o dia de hoje)</Label>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="ghost" onClick={() => commands.showWelcome().catch(toastError)}>
+            <Button size="sm" variant="secondary" onClick={() => commands.showWelcome().catch(toastError)}>
               Ver agora
             </Button>
             <Switch
@@ -615,7 +612,7 @@ function System() {
         <div className="flex items-center justify-between">
           <Label htmlFor="sound">Sons 8-bit</Label>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="ghost" onClick={() => sfx("chime")}>
+            <Button size="sm" variant="secondary" onClick={() => sfx("chime")}>
               Testar
             </Button>
             <Switch
@@ -675,7 +672,7 @@ function System() {
             <Button size="sm" variant="secondary" onClick={() => void reportIssue("bug")}>
               <Bug /> Reportar problema
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => void reportIssue("ideia")}>
+            <Button size="sm" variant="secondary" onClick={() => void reportIssue("ideia")}>
               <Lightbulb /> Sugerir ideia
             </Button>
           </div>
@@ -806,7 +803,7 @@ function Backups() {
                     </Button>
                   </>
                 ) : (
-                  <Button size="sm" variant="ghost" onClick={() => setConfirm(b.name)}>
+                  <Button size="sm" variant="secondary" onClick={() => setConfirm(b.name)}>
                     <RotateCcw /> Restaurar
                   </Button>
                 )}
@@ -853,7 +850,7 @@ function Updates() {
             Atualizar para {ready.version}
           </Button>
         ) : (
-          <Button size="sm" variant="outline" disabled={checking} onClick={() => void check()}>
+          <Button size="sm" variant="secondary" disabled={checking} onClick={() => void check()}>
             {checking ? "Procurando…" : "Procurar atualizações"}
           </Button>
         )}

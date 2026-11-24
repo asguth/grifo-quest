@@ -68,7 +68,10 @@
 /* Números alinhados (timer, XP, %) sem precisar de fonte mono. */
 .tabular { font-variant-numeric: tabular-nums; }
 
-* { scrollbar-width: thin; scrollbar-color: color-mix(in oklch, var(--foreground) 22%, transparent) transparent; }
+/* Em camada: fora dela, este `*` vencia os utilitários (`[scrollbar-width:none]` não escondia nada). */
+@layer base {
+  * { scrollbar-width: thin; scrollbar-color: color-mix(in oklch, var(--foreground) 22%, transparent) transparent; }
+}
 
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 .skeleton {

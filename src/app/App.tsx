@@ -118,7 +118,7 @@ export default function App() {
       <div className="flex h-screen overflow-hidden">
         <Sidebar slot={slot} go={setSlot} />
 
-        <main className="relative flex-1 overflow-y-auto">
+        <main className="relative flex-1 overflow-y-auto [scrollbar-gutter:stable]">
           <AnimatePresence>
             {scenery && (
               <motion.div

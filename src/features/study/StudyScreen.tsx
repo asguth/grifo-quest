@@ -303,7 +303,9 @@ function ModeTile({ icon: Icon, title, text, action, onClick, tone }: { icon: Lu
 
 function Report({ r, onBack, onReforco }: { r: SessionReport; onBack: () => void; onReforco: () => void }) {
   const score = r.total ? Math.round((r.correct / r.total) * 100) : 0;
-  useEffect(() => sfx(score >= 80 ? "levelup" : "success"), [score]);
+  useEffect(() => {
+    sfx(score >= 80 ? "levelup" : "success");
+  }, [score]);
   const mins = Math.round(r.seconds / 60);
   return (
     <div className="mx-auto max-w-2xl space-y-6 py-4 text-center">

@@ -68,5 +68,8 @@ Tauri 2, sqlx (SQLite), specta/tauri-specta, Tailwind v4, shadcn, Vitest, tauri-
 
 ## Convenções
 - Sem `unwrap()` fora de testes; sem `any` no TS. Textos de UI em pt-BR.
+- Efeito do React sempre com corpo entre chaves (`useEffect(() => { … })`): devolver o valor de uma expressão (ex.: `scrollIntoView`, que no WebView2 novo devolve Promise) derruba a tela ao desmontar. `src/lib/effects.test.ts` barra isso.
+- Janelas do tauri.conf têm `create: false` e nascem no `setup` depois do `manage` (senão os primeiros comandos falham e o tema volta ao padrão). Release com `panic = "unwind"`.
+- Tira-dúvidas: `tutor_models` lista só as IAs prontas (Ollama baixado, Claude CLI, nuvem com chave); a escolha fica em `ui_tutor_model`. Mundo: visualização/ordem/período em `ui_news_view` (`features/world/news.ts`).
 - Grade com colunas `fr` sempre `minmax(0,Xfr)` (`grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]`): `1fr` puro cresce até caber o texto que tem `truncate` e quebra o layout em tela larga.
 - Atalhos deliberados: comentário `ponytail:` + evolução; listar em `ROADMAP.md` (Débitos técnicos). Ideias fora de escopo → `ROADMAP.md` (Depois).

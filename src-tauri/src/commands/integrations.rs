@@ -66,7 +66,7 @@ fn desktop_config_path() -> Option<PathBuf> {
     std::env::var_os("APPDATA").map(|d| PathBuf::from(d).join("Claude").join("claude_desktop_config.json"))
 }
 
-async fn claude_version(cli: &str) -> Option<String> {
+pub(crate) async fn claude_version(cli: &str) -> Option<String> {
     let out = tokio::time::timeout(Duration::from_secs(20), claude::command(cli).arg("--version").output())
         .await
         .ok()?

@@ -39,5 +39,5 @@ export function useAppEvent<K extends Name>(name: K, handler: (detail: AppEvents
   useEffect(() => {
     ref.current = handler;
   });
-  useEffect(() => on(name, (d) => ref.current(d)), [name]);
+  useEffect(() => on(name, (d) => ref.current(d)), [name]); // effect-cleanup: `on` devolve o cancelar
 }

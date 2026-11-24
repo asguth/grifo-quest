@@ -52,6 +52,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         config::restore_backup,
         config::reset_database,
         tutor::ask_tutor,
+        tutor::tutor_models,
         config::set_config,
         config::get_ui_pref,
         config::set_ui_pref,
@@ -233,6 +234,12 @@ fn setup(app: &mut tauri::App) -> SetupResult {
     app.manage(commands::study::StudyState::default());
     app.manage(commands::voice::VoiceState::default());
     app.manage(commands::updater::PendingUpdate::default());
+    // Janelas só agora (`create: false` no tauri.conf): criadas antes do `manage`, a página embutida do
+    // build final carrega rápido e os primeiros comandos (tema, perfil) falham com "state not managed",
+    // e o app abria com o tema padrão.
+    for w in app.config().app.windows.clone().iter().filter(|w| !w.create) {
+        tauri::WebviewWindowBuilder::from_config(app.handle(), w)?.build()?;
+    }
     // Depois do `manage`: a janela de boas-vindas já chama comandos que usam esse estado.
     let handle = app.handle().clone();
     tauri::async_runtime::block_on(async move {

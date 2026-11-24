@@ -13,5 +13,6 @@ tokio = { version = "1", features = ["macros"] }
 codegen-units = 1
 lto = true
 opt-level = 3
-panic = "abort"
+# unwind (não abort): pânico num comando vira erro daquele comando em vez de fechar o app inteiro
+panic = "unwind"
 strip = true
