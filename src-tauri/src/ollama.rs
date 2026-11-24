@@ -73,6 +73,8 @@ pub async fn chat(url: &str, model: &str, messages: &[Msg<'_>], json_mode: bool)
     let mut body = chat_body(model, messages, false, CTX_TASK);
     if json_mode {
         body["format"] = json!("json");
+        // Extração (edital, questões em JSON): sem criatividade, mesma entrada → mesma saída.
+        body["options"]["temperature"] = json!(0);
     }
     let chunk: ChatChunk = post(url, "/api/chat", &body).await?.json().await?;
     Ok(chunk.message.map(|m| m.content).unwrap_or_default())

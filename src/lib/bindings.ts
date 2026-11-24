@@ -856,13 +856,21 @@ export type PlanSubject = {
 export type PlannerEvent = PlannerEvent_Serialize | PlannerEvent_Deserialize;
 
 export type PlannerEvent_Deserialize = {
+	/**  Etapa: 1 ler o PDF (só no front), 2 achar o conteúdo, 3 separar matérias, 4 revisar e juntar. */
+	step: number,
 	text: string,
 	progress?: number | null,
+	/**  Matérias encontradas até agora (aparecem na tela enquanto a leitura anda). */
+	found: string[],
 };
 
 export type PlannerEvent_Serialize = {
+	/**  Etapa: 1 ler o PDF (só no front), 2 achar o conteúdo, 3 separar matérias, 4 revisar e juntar. */
+	step: number,
 	text: string,
 	progress: number | null,
+	/**  Matérias encontradas até agora (aparecem na tela enquanto a leitura anda). */
+	found: string[],
 };
 
 export type PomodoroConfig = PomodoroConfig_Serialize | PomodoroConfig_Deserialize;

@@ -23,12 +23,16 @@ const COLORS: [&str; 10] = ["#e0a84f", "#7a9a5b", "#5f8fa3", "#c8644a", "#8a7fb0
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
 pub struct PlannerEvent {
+    /// Etapa: 1 ler o PDF (só no front), 2 achar o conteúdo, 3 separar matérias, 4 revisar e juntar.
+    pub step: i32,
     pub text: String,
     pub progress: Option<f64>,
+    /// Matérias encontradas até agora (aparecem na tela enquanto a leitura anda).
+    pub found: Vec<String>,
 }
 
-fn emit(app: &AppHandle, text: impl Into<String>, progress: Option<f64>) {
-    let _ = PlannerEvent { text: text.into(), progress }.emit(app);
+fn emit(app: &AppHandle, step: i32, text: impl Into<String>, progress: Option<f64>, found: &[String]) {
+    let _ = PlannerEvent { step, text: text.into(), progress, found: found.to_vec() }.emit(app);
 }
 
 /// Matérias e tópicos do edital mais recente do cargo, pesquisados na web pelo Claude.
@@ -48,9 +52,9 @@ pub async fn plan_from_role(app: AppHandle, pool: State<'_, SqlitePool>, role: S
          (ou peso; 1 se não souber), \"topics\": [\"tópico 1\", \"tópico 2\", ...]}}. Tópicos curtos, um por item, \
          na ordem do edital, sem numeração."
     );
-    emit(&app, format!("Pesquisando o edital de {role} na web…"), None);
+    emit(&app, 2, format!("Pesquisando o edital de {role} na web…"), None, &[]);
     let cwd = app.path().app_data_dir()?;
-    let on_progress = |t: String| emit(&app, t, None);
+    let on_progress = |t: String| emit(&app, 3, t, None, &[]);
     let text = claude::run_job(&cfg.claude_cli, &prompt, &cwd, &["WebSearch", "WebFetch"], None, on_progress, None).await?;
     let json = ai::json_array(&text).ok_or_else(|| AppError::Invalid("O Claude não devolveu uma lista de matérias".into()))?;
     let plan: Vec<PlanSubject> = serde_json::from_str(json).map_err(|e| AppError::Invalid(format!("Lista de matérias inválida: {e}")))?;
@@ -113,8 +117,18 @@ Se o trecho não tiver conteúdo programático, devolva {\"materias\":[]}.";
 #[specta::specta]
 pub async fn plan_from_edital(app: AppHandle, pool: State<'_, SqlitePool>, text: String, role: Option<String>) -> AppResult<Vec<PlanSubject>> {
     let cfg: AppConfig = settings::load(&pool).await?;
+    emit(&app, 2, "Consertando o texto do PDF e procurando o conteúdo programático…", None, &[]);
     // texto do PDF consertado → só o conteúdo programático (até o próximo anexo) → fatias por matéria
     let clean = edital::clean_pdf_text(&text);
+    // Edital com a estrutura usual (título em maiúsculas + itens 1, 2, 3…): lê por regra, exato e
+    // na hora, a partir do começo de conteúdo que render mais itens. A IA só entra sem essa estrutura.
+    if let Some(plan) = edital::best_structured(&clean, MAX_CHARS) {
+        let names: Vec<String> = plan.iter().map(|s| s.name.clone()).collect();
+        let topics: usize = plan.iter().map(|s| s.topics.len()).sum();
+        emit(&app, 4, format!("Li pela estrutura do edital: {} matérias e {topics} tópicos", plan.len()), Some(1.0), &names);
+        return Ok(plan);
+    }
+    emit(&app, 2, "O edital não segue o formato padrão: a IA local vai ler por partes", None, &[]);
     let section = edital::until_next_annex(edital::program_section(&clean));
     let section = text::head(section, MAX_CHARS);
     let parts = edital::chunks_by_subject(section, CHUNK_CHARS);
@@ -126,17 +140,37 @@ pub async fn plan_from_edital(app: AppHandle, pool: State<'_, SqlitePool>, text:
         .map_or(String::new(), |r| format!("Cargo de interesse: {r}. Se o edital separar conteúdo por cargo, pegue só o desse cargo e os conhecimentos comuns a todos.\n\n"));
 
     let mut found = Vec::new();
+    let mut names: Vec<String> = Vec::new();
     for (i, part) in parts.iter().enumerate() {
-        emit(&app, format!("Lendo o edital: parte {} de {}", i + 1, parts.len()), Some(i as f64 / parts.len() as f64));
+        // o que está nesta parte, para a tela mostrar ("lendo LÍNGUA PORTUGUESA, DIREITO…")
+        let heads: Vec<&str> = part.lines().map(str::trim).filter(|l| edital::is_heading(l)).take(3).collect();
+        let what = if heads.is_empty() { String::new() } else { format!(": {}", heads.join(", ")) };
+        emit(&app, 3, format!("IA lendo a parte {} de {}{what}", i + 1, parts.len()), Some(i as f64 / parts.len() as f64), &names);
         let user = format!("{role_hint}TRECHO DO EDITAL:\n{part}");
-        let (raw, _) = ai::complete(&app, &cfg, Task::Text, EDITAL_SYSTEM, &user, true).await?;
-        // Uma fatia ruim não derruba o resto: segue e avisa.
-        match ai::parse_object::<ChunkAnswer>(&raw, "Trecho do edital") {
-            Ok(a) => found.extend(a.materias.into_iter().map(|m| PlanSubject { name: m.nome, weight: m.peso.unwrap_or(1.0), topics: m.topicos })),
-            Err(_) => emit(&app, format!("Parte {} veio ilegível, pulei", i + 1), None),
+        // Fatia ilegível: tenta mais uma vez antes de pular (pular fazia matérias inteiras sumirem).
+        let mut answer = None;
+        for attempt in 0..2 {
+            let (raw, _) = ai::complete(&app, &cfg, Task::Text, EDITAL_SYSTEM, &user, true).await?;
+            match ai::parse_object::<ChunkAnswer>(&raw, "Trecho do edital") {
+                Ok(a) => {
+                    answer = Some(a);
+                    break;
+                }
+                Err(_) if attempt == 0 => emit(&app, 3, format!("A parte {} veio ilegível, a IA está tentando de novo", i + 1), None, &names),
+                Err(_) => emit(&app, 3, format!("A parte {} veio ilegível duas vezes e ficou de fora", i + 1), None, &names),
+            }
         }
+        if let Some(a) = answer {
+            for m in &a.materias {
+                if !m.topicos.is_empty() && !names.iter().any(|n| edital::subject_key(n) == edital::subject_key(&m.nome)) {
+                    names.push(m.nome.clone());
+                }
+            }
+            found.extend(a.materias.into_iter().map(|m| PlanSubject { name: m.nome, weight: m.peso.unwrap_or(1.0), topics: m.topicos }));
+        }
+        emit(&app, 3, format!("Parte {} de {} lida", i + 1, parts.len()), Some((i + 1) as f64 / parts.len() as f64), &names);
     }
-    emit(&app, "Juntando matérias repetidas…", Some(1.0));
+    emit(&app, 4, "Juntando matérias repetidas e conferindo os tópicos…", Some(1.0), &names);
     let plan = edital::merge(found);
     if plan.is_empty() {
         return Err(AppError::Invalid("Não achei matérias nesse texto. Ele tem o conteúdo programático?".into()));

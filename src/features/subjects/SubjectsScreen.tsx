@@ -58,7 +58,7 @@ export default function SubjectsScreen() {
 
   if (subjects === null) {
     return (
-      <div className="grid gap-6 @2xl:grid-cols-[320px_1fr]">
+      <div className="grid gap-6 @2xl:grid-cols-[320px_minmax(0,1fr)]">
         <Skeleton className="h-80 rounded-2xl" />
         <Skeleton className="h-80 rounded-2xl" />
       </div>
@@ -94,7 +94,7 @@ export default function SubjectsScreen() {
           <ImportEditalButton size="lg" label="Importar do edital" onApplied={() => void reload()} />
         </MascotEmpty>
       ) : (
-        <div className="grid items-start gap-6 @2xl:grid-cols-[320px_1fr]">
+        <div className="grid items-start gap-6 @2xl:grid-cols-[320px_minmax(0,1fr)]">
           <motion.ul variants={listIn} initial="hidden" animate="show" className="space-y-1">
             {subjects.map((s) => (
               <motion.li key={s.id} variants={itemIn}>

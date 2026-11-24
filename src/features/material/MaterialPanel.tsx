@@ -103,7 +103,7 @@ export function MaterialPanel({ topicId, topicName }: { topicId: number; topicNa
   );
 
   return (
-    <div className="grid h-full grid-cols-[300px_1fr]">
+    <div className="grid h-full grid-cols-[300px_minmax(0,1fr)]">
       <aside className="flex min-h-0 flex-col gap-5 overflow-y-auto border-r border-border p-5">
         <section className="space-y-2">
           <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Gerar agora</h3>

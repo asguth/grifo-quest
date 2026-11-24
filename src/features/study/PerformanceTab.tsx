@@ -50,7 +50,7 @@ export function PerformanceTab({ start }: { start: Start }) {
         <Kpi label={last ? `no último simulado (${localDay(last.started_at)})` : "nenhum simulado ainda"} value={last ? pct(ratio(last.correct, last.total)) : "—"} tone={accTone(last ? ratio(last.correct, last.total) : null)} />
       </motion.div>
 
-      <div className="grid items-start gap-4 @4xl:grid-cols-[1fr_1.3fr]">
+      <div className="grid items-start gap-4 @4xl:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
         <section className="space-y-3 rounded-2xl border border-border bg-card p-5">
           <header className="flex items-center gap-2">
             <Target className="size-5 text-destructive" />

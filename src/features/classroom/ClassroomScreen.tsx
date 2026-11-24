@@ -96,7 +96,7 @@ export default function ClassroomScreen() {
         </motion.div>
       ))}
 
-      <div className="grid gap-5 @2xl:grid-cols-[320px_1fr]">
+      <div className="grid gap-5 @2xl:grid-cols-[320px_minmax(0,1fr)]">
         <div className="space-y-2">
           <Label>Tópico</Label>
           <TopicPicker topics={topics} value={topicId} onChange={setTopicId} />
@@ -359,7 +359,7 @@ function Lesson({ classId, topic, onFinish }: { classId: number; topic: TopicRef
         </Button>
       </header>
 
-      <div className="grid gap-4 @4xl:grid-cols-[1fr_300px]">
+      <div className="grid gap-4 @4xl:grid-cols-[minmax(0,1fr)_300px]">
         {/* Turma em semicírculo */}
         <div className="relative h-64 overflow-hidden rounded-2xl border border-border bg-gradient-to-b from-card to-secondary/40">
           {/* Fala do aluno num balão central: nas pontas do semicírculo ele saía cortado. */}

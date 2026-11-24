@@ -1,7 +1,8 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
-import { Bug, DatabaseBackup, Lightbulb, RotateCcw, Save, Trash2 } from "lucide-react";
+import { Bot, Bug, Cog, DatabaseBackup, Lightbulb, Newspaper, Paintbrush, Plug, RotateCcw, Save, Timer, Trash2 } from "lucide-react";
+import { SectionTabs } from "@/components/SectionTabs";
 import { NativeSelect } from "@/components/fields";
 import { Segmented } from "@/components/Segmented";
 import { toast, toastError } from "@/components/toast";
@@ -50,23 +51,21 @@ type Tab = "integracoes" | "aparencia" | "pomodoro" | "concursos" | "ia" | "sist
 export default function SettingsScreen() {
   const [tab, setTab] = useState<Tab>("integracoes");
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="retro text-sm text-primary">Config</h1>
-        <Segmented
-          label="Seção"
-          value={tab}
-          onChange={setTab}
-          options={[
-            ["integracoes", "Integrações"],
-            ["aparencia", "Aparência"],
-            ["pomodoro", "Pomodoro"],
-            ["concursos", "Concursos e notícias"],
-            ["ia", "IA"],
-            ["sistema", "Sistema"],
-          ]}
-        />
-      </div>
+    <div className="mx-auto max-w-4xl space-y-5">
+      <h1 className="retro text-sm text-primary">Config</h1>
+      <SectionTabs
+        label="Seções da Config"
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { id: "integracoes", label: "Integrações", icon: Plug },
+          { id: "aparencia", label: "Aparência", icon: Paintbrush },
+          { id: "pomodoro", label: "Pomodoro", icon: Timer },
+          { id: "concursos", label: "Concursos", icon: Newspaper },
+          { id: "ia", label: "IA", icon: Bot },
+          { id: "sistema", label: "Sistema", icon: Cog },
+        ]}
+      />
       {tab === "integracoes" && <Integrations />}
       {tab === "aparencia" && <Appearance />}
       {tab === "pomodoro" && <Pomodoro />}

@@ -38,7 +38,7 @@ export function PracticeTab({ starting, start, hasTopics, onImported }: { starti
   if (!hasTopics) return <NoTopics onImported={() => (onImported(), load())} text="Monte o edital para treinar por matéria, por tópico ou fazer simulados." />;
 
   return (
-    <div className="grid items-start gap-4 @4xl:grid-cols-[1.5fr_1fr]">
+    <div className="grid items-start gap-4 @4xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
       <section className="space-y-3 rounded-2xl border border-border bg-card p-5">
         <header className="flex flex-wrap items-center gap-2">
           <div className="min-w-0 flex-1">

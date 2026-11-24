@@ -1831,7 +1831,7 @@ dependencies = [
 
 [[package]]
 name = "grifo-quest"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "base64 0.22.1",
  "cpal",
@@ -1857,11 +1857,12 @@ dependencies = [
  "tauri-specta",
  "thiserror 2.0.21",
  "tokio",
+ "unicode-normalization",
 ]
 
 [[package]]
 name = "grifo-quest-mcp"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "rmcp",
  "schemars 1.2.3",

@@ -1,6 +1,6 @@
 [package]
 name = "grifo-quest"
-version = "0.2.1"
+version = "0.2.2"
 description = "Monitor de estudos para concursos"
 authors = ["Alberto Guth"]
 license-file = "../LICENSE"
@@ -37,3 +37,4 @@ base64 = "0.22"
 cpal = "0.18"
 tauri-plugin-updater = "2"
 keyring = { version = "3", features = ["windows-native"] }
+unicode-normalization = "0.1"

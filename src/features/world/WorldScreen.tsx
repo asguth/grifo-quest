@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Segmented } from "@/components/Segmented";
+import { CalendarDays, Newspaper, Trophy } from "lucide-react";
+import { SectionTabs } from "@/components/SectionTabs";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/format";
 import { ContestTracker } from "./ContestTracker";
@@ -21,19 +22,17 @@ export default function WorldScreen() {
   });
   return (
     <div className="mx-auto max-w-6xl space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="retro text-sm text-primary">Mundo</h1>
-        <Segmented
-          label="Seção"
-          value={tab}
-          onChange={setTab}
-          options={[
-            ["news", "Notícias"],
-            ["contests", "Concursos"],
-            ["exams", "Minhas provas"],
-          ]}
-        />
-      </div>
+      <h1 className="retro text-sm text-primary">Mundo</h1>
+      <SectionTabs
+        label="Seções do Mundo"
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { id: "news", label: "Notícias", icon: Newspaper },
+          { id: "contests", label: "Concursos", icon: Trophy },
+          { id: "exams", label: "Minhas provas", icon: CalendarDays },
+        ]}
+      />
       {tab === "news" && <NewsBoard />}
       {tab === "contests" && <ContestTracker />}
       {tab === "exams" && <Exams />}

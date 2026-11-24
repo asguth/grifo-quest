@@ -20,6 +20,10 @@ Legenda: 🔵 planejado · ⚪ ideia (sem compromisso) · ✋ depende de você
 
 | | Item | Por quê |
 |---|---|---|
+| 🔵 | **Escolher o cargo/perfil na importação** | Edital com vários cargos (Dataprev: 14 perfis, 52 matérias) traz tudo; deveria trazer só o comum + o do seu cargo |
+| 🔵 | **Peso pelo quadro de provas** | O edital diz quantas questões tem cada matéria ("Língua Portuguesa 10", "Recursos Hídricos 20"); hoje todas entram com peso 1 |
+| 🔵 | **Datas do edital** | Inscrições, prova, recurso: a contagem regressiva ainda é manual |
+| 🔵 | **Regras da prova** | Certo/Errado ou A–E, nota mínima por prova (eliminatória), discursiva (tema e linhas), data de corte da legislação ("alterações até a publicação do edital") |
 | 🔵 | **Nota de corte e projeção** | Cadastrar a nota de corte e projetar a nota (acerto por matéria × peso): "faltam X pontos para passar" |
 | 🔵 | **Reta final** | Últimos 15 dias: só caderno de erros, flashcards e pontos fracos; sem matéria nova |
 | 🔵 | **Motivo do erro** | "Não sabia / confundi / falta de atenção / pegadinha" ao errar, visível no Desempenho (coluna nova + gráfico) |
@@ -52,6 +56,14 @@ Legenda: 🔵 planejado · ⚪ ideia (sem compromisso) · ✋ depende de você
 ---
 
 ## Entregue
+
+### 0.2.2 (nov/2026)
+- **Importar edital sem IA** quando o edital segue o formato das bancas (títulos em maiúsculas + itens 1, 2, 3…): exato e instantâneo. Testado em 4 editais reais e ao vivo: ANPD (14 matérias/105 tópicos), ANA 2024 Cebraspe (19/153), Dataprev FGV (52/549), TJRJ FGV (9/77).
+- Leitura robusta de edital oficial: títulos que quebram de linha, títulos corridos no meio do parágrafo, partes em algarismos romanos (de uma matéria ou de um cargo), subitens quando a matéria tem um item só, cabeçalho/rodapé e número de página fora, acentos decompostos (NFC), começo do conteúdo escolhido pelo que rende itens (edital cita "objetos de avaliação" antes da lista).
+- IA (quando o edital não segue o formato): temperatura 0 e nova tentativa em parte ilegível; tópico longo é encurtado, nunca descartado.
+- **Carregamento detalhado** na leitura: etapas, relógio, estimativa de quanto falta e matérias aparecendo na hora.
+- **Abas de seção** novas (Estudo, Mundo, Config): maiores, com ícone e destaque deslizante.
+- Layout em tela larga: colunas `fr` com `minmax(0,…)` em todo o app (a tela Estudo espremia a coluna da direita).
 
 ### 0.2.1 (nov/2026)
 - **Importar edital**: texto do PDF consertado (números e acentos quebrados, rodapés), corte no próximo anexo, fatias que nunca partem uma matéria ao meio, um tópico por item numerado (antes picotava itens e inventava matérias). Validado no edital da ANPD: 14 matérias e 105 tópicos, iguais ao PDF.

@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { FileUp, Loader2, Plus, Search, X } from "lucide-react";
-import { EventProgress, type ProgressEntry } from "@/components/Progress";
+import { ReadingProgress, type Reading } from "./ReadingProgress";
 import { toast, toastError } from "@/components/toast";
 import { Segmented } from "@/components/Segmented";
 import { Button } from "@/components/ui/button";
@@ -38,7 +38,7 @@ export function SubjectPlanner({ defaultRole = "", defaultBanca = "", onApplied 
   const [text, setText] = useState("");
   const [fileName, setFileName] = useState("");
   const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState<ProgressEntry | null>(null);
+  const [progress, setProgress] = useState<Reading | null>(null);
   const [plan, setPlan] = useState<Draft[] | null>(null);
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -49,7 +49,7 @@ export function SubjectPlanner({ defaultRole = "", defaultBanca = "", onApplied 
     if (!file.name.toLowerCase().endsWith(".pdf")) return toast("Esse arquivo não é PDF. Para texto, use “cole o texto” abaixo.", "error");
     if (file.size > MAX_PDF_MB * 1024 * 1024) return toast(`PDF acima de ${MAX_PDF_MB} MB`, "error");
     setBusy(true);
-    setProgress({ text: "Lendo o PDF…", progress: null });
+    setProgress({ step: 1, text: `Lendo o PDF ${file.name}…`, progress: null, found: [] });
     try {
       setText(await commands.pdfText(await toBase64(file)));
       setFileName(file.name);
@@ -64,7 +64,7 @@ export function SubjectPlanner({ defaultRole = "", defaultBanca = "", onApplied 
   async function run() {
     setBusy(true);
     setPlan(null);
-    setProgress(null);
+    setProgress({ step: 2, text: mode === "cargo" ? "Preparando a pesquisa…" : "Procurando o conteúdo programático…", progress: null, found: [] });
     try {
       const p = mode === "cargo" ? await commands.planFromRole(role, banca || null) : await commands.planFromEdital(text, role || null);
       setPlan(p.map((s, key) => ({ ...s, key })));
@@ -160,7 +160,7 @@ export function SubjectPlanner({ defaultRole = "", defaultBanca = "", onApplied 
               </div>
             </div>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-[1fr_180px]">
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
               <div className="space-y-1">
                 <Label htmlFor="planner-role2">Cargo</Label>
                 <Input id="planner-role2" value={role} onChange={(e) => setRole(e.target.value)} placeholder="Agente da Polícia Federal" />
@@ -180,8 +180,8 @@ export function SubjectPlanner({ defaultRole = "", defaultBanca = "", onApplied 
               {busy ? <Loader2 className="animate-spin" /> : <Search />}
               Montar minhas matérias
             </Button>
-            <EventProgress entry={progress} className="min-w-0 flex-1" />
           </div>
+          {progress && <ReadingProgress reading={progress} />}
         </>
       )}
 

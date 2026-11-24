@@ -68,4 +68,5 @@ Tauri 2, sqlx (SQLite), specta/tauri-specta, Tailwind v4, shadcn, Vitest, tauri-
 
 ## Convenções
 - Sem `unwrap()` fora de testes; sem `any` no TS. Textos de UI em pt-BR.
+- Grade com colunas `fr` sempre `minmax(0,Xfr)` (`grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]`): `1fr` puro cresce até caber o texto que tem `truncate` e quebra o layout em tela larga.
 - Atalhos deliberados: comentário `ponytail:` + evolução; listar em `ROADMAP.md` (Débitos técnicos). Ideias fora de escopo → `ROADMAP.md` (Depois).

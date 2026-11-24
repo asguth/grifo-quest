@@ -4,7 +4,7 @@ import { ArrowLeft, BarChart3, BookX, Crosshair, Layers, ListChecks, Minus, Play
 import { Mascot } from "@/components/Mascot";
 import { Count, Skeleton } from "@/components/motion";
 import { ProgressBar, ProgressRing } from "@/components/Progress";
-import { Segmented } from "@/components/Segmented";
+import { SectionTabs } from "@/components/SectionTabs";
 import { toastError } from "@/components/toast";
 import { Button } from "@/components/ui/button";
 import { commands, type SessionInfo, type SessionReport, type StudyHome, type WeakTopic } from "@/lib/bindings";
@@ -97,24 +97,14 @@ export default function StudyScreen() {
         )}
         {view.k === "tabs" && (
           <div className="@container space-y-6">
-            <Segmented
+            <SectionTabs
               label="Seções do estudo"
               value={tab}
               onChange={(t) => {
                 sfx("nav");
                 setTab(t);
               }}
-              options={TABS.map((t) => {
-                const n = badge[t.id] ?? 0;
-                const Icon = t.icon;
-                return [
-                  t.id,
-                  <>
-                    <Icon /> {t.label}
-                    {n > 0 && <span className="tabular grid h-[18px] min-w-[18px] place-items-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-white">{n > 99 ? "99+" : n}</span>}
-                  </>,
-                ];
-              })}
+              tabs={TABS.map((t) => ({ ...t, badge: badge[t.id] ?? 0 }))}
             />
 
             <AnimatePresence mode="wait">
@@ -208,7 +198,7 @@ function Home({
         </Button>
       </section>
 
-      <div className="grid gap-4 @4xl:grid-cols-[1.4fr_1fr]">
+      <div className="grid gap-4 @4xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
           <header className="flex items-center gap-2">
             <Crosshair className="size-5 text-destructive" />
