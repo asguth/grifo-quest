@@ -1,6 +1,6 @@
 [package]
 name = "grifo-quest"
-version = "0.3.0"
+version = "0.4.0"
 description = "Monitor de estudos para concursos"
 authors = ["Alberto Guth"]
 license-file = "../LICENSE"
@@ -9,10 +9,6 @@ edition = "2024"
 [lib]
 name = "grifo_quest_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
-
-[features]
-# Versão Cloud (assinatura): conta, comunidade e backup na nuvem. O build base sai sem.
-cloud = []
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

@@ -2,7 +2,8 @@
 //! O token de renovação fica no Cofre de Credenciais do Windows (nunca no banco, que o servidor MCP
 //! lê); o token de acesso só na memória, renovado antes de vencer. O banco de estudos continua local:
 //! a conta serve só a quem assina o Grifo Quest Cloud (comunidade e backup na nuvem).
-//! Fora do build com a feature `cloud`, os comandos existem (os bindings são os mesmos) mas recusam.
+//! Um instalador só para todos: quem não entra na conta não vê nada disso. Build sem `cloud.env`
+//! (forks do código aberto) não tem a nuvem: os comandos existem (mesmos bindings) mas recusam.
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -14,7 +15,7 @@ use crate::error::{AppError, AppResult};
 use crate::sys;
 
 /// Projeto e chave publicável do Supabase, vindos do `src-tauri/cloud.env` (fora do git) ou do ambiente
-/// no build da versão Cloud. Nada disso fica no repositório público.
+/// no build oficial. Nada disso fica no repositório público.
 pub const URL: &str = match option_env!("GRIFO_SUPABASE_URL") {
     Some(u) => u,
     None => "",
@@ -24,8 +25,8 @@ pub const KEY: &str = match option_env!("GRIFO_SUPABASE_KEY") {
     None => "",
 };
 
-/// Build com nuvem (feature `cloud`) e projeto configurado.
-pub const ENABLED: bool = cfg!(feature = "cloud") && !KEY.is_empty() && !URL.is_empty();
+/// Build com o projeto da nuvem configurado (`src-tauri/cloud.env`).
+pub const ENABLED: bool = !KEY.is_empty() && !URL.is_empty();
 
 const TIMEOUT: Duration = Duration::from_secs(20);
 const KEYRING_SERVICE: &str = "dev.grifoquest.app";
@@ -54,7 +55,7 @@ pub struct AccountState(Mutex<Option<Session>>);
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct AccountStatus {
-    /// Este build tem a nuvem (versão Cloud). Falso = esconder tudo de conta e comunidade.
+    /// Este build tem a nuvem configurada. Falso = esconder tudo de conta e comunidade.
     pub available: bool,
     pub signed_in: bool,
     pub email: Option<String>,
@@ -92,9 +93,14 @@ fn needs_refresh(expires_at: i64, now: i64) -> bool {
     expires_at - now < REFRESH_MARGIN
 }
 
+/// Erro claro fora da versão Cloud (comandos que só fazem sentido com a nuvem).
+pub fn require() -> AppResult<()> {
+    configured()
+}
+
 fn configured() -> AppResult<()> {
     if !ENABLED {
-        return Err(AppError::Invalid("Disponível só no Grifo Quest Cloud.".into()));
+        return Err(AppError::Invalid("A nuvem não está configurada neste build do Grifo Quest.".into()));
     }
     Ok(())
 }

@@ -52,7 +52,10 @@ export function QuestionRunner({ session, onFinish }: { session: SessionInfo; on
 
   const finish = useCallback(async () => {
     try {
-      onFinish(await commands.finishSession(session.id));
+      const report = await commands.finishSession(session.id);
+      onFinish(report);
+      // versão Cloud: vira card no mural se a pessoa compartilha os estudos (carregado só aqui)
+      void import("@/features/community/share").then((m) => m.shareSession(report)).catch((e) => warn("publicar a sessão no mural", e));
     } catch (e) {
       toastError(e);
     }

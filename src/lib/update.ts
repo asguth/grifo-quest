@@ -4,7 +4,7 @@ import { useTauriEvent } from "@/lib/hooks";
 import { toastError } from "@/components/toast";
 import { warn } from "@/lib/utils";
 
-/** Versão nova já baixada (o Rust procura sozinho ao abrir e a cada 6 h). */
+/** Versão nova já baixada (o Rust procura sozinho uma vez por dia). */
 export function useUpdate() {
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   useEffect(() => {
@@ -17,3 +17,4 @@ export function useUpdate() {
 export function installUpdate() {
   return commands.installUpdate().catch(toastError);
 }
+

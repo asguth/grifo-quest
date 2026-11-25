@@ -11,11 +11,6 @@ export const UNLOCKS: Record<Exclude<MascotLook, "base">, { level: number; text:
   crown: { level: 10, text: "Coroa desbloqueada. Respeito." },
 };
 
-/** Texto guardado (perfil da comunidade) → visual conhecido; o resto vira o Grifinho padrão. */
-export function lookOf(s: string): MascotLook {
-  return s === "cap" || s === "crown" ? s : "base";
-}
-
 export function tierOf(level: number): MascotLook {
   return level >= UNLOCKS.crown.level ? "crown" : level >= UNLOCKS.cap.level ? "cap" : "base";
 }

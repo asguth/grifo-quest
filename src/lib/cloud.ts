@@ -66,3 +66,21 @@ export async function rest<T>(path: string, init: Init = {}): Promise<T> {
   if (!res.ok) throw new Error(cloudMessage(res.status, text));
   return (text ? JSON.parse(text) : null) as T;
 }
+
+/** Envia uma imagem nova ao bucket público `media` e devolve o endereço público. */
+export async function uploadImage(path: string, image: Blob): Promise<string> {
+  const a = await access();
+  let res: Response;
+  try {
+    res = await fetch(`${a.url}/storage/v1/object/media/${path}`, {
+      method: "POST",
+      // sem upsert: cada foto tem nome novo (o upsert exige mais permissões no Storage)
+      headers: { apikey: a.key, Authorization: `Bearer ${a.token}`, "Content-Type": image.type },
+      body: image,
+    });
+  } catch {
+    throw new Error("Sem conexão para enviar a foto.");
+  }
+  if (!res.ok) throw new Error(cloudMessage(res.status, await res.text()));
+  return `${a.url}/storage/v1/object/public/media/${path}`;
+}

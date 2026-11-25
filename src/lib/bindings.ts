@@ -13,6 +13,7 @@ export const commands = {
 	accountAccess: (options?: InvokeOptions) => __TAURI_INVOKE<CloudAccess>("account_access", undefined, options),
 	accountSignOut: (options?: InvokeOptions) => __TAURI_INVOKE<null>("account_sign_out", undefined, options),
 	accountPlan: (options?: InvokeOptions) => __TAURI_INVOKE<Plan_Serialize>("account_plan", undefined, options),
+	dailyQuestionDraft: (theme: string, options?: InvokeOptions) => __TAURI_INVOKE<DailyDraft>("daily_question_draft", { theme }, options),
 	listSubjects: (options?: InvokeOptions) => __TAURI_INVOKE<Subject[]>("list_subjects", undefined, options),
 	createSubject: (input: SubjectInput, options?: InvokeOptions) => __TAURI_INVOKE<number>("create_subject", { input }, options),
 	updateSubject: (id: number, input: SubjectInput, options?: InvokeOptions) => __TAURI_INVOKE<null>("update_subject", { id, input }, options),
@@ -238,7 +239,7 @@ export type Account = Account_Serialize | Account_Deserialize;
 export type AccountStatus = AccountStatus_Serialize | AccountStatus_Deserialize;
 
 export type AccountStatus_Deserialize = {
-	/**  Este build tem a nuvem (versão Cloud). Falso = esconder tudo de conta e comunidade. */
+	/**  Este build tem a nuvem configurada. Falso = esconder tudo de conta e comunidade. */
 	available: boolean,
 	signed_in: boolean,
 	email?: string | null,
@@ -246,7 +247,7 @@ export type AccountStatus_Deserialize = {
 };
 
 export type AccountStatus_Serialize = {
-	/**  Este build tem a nuvem (versão Cloud). Falso = esconder tudo de conta e comunidade. */
+	/**  Este build tem a nuvem configurada. Falso = esconder tudo de conta e comunidade. */
 	available: boolean,
 	signed_in: boolean,
 	email: string | null,
@@ -501,6 +502,15 @@ export type CycleSubject = {
 	id: number,
 	name: string,
 	color: string,
+};
+
+/**  Questão pronta para ir ao servidor (`daily_questions`). */
+export type DailyDraft = {
+	statement: string,
+	options: string[],
+	/**  Índice da alternativa certa (0 = A). */
+	answer: number,
+	explanation: string,
 };
 
 export type Dashboard = Dashboard_Serialize | Dashboard_Deserialize;

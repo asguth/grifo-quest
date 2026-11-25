@@ -1,5 +1,6 @@
 pub mod account;
 pub mod classroom;
+pub mod community;
 pub mod config;
 pub mod diary;
 pub mod integrations;

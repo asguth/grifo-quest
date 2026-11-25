@@ -1,45 +1,76 @@
 import { useCallback, useEffect, useRef, useState, type DependencyList, type ReactNode } from "react";
-import { Flag } from "lucide-react";
-import { lookOf, Mascot } from "@/components/Mascot";
+import { Camera, Flag, Users } from "lucide-react";
 import { toast, toastError } from "@/components/toast";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { PersonPhoto } from "@/components/PersonPhoto";
 import { cn, errorMessage } from "@/lib/utils";
 import { report, type Mini, type ReportKind } from "./api";
 
 /** Para onde a tela da comunidade está olhando. */
-export type Route = { kind: "home" } | { kind: "profile"; id: string } | { kind: "community"; id: string } | { kind: "topic"; id: string };
+export type Route = { kind: "home" } | { kind: "profile"; id: string } | { kind: "community"; id: string } | { kind: "topic"; id: string } | { kind: "item"; id: string };
 export type Open = (r: Route) => void;
 
+export { PersonPhoto };
 
-export function Avatar({ avatar, scale = 3, className }: { avatar: string; scale?: number; className?: string }) {
+/** Foto da comunidade (quadrada); sem foto, um ícone neutro. */
+export function CommunityPhoto({ c, size = 48, className }: { c: { photo_url: string | null }; size?: number; className?: string }) {
+  const style = { width: size, height: size };
+  if (c.photo_url) return <img src={c.photo_url} alt="" style={style} className={cn("shrink-0 rounded-xl bg-secondary object-cover", className)} loading="lazy" />;
   return (
-    <span className={cn("grid shrink-0 place-items-center rounded-xl bg-secondary", className)}>
-      <Mascot look={lookOf(avatar)} scale={scale} title="" />
+    <span style={style} className={cn("grid shrink-0 place-items-center rounded-xl bg-secondary text-muted-foreground", className)}>
+      <Users className="size-1/2" />
     </span>
+  );
+}
+
+/** Botão que abre o seletor de imagem. `onPick` recebe o arquivo. */
+export function PhotoButton({ label, onPick, busy, className }: { label: string; onPick: (f: File) => void; busy?: boolean; className?: string }) {
+  const input = useRef<HTMLInputElement>(null);
+  return (
+    <>
+      <input
+        ref={input}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (f) onPick(f);
+        }}
+      />
+      <Button type="button" variant="outline" size="sm" disabled={busy} className={className} onClick={() => input.current?.click()}>
+        <Camera /> {busy ? "Enviando…" : label}
+      </Button>
+    </>
   );
 }
 
 /** Nome clicável de alguém (abre o perfil). */
 export function PersonLink({ p, open, className }: { p: Mini; open: Open; className?: string }) {
   return (
-    <button className={cn("font-medium text-primary underline-offset-4 hover:underline", className)} onClick={() => open({ kind: "profile", id: p.id })}>
+    <button className={cn("font-medium underline-offset-4 hover:text-primary hover:underline", className)} onClick={() => open({ kind: "profile", id: p.id })}>
       {p.display_name}
     </button>
   );
 }
 
-/** Caixa com título e contador, no estilo dos quadros do perfil. */
-export function Box({ title, count, action, children, className }: { title: string; count?: number; action?: ReactNode; children: ReactNode; className?: string }) {
+/** Caixa com título e contador. */
+export function Box({ title, count, action, children, className }: { title?: string; count?: number; action?: ReactNode; children: ReactNode; className?: string }) {
   return (
     <section className={cn("space-y-3 rounded-2xl border border-border bg-card p-4 shadow-soft", className)}>
-      <header className="flex items-center gap-2">
-        <h2 className="font-semibold">
-          {title}
-          {count !== undefined && <span className="ml-1.5 text-sm font-normal text-muted-foreground">({count})</span>}
-        </h2>
-        <span className="ml-auto">{action}</span>
-      </header>
+      {(title || action) && (
+        <header className="flex items-center gap-2">
+          {title && (
+            <h2 className="text-sm font-semibold">
+              {title}
+              {count !== undefined && <span className="ml-1.5 font-normal text-muted-foreground">({count})</span>}
+            </h2>
+          )}
+          <span className="ml-auto">{action}</span>
+        </header>
+      )}
       {children}
     </section>
   );
@@ -53,7 +84,7 @@ export function PeopleGrid({ people, open, empty }: { people: Mini[]; open: Open
       {people.slice(0, 9).map((p) => (
         <li key={p.id}>
           <button onClick={() => open({ kind: "profile", id: p.id })} className="flex w-full flex-col items-center gap-1 rounded-xl p-1.5 hover:bg-secondary">
-            <Avatar avatar={p.avatar} scale={2} className="size-12" />
+            <PersonPhoto p={p} size={48} />
             <span className="w-full truncate text-center text-xs">{p.display_name}</span>
           </button>
         </li>
@@ -88,7 +119,7 @@ export function useLoad<T>(load: () => Promise<T>, deps: DependencyList) {
     };
   }, [...deps, tick]);
   const reload = useCallback(() => setTick((t) => t + 1), []);
-  return { data, error, reload };
+  return { data, error, reload, setData };
 }
 
 /** Executa uma ação (enviar, apagar…) com aviso de erro e trava contra clique duplo. */
@@ -111,14 +142,14 @@ export function useAction() {
   return { busy, act };
 }
 
-/** Caixa de texto com botão de enviar (recado, resposta, depoimento). Limpa ao enviar. */
-export function Composer({ placeholder, max, label, onSend }: { placeholder: string; max: number; label: string; onSend: (text: string) => Promise<boolean> }) {
+/** Caixa de texto com botão de enviar (recado, resposta, comentário). Limpa ao enviar. */
+export function Composer({ placeholder, max, label, onSend, compact }: { placeholder: string; max: number; label: string; onSend: (text: string) => Promise<boolean>; compact?: boolean }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const left = max - text.length;
   return (
     <form
-      className="space-y-2"
+      className={cn(compact ? "flex items-end gap-2" : "space-y-2")}
       onSubmit={(e) => {
         e.preventDefault();
         if (!text.trim() || busy) return;
@@ -129,9 +160,9 @@ export function Composer({ placeholder, max, label, onSend }: { placeholder: str
         });
       }}
     >
-      <Textarea value={text} maxLength={max} placeholder={placeholder} onChange={(e) => setText(e.target.value)} className="min-h-20" />
-      <div className="flex items-center justify-end gap-3">
-        {left < 100 && <span className="tabular text-xs text-muted-foreground">{left}</span>}
+      <Textarea value={text} maxLength={max} placeholder={placeholder} onChange={(e) => setText(e.target.value)} className={compact ? "min-h-9 flex-1 py-1.5" : "min-h-20"} />
+      <div className={cn("flex items-center justify-end gap-3", compact && "shrink-0")}>
+        {!compact && left < 100 && <span className="tabular text-xs text-muted-foreground">{left}</span>}
         <Button type="submit" size="sm" disabled={busy || !text.trim()}>
           {label}
         </Button>

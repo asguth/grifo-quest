@@ -3,7 +3,7 @@ import { Skeleton } from "@/components/motion";
 import { Button } from "@/components/ui/button";
 import { ago } from "@/lib/format";
 import { deletePost, deleteTopic, members, postsOf, reply, setTopicFlags, topic as loadTopic, type Mini } from "./api";
-import { Avatar, Box, Composer, PersonLink, ReportButton, useAction, useLoad, type Open } from "./ui";
+import { Box, Composer, PersonLink, PersonPhoto, ReportButton, useAction, useLoad, type Open } from "./ui";
 
 /** Um tópico do fórum com as respostas, em ordem. */
 export function TopicView({ id, me, open, back }: { id: string; me: string; open: Open; back: () => void }) {
@@ -23,7 +23,7 @@ export function TopicView({ id, me, open, back }: { id: string; me: string; open
   const member = !!role;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className="space-y-4">
       <article className="space-y-3 rounded-2xl border border-border bg-card p-5 shadow-soft">
         <div className="flex items-center gap-2">
           {topic.pinned && <Pin className="size-4 text-primary" />}
@@ -107,7 +107,7 @@ export function TopicView({ id, me, open, back }: { id: string; me: string; open
 function Message({ author, at, body, open }: { author: Mini; at: string; body: string; open: Open }) {
   return (
     <div className="flex gap-3">
-      <Avatar avatar={author.avatar} scale={2} className="size-10" />
+      <PersonPhoto p={author} size={40} />
       <div className="min-w-0 flex-1 space-y-1">
         <p className="text-sm">
           <PersonLink p={author} open={open} /> <span className="text-xs text-muted-foreground">@{author.handle} · {ago(at)}</span>

@@ -1,9 +1,11 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { LogIn, PanelLeftClose, PanelLeftOpen, Pause, Play } from "lucide-react";
-import { lookOf, Mascot } from "@/components/Mascot";
+import { PanelLeftClose, PanelLeftOpen, Pause, Play } from "lucide-react";
+import { Mascot } from "@/components/Mascot";
+import { PersonPhoto } from "@/components/PersonPhoto";
 import type { Account } from "@/lib/access";
+import { tierOf } from "@/lib/tiers";
 import { commands, type NavBadges } from "@/lib/bindings";
 import { spring } from "@/lib/motion";
 import { getFlag, saveFlag } from "@/lib/prefs";
@@ -186,42 +188,28 @@ export function Sidebar({ slot, go, account }: { slot: SlotId; go: Navigate; acc
   );
 }
 
-/** Quem está logado (versão Cloud): nome e avatar; sem login, o convite para entrar. Leva à Config → Conta. */
+/** Quem está logado: nome, foto e plano. Leva à Config → Conta. */
 function AccountChip({ account, collapsed, go }: { account: Account; collapsed: boolean; go: Navigate }) {
   if (!account.available) return null;
+  const tier = tierOf(account.plan);
   const openAccount = () => {
     requestSettingsTab("conta");
     go("config");
   };
-  if (!account.signedIn) {
-    return (
-      <button
-        onClick={openAccount}
-        title={collapsed ? "Entrar no Grifo Quest Cloud" : undefined}
-        className={cn(
-          "mb-3 flex h-10 items-center gap-2 rounded-lg border border-dashed border-primary/50 text-sm text-primary hover:bg-primary/10",
-          collapsed ? "justify-center px-0" : "px-3",
-        )}
-      >
-        <LogIn className="size-4 shrink-0" />
-        {!collapsed && <span className="truncate font-medium">Entrar na conta</span>}
-      </button>
-    );
-  }
+  // sem login, nada no menu: quem não assina não é incomodado (a conta fica em Config → Conta)
+  if (!account.signedIn) return null;
   return (
     <button
       onClick={openAccount}
       title={collapsed ? account.name : account.email}
       className={cn("mb-3 flex items-center gap-2.5 rounded-xl bg-secondary/60 p-1.5 text-left hover:bg-secondary", collapsed && "justify-center")}
     >
-      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-card">
-        <Mascot look={lookOf(account.avatar)} scale={1.5} title="" />
-      </span>
+      <PersonPhoto p={{ id: account.id, display_name: account.name, photo_url: account.photo }} size={36} />
       {!collapsed && (
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium">{account.name}</span>
-          <span className={cn("block truncate text-[11px]", account.community ? "text-primary" : "text-muted-foreground")}>
-            {account.community ? "Cloud ativo" : "sem assinatura"}
+          <span className="block truncate text-[11px]" style={tier ? { color: tier.tone.fg } : undefined}>
+            {tier ? tier.name : account.community ? "Cloud ativo" : "sem assinatura"}
           </span>
         </span>
       )}

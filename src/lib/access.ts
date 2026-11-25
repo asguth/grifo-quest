@@ -11,34 +11,41 @@ export type Account = {
   email: string;
   /** Nome do perfil da comunidade; sem perfil (sem assinatura), a parte antes do @ do e-mail. */
   name: string;
-  /** Visual do Grifinho escolhido no perfil. */
-  avatar: string;
+  /** Para a cor das iniciais (estável por pessoa). */
+  id: string;
+  /** Foto do perfil da comunidade, se tiver. */
+  photo: string | null;
   /** Assinatura ativa: libera a Comunidade (quem decide de verdade é o servidor). */
   community: boolean;
+  /** Plano ativo (escudeiro, forjador, ancestral). */
+  plan: string | null;
 };
 
-export const NO_ACCOUNT: Account = { available: false, signedIn: false, email: "", name: "", avatar: "base", community: false };
+export const NO_ACCOUNT: Account = { available: false, signedIn: false, email: "", name: "", id: "", photo: null, community: false, plan: null };
 
 async function loadAccount(): Promise<Account> {
   const s = await commands.accountStatus();
   if (!s.available) return NO_ACCOUNT;
   const email = s.email ?? "";
-  const base: Account = { ...NO_ACCOUNT, available: true, signedIn: s.signed_in, email, name: email.split("@")[0] ?? "" };
+  const base: Account = { ...NO_ACCOUNT, available: true, signedIn: s.signed_in, email, id: s.user_id ?? email, name: email.split("@")[0] ?? "" };
   if (!s.signed_in) return base;
   let community = false;
+  let plan: string | null = null;
   try {
-    community = (await commands.accountPlan()).active;
+    const p = await commands.accountPlan();
+    community = p.active;
+    plan = p.active ? p.plan : null;
   } catch (e) {
     warn("conferir a assinatura", e);
   }
-  if (!community || !s.user_id) return { ...base, community };
+  if (!community || !s.user_id) return { ...base, community, plan };
   try {
-    const rows = await rest<{ display_name: string; avatar: string }[]>(`profiles?id=eq.${s.user_id}&select=display_name,avatar`);
+    const rows = await rest<{ display_name: string; photo_url: string | null }[]>(`profiles?id=eq.${s.user_id}&select=display_name,photo_url`);
     const p = rows[0];
-    return p ? { ...base, community, name: p.display_name, avatar: p.avatar } : { ...base, community };
+    return p ? { ...base, community, plan, name: p.display_name, photo: p.photo_url } : { ...base, community, plan };
   } catch (e) {
     warn("ler o perfil", e);
-    return { ...base, community };
+    return { ...base, community, plan };
   }
 }
 

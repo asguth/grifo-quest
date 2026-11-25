@@ -1,18 +1,18 @@
-//! Atualização automática: procura uma versão nova nas Releases do GitHub (ao abrir e a cada 6 h),
-//! baixa em segundo plano e avisa. Instalar fecha o app, roda o instalador e abre a versão nova.
+//! Atualização automática: procura uma versão nova nas Releases do GitHub uma vez por dia, baixa em
+//! segundo plano e mostra o botão "Atualizar" no menu, sem notificação do Windows (ninguém é
+//! interrompido). Instalar fecha o app, roda o instalador e abre a versão nova.
 
 use std::sync::Mutex;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
-use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_updater::{Update, UpdaterExt};
 use tauri_specta::Event;
 
 use crate::error::{AppError, AppResult};
 
-const CHECK_EVERY: Duration = Duration::from_secs(6 * 3600);
+const CHECK_EVERY: Duration = Duration::from_secs(24 * 3600);
 
 /// Atualização já baixada, esperando o usuário reiniciar. `fetching` evita dois downloads ao mesmo
 /// tempo (checagem de fundo + botão "Procurar").
@@ -63,14 +63,10 @@ async fn fetch(app: &AppHandle) -> AppResult<Option<UpdateInfo>> {
     let info = UpdateInfo::of(&update);
     *pending.lock() = Some((update, bytes));
     let _ = UpdateReady(info.clone()).emit(app);
-    let body = format!("A versão {} está pronta. Abra o Grifo Quest e clique em Atualizar.", info.version);
-    if let Err(e) = app.notification().builder().title("Atualização do Grifo Quest").body(body).show() {
-        eprintln!("notificação: {e}");
-    }
     Ok(Some(info))
 }
 
-/// Ao abrir e a cada 6 h. Em debug não procura: o binário de desenvolvimento não é o instalado.
+/// Ao abrir e depois uma vez por dia. Em debug não procura: o binário de desenvolvimento não é o instalado.
 pub fn spawn_update_checker(app: AppHandle) {
     if cfg!(debug_assertions) {
         return;

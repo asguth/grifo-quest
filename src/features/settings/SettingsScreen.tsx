@@ -856,7 +856,7 @@ function Updates() {
         <div className="text-sm">
           <p className="font-medium">Grifo Quest {version}</p>
           <p className="text-xs text-muted-foreground">
-            {status || "Procura atualizações sozinho ao abrir e a cada 6 horas."}
+            {status || "Procura sozinho uma vez por dia, baixa em silêncio e só instala quando você clicar em Atualizar."}
           </p>
         </div>
         {ready ? (
