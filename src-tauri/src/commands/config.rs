@@ -56,20 +56,32 @@ pub async fn set_ui_pref(pool: State<'_, SqlitePool>, key: UiKey, value: String)
     settings::set_ui_pref(&pool, key, &value).await
 }
 
-fn backup_dir(app: &tauri::AppHandle) -> AppResult<std::path::PathBuf> {
+pub(crate) fn backup_dir(app: &tauri::AppHandle) -> AppResult<std::path::PathBuf> {
     use tauri::Manager;
     Ok(app.path().document_dir()?.join("Grifo Quest").join("backups"))
 }
 
+pub(crate) fn now_secs() -> i64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs() as i64)
+}
+
+/// `grifo-AAAA-MM-DD-HHMMSS` (UTC): nomes de backup em ordem alfabética = ordem de tempo.
+pub(crate) fn stamp(secs: i64) -> String {
+    let hms = secs.rem_euclid(86_400);
+    format!("grifo-{}-{:02}{:02}{:02}", crate::domain::news::iso_date(secs), hms / 3600, hms / 60 % 60, hms % 60)
+}
+
 /// `VACUUM INTO` gera um arquivo consistente mesmo com o app aberto (WAL incluído).
+pub(crate) async fn snapshot(pool: &SqlitePool, path: &std::path::Path) -> AppResult<()> {
+    sqlx::query("VACUUM INTO ?").bind(path.to_string_lossy().to_string()).execute(pool).await?;
+    Ok(())
+}
+
 async fn write_backup(app: &tauri::AppHandle, pool: &SqlitePool, tag: &str) -> AppResult<std::path::PathBuf> {
     let dir = backup_dir(app)?;
     std::fs::create_dir_all(&dir)?;
-    let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs() as i64);
-    let hms = secs.rem_euclid(86_400);
-    let name = format!("grifo-{}-{:02}{:02}{:02}{tag}.db", crate::domain::news::iso_date(secs), hms / 3600, hms / 60 % 60, hms % 60);
-    let path = dir.join(name);
-    sqlx::query("VACUUM INTO ?").bind(path.to_string_lossy().to_string()).execute(pool).await?;
+    let path = dir.join(format!("{}{tag}.db", stamp(now_secs())));
+    snapshot(pool, &path).await?;
     Ok(path)
 }
 
@@ -114,12 +126,17 @@ pub fn list_backups(app: tauri::AppHandle) -> AppResult<Vec<BackupFile>> {
 #[tauri::command]
 #[specta::specta]
 pub async fn restore_backup(app: tauri::AppHandle, pool: State<'_, SqlitePool>, name: String) -> AppResult<()> {
+    restore_named(&app, &pool, name).await
+}
+
+/// Troca o banco por `name` da pasta de backups e reinicia (também usado pelo backup da nuvem).
+pub(crate) async fn restore_named(app: &tauri::AppHandle, pool: &SqlitePool, name: String) -> AppResult<()> {
     use tauri::Manager;
     // só um nome de arquivo da própria pasta (nada de caminho vindo de fora)
     if name.contains(['/', '\\']) || name.contains("..") || !name.ends_with(".db") {
         return Err(AppError::Invalid("Backup inválido".into()));
     }
-    let src = backup_dir(&app)?.join(&name);
+    let src = backup_dir(app)?.join(&name);
     if !src.is_file() {
         return Err(AppError::Invalid("Backup não encontrado".into()));
     }
@@ -137,7 +154,7 @@ pub async fn restore_backup(app: tauri::AppHandle, pool: State<'_, SqlitePool>, 
     if !valid {
         return Err(AppError::Invalid("Esse arquivo não é um backup do Grifo Quest".into()));
     }
-    write_backup(&app, &pool, "-antes-de-restaurar").await?;
+    write_backup(app, pool, "-antes-de-restaurar").await?;
     pool.close().await;
     let db = app.path().app_data_dir()?.join(crate::sys::DB_FILE);
     for ext in ["-wal", "-shm"] {

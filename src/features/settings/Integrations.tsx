@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/motion";
 import { EventProgress, type ProgressEntry } from "@/components/Progress";
 import { toast, toastError } from "@/components/toast";
 import { Button } from "@/components/ui/button";
-import { commands, events, type IntegrationsStatus } from "@/lib/bindings";
+import { commands, events, type IntegrationsStatus, type McpTarget } from "@/lib/bindings";
 import { useTauriEvent } from "@/lib/hooks";
 import { itemIn, listIn } from "@/lib/motion";
 import { useHasPtVoice } from "@/lib/speech";
@@ -362,6 +362,15 @@ export function Integrations({ setup = false }: { setup?: boolean }) {
       </motion.ul>
 
       {!setup && (
+        <McpCard
+          s={s}
+          busy={busy}
+          connect={(key, target) => void act(key, () => commands.connectMcp(target))}
+          spin={spin}
+        />
+      )}
+
+      {!setup && (
         <section className="rounded-2xl border border-border">
           <button
             className="flex w-full items-center gap-3 p-4 text-left"
@@ -370,7 +379,7 @@ export function Integrations({ setup = false }: { setup?: boolean }) {
           >
             <KeyRound className="size-5 text-muted-foreground" />
             <span className="flex-1">
-              <span className="block font-medium">Avançado: chave de API e conexão com o Claude Desktop</span>
+              <span className="block font-medium">Avançado: chave de API</span>
               <span className="block text-xs text-muted-foreground">
                 Gemini, GPT pela API, Grok, DeepSeek… cobrados por uso na sua conta do serviço. {s.cloud_keys > 0 && `${s.cloud_keys} chave(s) salva(s).`}
               </span>
@@ -385,31 +394,68 @@ export function Integrations({ setup = false }: { setup?: boolean }) {
                 </p>
                 <CloudKeys onChange={() => void check()} />
               </div>
-              <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
-                <Plug className="size-4 text-primary" />
-                <span className="flex-1 text-sm">
-                  <b>Seus dados no Claude (MCP)</b>{" "}
-                  <span className="text-muted-foreground">
-                    · {[s.mcp_code && "Claude Code", s.mcp_desktop && "Claude Desktop"].filter(Boolean).join(" + ") || "não conectado"} — o Claude lê seu progresso (só leitura).
-                  </span>
-                </span>
-                {s.mcp_built ? (
-                  <>
-                    <Button size="sm" variant="secondary" disabled={!!busy} onClick={() => void act("mcp-code", () => commands.connectMcp("claude_code"))}>
-                      {spin("mcp-code")} {s.mcp_code ? "Reconectar" : "Conectar"} Claude Code
-                    </Button>
-                    <Button size="sm" variant="secondary" disabled={!!busy} onClick={() => void act("mcp-desktop", () => commands.connectMcp("claude_desktop"))}>
-                      {spin("mcp-desktop")} {s.mcp_desktop ? "Reconectar" : "Conectar"} Claude Desktop
-                    </Button>
-                  </>
-                ) : (
-                  <span className="text-xs text-muted-foreground">servidor não compilado</span>
-                )}
-              </div>
             </div>
           )}
         </section>
       )}
     </div>
+  );
+}
+
+/** Seus dados dentro do Claude e do ChatGPT: o servidor MCP do Grifo (só leitura). */
+function McpCard({
+  s,
+  busy,
+  connect,
+  spin,
+}: {
+  s: IntegrationsStatus;
+  busy: string | null;
+  connect: (key: string, target: McpTarget) => void;
+  spin: (key: string) => ReactNode;
+}) {
+  const targets: { key: string; target: McpTarget; app: string; on: boolean; ready: boolean; hint: string }[] = [
+    { key: "mcp-code", target: "claude_code", app: "Claude Code", on: s.mcp_code, ready: !!s.claude_version, hint: "Instale o Claude acima" },
+    { key: "mcp-desktop", target: "claude_desktop", app: "Claude Desktop", on: s.mcp_desktop, ready: true, hint: "" },
+    { key: "mcp-codex", target: "codex", app: "ChatGPT (Codex)", on: s.mcp_codex, ready: !!s.chatgpt_version, hint: "Instale o ChatGPT acima" },
+  ];
+  const connected = targets.filter((t) => t.on).length;
+  return (
+    <section className="space-y-4 rounded-2xl border border-border bg-card p-5 shadow-soft">
+      <div className="flex items-start gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary">
+          <Plug className="size-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="font-semibold">Seus dados no Claude e no ChatGPT (MCP)</h3>
+          <p className="text-sm text-muted-foreground">
+            Conecte uma vez e pergunte no chat da IA: “como foi minha semana?”, “quais tópicos estão mais fracos?”. Ela só lê o seu progresso, nunca altera.
+          </p>
+        </div>
+        {connected > 0 && (
+          <span className="shrink-0 rounded-full bg-success/15 px-2.5 py-1 text-xs font-medium text-success">
+            {connected} {connected === 1 ? "conectado" : "conectados"}
+          </span>
+        )}
+      </div>
+      {s.mcp_built ? (
+        <ul className="grid gap-2 sm:grid-cols-3">
+          {targets.map((t) => (
+            <li key={t.key} className={cn("flex flex-col gap-2 rounded-xl border p-3", t.on ? "border-success/40 bg-success/5" : "border-border")}>
+              <span className="flex items-center gap-2 text-sm font-medium">
+                <span className={cn("size-2 rounded-full", t.on ? "bg-success" : "bg-muted-foreground/40")} />
+                {t.app}
+              </span>
+              <span className="text-xs text-muted-foreground">{t.on ? "Conectado" : t.ready ? "Não conectado" : t.hint}</span>
+              <Button size="sm" variant={t.on ? "ghost" : "secondary"} className="mt-auto" disabled={!!busy || !t.ready} onClick={() => connect(t.key, t.target)}>
+                {spin(t.key)} {t.on ? "Reconectar" : "Conectar"}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-xs text-muted-foreground">O servidor MCP não veio junto com esta instalação. Reinstale o Grifo Quest.</p>
+      )}
+    </section>
   );
 }

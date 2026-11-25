@@ -1,7 +1,7 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
-import { Bot, Bug, Cloud, Cog, DatabaseBackup, Lightbulb, Newspaper, Paintbrush, Plug, RotateCcw, Save, Timer, Trash2 } from "lucide-react";
+import { Bot, Check, Cloud, Cog, DatabaseBackup, Newspaper, Paintbrush, Plug, RotateCcw, Save, Timer, Trash2 } from "lucide-react";
 import { SectionTabs } from "@/components/SectionTabs";
 import { NativeSelect } from "@/components/fields";
 import { Segmented } from "@/components/Segmented";
@@ -22,7 +22,6 @@ import {
 } from "@/lib/bindings";
 import { emit, useAppEvent } from "@/lib/bus";
 import { getFlag, saveFlag } from "@/lib/prefs";
-import { reportIssue } from "@/lib/report";
 import { QUICK_LOG_SHORTCUT } from "@/lib/rules";
 import { setSoundEnabled, setSoundVolume, sfx, soundEnabled, soundVolume } from "@/lib/sound";
 import {
@@ -42,9 +41,10 @@ import {
   type Theme,
 } from "@/lib/theme";
 import { installUpdate, useUpdate } from "@/lib/update";
-import { errorMessage, warn } from "@/lib/utils";
-import { TagInput, splitTags } from "@/components/TagInput";
+import { cn, errorMessage, warn } from "@/lib/utils";
 import { Account, useCloudAvailable } from "./Account";
+import { TrackerSettings } from "@/features/world/TrackerSettings";
+import { HelpCard } from "./Help";
 import { Integrations } from "./Integrations";
 import { getSettingsTab, setSettingsTab, type SettingsTab } from "./tabRequest";
 
@@ -198,18 +198,31 @@ function Appearance() {
       </Card>
 
       <Card title="Cores personalizadas">
-        <div className="grid gap-3 @lg:grid-cols-3">
-          {(Object.keys(COLOR_TOKENS) as ColorToken[]).map((token) => (
-            <label key={token} className="flex items-center gap-2 text-sm">
-              <input
-                type="color"
-                value={theme.colors[token]}
-                onChange={(e) => update({ ...theme, preset: "custom", colors: { ...theme.colors, [token]: e.target.value } })}
-                className="h-8 w-10 cursor-pointer rounded border border-input bg-transparent"
-              />
-              {COLOR_TOKENS[token]}
-            </label>
-          ))}
+        <p className="-mt-1 text-sm text-muted-foreground">Toque numa cor para trocar. A prévia ao lado mostra o resultado na hora.</p>
+        <div className="grid gap-4 @2xl:grid-cols-[minmax(0,1fr)_minmax(0,16rem)]">
+          <div className="grid gap-2 @lg:grid-cols-3">
+            {(Object.keys(COLOR_TOKENS) as ColorToken[]).map((token) => (
+              <label
+                key={token}
+                className="flex cursor-pointer items-center gap-3 rounded-xl border border-border bg-background/40 p-2 transition-colors hover:border-primary/60"
+              >
+                <span className="relative size-9 shrink-0 overflow-hidden rounded-lg shadow-soft ring-1 ring-border" style={{ background: theme.colors[token] }}>
+                  <input
+                    type="color"
+                    value={theme.colors[token]}
+                    onChange={(e) => update({ ...theme, preset: "custom", colors: { ...theme.colors, [token]: e.target.value } })}
+                    className="absolute inset-0 size-full cursor-pointer opacity-0"
+                    aria-label={COLOR_TOKENS[token]}
+                  />
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm">{COLOR_TOKENS[token]}</span>
+                  <span className="block font-mono text-[11px] uppercase text-muted-foreground">{theme.colors[token]}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <ThemePreview colors={theme.colors} />
         </div>
         <form
           className="flex flex-wrap items-center gap-2 border-t border-border pt-3"
@@ -227,49 +240,126 @@ function Appearance() {
       </Card>
 
       <Card title="Texto">
-        <div className="space-y-1">
-          <Label htmlFor="font-family">Fonte</Label>
-          <NativeSelect id="font-family" value={theme.font} onChange={(e) => update({ ...theme, font: e.target.value as FontId })}>
-            {(Object.keys(FONTS) as FontId[]).map((id) => (
-              <option key={id} value={id} style={{ fontFamily: FONTS[id].stack }}>
-                {FONTS[id].label}
-              </option>
-            ))}
-          </NativeSelect>
-          <p className="text-sm text-muted-foreground" style={{ fontFamily: FONTS[theme.font].stack }}>
+        <div className="space-y-2">
+          <Label>Fonte de leitura</Label>
+          <div className="grid gap-2 @lg:grid-cols-2 @3xl:grid-cols-3">
+            {(Object.keys(FONTS) as FontId[]).map((id) => {
+              const [label, hint] = FONTS[id].label.split(" (");
+              const on = theme.font === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => update({ ...theme, font: id })}
+                  className={cn("space-y-1 rounded-xl border-2 p-3 text-left transition-colors", on ? "border-primary bg-primary/5" : "border-border hover:border-primary/50")}
+                >
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="text-2xl leading-none" style={{ fontFamily: FONTS[id].stack }}>
+                      Aa
+                    </span>
+                    {on && <Check className="size-4 text-primary" />}
+                  </span>
+                  <span className="block text-sm font-medium" style={{ fontFamily: FONTS[id].stack }}>
+                    {label}
+                  </span>
+                  {hint && <span className="block text-xs text-muted-foreground">{hint.slice(0, -1)}</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="space-y-2 rounded-xl bg-secondary/40 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="font-scale">Tamanho da fonte</Label>
+            <span className="tabular rounded-md bg-card px-2 py-0.5 text-sm font-medium">{theme.fontScale}%</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-muted-foreground">A</span>
+            <input
+              id="font-scale"
+              type="range"
+              min={85}
+              max={130}
+              step={5}
+              value={theme.fontScale}
+              onChange={(e) => update({ ...theme, fontScale: Number(e.target.value) })}
+              className="w-full accent-[var(--primary)]"
+            />
+            <span className="text-lg text-muted-foreground">A</span>
+          </div>
+          <p className="text-sm" style={{ fontFamily: FONTS[theme.font].stack }}>
             A Lei Geral de Proteção de Dados vale para todo tratamento de dados pessoais. 0123456789
           </p>
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="font-scale">Tamanho da fonte: {theme.fontScale}%</Label>
-          <input
-            id="font-scale"
-            type="range"
-            min={85}
-            max={130}
-            step={5}
-            value={theme.fontScale}
-            onChange={(e) => update({ ...theme, fontScale: Number(e.target.value) })}
-            className="w-full accent-[var(--primary)]"
-          />
-        </div>
-        <div className="flex items-center justify-between">
-          <Label htmlFor="pixel-titles">Títulos e números em fonte pixel</Label>
-          <Switch id="pixel-titles" checked={theme.pixelTitles} onCheckedChange={(v) => update({ ...theme, pixelTitles: v })} />
-        </div>
+        <ToggleRow
+          id="pixel-titles"
+          title="Títulos e números em fonte pixel"
+          hint="O toque retrô nos títulos, XP e contadores. Desligue para tudo em fonte normal."
+          checked={theme.pixelTitles}
+          onChange={(v) => update({ ...theme, pixelTitles: v })}
+        />
       </Card>
 
       <Card title="Movimento">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="motion">Animações e cena de fundo</Label>
-          <Switch id="motion" checked={theme.motion} onCheckedChange={(v) => update({ ...theme, motion: v })} />
-        </div>
-        <p className="text-xs text-muted-foreground">Desligado, o app fica estático (útil se o movimento incomodar).</p>
+        <ToggleRow
+          id="motion"
+          title="Animações e cena de fundo"
+          hint="Desligado, o app fica estático (útil se o movimento incomodar ou o PC for mais fraco)."
+          checked={theme.motion}
+          onChange={(v) => update({ ...theme, motion: v })}
+        />
       </Card>
 
-      <Button variant="secondary" onClick={() => update(DEFAULT_THEME)}>
-        Restaurar tema padrão
-      </Button>
+      <div className="flex justify-end">
+        <Button variant="ghost" onClick={() => update(DEFAULT_THEME)}>
+          <RotateCcw /> Restaurar tema padrão
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** Linha com título, explicação e chave liga/desliga (a linha inteira clica). */
+function ToggleRow({ id, title, hint, checked, onChange }: { id: string; title: string; hint: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label htmlFor={id} className="flex cursor-pointer items-center gap-4 rounded-xl border border-border p-3 transition-colors hover:bg-secondary/30">
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium">{title}</span>
+        <span className="block text-xs text-muted-foreground">{hint}</span>
+      </span>
+      <Switch id={id} checked={checked} onCheckedChange={onChange} />
+    </label>
+  );
+}
+
+/** Prévia ao vivo das cores (usa a paleta recebida, não o tema aplicado). */
+function ThemePreview({ colors }: { colors: Palette }) {
+  return (
+    <div className="space-y-2 rounded-xl p-3 text-xs" style={{ background: colors.background, color: colors.foreground, border: `1px solid ${colors.border}` }} aria-hidden>
+      <div className="space-y-2 rounded-lg p-3" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
+        <p className="text-sm font-semibold">Direito Constitucional</p>
+        <p style={{ color: colors["muted-foreground"] }}>12 tópicos · 68% do edital</p>
+        <div className="h-1.5 overflow-hidden rounded-full" style={{ background: colors.secondary }}>
+          <div className="h-full w-2/3 rounded-full" style={{ background: colors.primary }} />
+        </div>
+        <div className="flex gap-1.5 pt-1">
+          <span className="rounded-md px-2 py-1 font-medium" style={{ background: colors.primary, color: colors.background }}>
+            Estudar
+          </span>
+          <span className="rounded-md px-2 py-1" style={{ background: colors.secondary }}>
+            Depois
+          </span>
+        </div>
+      </div>
+      <div className="flex gap-1.5">
+        <span className="rounded-full px-2 py-0.5" style={{ color: colors.accent, border: `1px solid ${colors.accent}` }}>
+          ✓ acertou
+        </span>
+        <span className="rounded-full px-2 py-0.5" style={{ color: colors.destructive, border: `1px solid ${colors.destructive}` }}>
+          ✗ errou
+        </span>
+      </div>
     </div>
   );
 }
@@ -326,42 +416,11 @@ function useAppConfig() {
 }
 
 function ContestsAndNews() {
-  const { cfg, setCfg, save, status } = useAppConfig();
-  // sugestões a partir da própria área ("Proteção de dados / regulação" → duas fichas)
-  const suggestions = cfg ? splitTags(cfg.interest_area.replace(/\//g, ",")).filter((t) => t.length <= 40) : [];
-
   return (
     <div className="space-y-4">
-      {cfg && (
-        <Card title="Sua área (rastreador)">
-          <div className="space-y-1">
-            <Label htmlFor="area">Área de interesse</Label>
-            <Input
-              id="area"
-              value={cfg.interest_area}
-              onChange={(e) => setCfg({ ...cfg, interest_area: e.target.value })}
-              placeholder="Proteção de dados / regulação / TI no governo federal"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="keywords">Palavras-chave</Label>
-            <p className="text-xs text-muted-foreground">Escreva e aperte Enter para adicionar. Elas filtram as notícias e viram itens do rastreador.</p>
-            <TagInput
-              id="keywords"
-              value={cfg.keywords}
-              onChange={(keywords) => setCfg({ ...cfg, keywords })}
-              placeholder="Ex.: ANPD, LGPD, analista de TI"
-              suggestions={suggestions}
-            />
-          </div>
-          <div className="flex items-center gap-3">
-            <Button onClick={() => void save(cfg)}>
-              Salvar
-            </Button>
-            <span className="text-sm text-accent">{status}</span>
-          </div>
-        </Card>
-      )}
+      <Card title="Sua área (rastreador)">
+        <TrackerSettings />
+      </Card>
       <Feeds />
     </div>
   );
@@ -677,21 +736,7 @@ function System() {
       <Backups />
       <ResetData />
 
-      <Card title="Ajuda">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="min-w-60 flex-1 text-sm text-muted-foreground">
-            Abre o GitHub no navegador com versão e sistema já preenchidos. Você revisa antes de enviar (precisa de conta no GitHub).
-          </p>
-          <div className="flex gap-2">
-            <Button size="sm" variant="secondary" onClick={() => void reportIssue("bug")}>
-              <Bug /> Reportar problema
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => void reportIssue("ideia")}>
-              <Lightbulb /> Sugerir ideia
-            </Button>
-          </div>
-        </div>
-      </Card>
+      <HelpCard />
 
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>

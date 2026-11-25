@@ -20,7 +20,6 @@ export function ImportEditalButton({ onApplied, label = "Montar meu edital", siz
       <Sheet open={open} onOpenChange={setOpen} title="Montar meu edital" description="Pelo PDF do edital (IA local) ou pelo cargo (Claude pesquisa o edital). Você revisa antes de salvar.">
         <div className="h-full overflow-y-auto p-6">
           <SubjectPlanner
-            key={exam?.id ?? 0}
             defaultRole={exam?.role ?? ""}
             defaultBanca={exam?.banca ?? ""}
             onApplied={() => {

@@ -5,6 +5,7 @@ mod account;
 mod ai;
 mod claude;
 mod cloud;
+mod cloud_backup;
 mod codex;
 mod commands;
 mod db;
@@ -37,6 +38,10 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         account::account_access,
         account::account_sign_out,
         account::account_plan,
+        account::cloud_backups,
+        account::cloud_backup_now,
+        account::cloud_restore,
+        account::announcements,
         community::daily_question_draft,
         subjects::list_subjects,
         subjects::create_subject,
@@ -272,6 +277,7 @@ fn setup(app: &mut tauri::App) -> SetupResult {
     commands::timer::spawn_ticker(app.handle().clone());
     commands::world::spawn_news_refresher(app.handle().clone());
     commands::updater::spawn_update_checker(app.handle().clone());
+    cloud_backup::spawn_auto(app.handle().clone());
     Ok(())
 }
 

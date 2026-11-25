@@ -1,12 +1,14 @@
 import { useState } from "react";
-import { Lock, LogIn, LogOut, MessageSquare, Pin, Plus, Trash2 } from "lucide-react";
+import { CalendarDays, Crown, Lock, LogIn, LogOut, MessageSquare, Pencil, Pin, Plus, ScrollText, Shield, ShieldCheck, ShieldOff, Trash2, Users } from "lucide-react";
 import { Skeleton } from "@/components/motion";
 import { Segmented } from "@/components/Segmented";
 import { toastError } from "@/components/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ago, plural } from "@/lib/format";
+import { ago, formatDate, plural } from "@/lib/format";
+import { toneOf } from "@/lib/image";
+import { cn } from "@/lib/utils";
 import {
   CATEGORIES,
   community as loadCommunity,
@@ -16,22 +18,28 @@ import {
   joinCommunity,
   leaveCommunity,
   members as loadMembers,
+  setCommunityCover,
   setCommunityPhoto,
+  setMemberRole,
   topicsOf,
+  updateCommunity,
+  type Community,
+  type Member,
 } from "./api";
 import { DailyQuestionCard } from "./Feed";
-import { Box, CommunityPhoto, PeopleGrid, PersonLink, PhotoButton, ReportButton, useAction, useLoad, type Open } from "./ui";
+import { Box, CommunityPhoto, PersonLink, PhotoButton, ReportButton, useAction, useLoad, type Open } from "./ui";
 
 type Section = "forum" | "membros";
 
-/** Página de uma comunidade (funciona como fórum): capa, questão do dia, tópicos e membros. */
+/** Página de uma comunidade (funciona como fórum): capa, sobre e regras, questão do dia, tópicos e membros. */
 export function CommunityView({ id, me, open, back }: { id: string; me: string; open: Open; back: () => void }) {
   const c = useLoad(() => loadCommunity(id), [id]);
   const m = useLoad(() => loadMembers(id), [id]);
   const daily = useLoad(() => dailyQuestion(id), [id]);
   const { busy, act } = useAction();
   const [section, setSection] = useState<Section>("forum");
-  const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading] = useState<"photo" | "cover" | null>(null);
+  const [editing, setEditing] = useState(false);
 
   if (c.error) return <p className="text-sm text-destructive">{c.error}</p>;
   if (!c.data) return <Skeleton className="h-80 rounded-2xl" />;
@@ -39,47 +47,80 @@ export function CommunityView({ id, me, open, back }: { id: string; me: string; 
   const mine = m.data?.find((x) => x.user.id === me);
   const owner = info.owner_id === me;
   const mod = mine?.role === "owner" || mine?.role === "mod";
+  const mods = m.data?.filter((x) => x.role !== "member") ?? [];
+  const hue = toneOf(info.id);
   const reloadAll = () => {
     c.reload();
     m.reload();
   };
+  const upload = (kind: "photo" | "cover", f: File) => {
+    setUploading(kind);
+    (kind === "photo" ? setCommunityPhoto(id, f) : setCommunityCover(id, f))
+      .then(() => c.reload(), toastError)
+      .finally(() => setUploading(null));
+  };
 
   return (
     <div className="space-y-4">
-      <section className="flex flex-wrap gap-5 rounded-2xl border border-border bg-card p-5 shadow-soft">
-        <CommunityPhoto c={info} size={112} className="rounded-2xl" />
-        <div className="min-w-0 flex-1 space-y-2">
-          <p className="text-[11px] tracking-wide text-muted-foreground uppercase">{CATEGORIES[info.category]}</p>
-          <h2 className="text-xl font-semibold">{info.name}</h2>
-          {info.description && <p className="text-sm whitespace-pre-wrap text-muted-foreground">{info.description}</p>}
-          <p className="text-sm">{plural(info.member_count, "membro", "membros")}</p>
-          <div className="flex flex-wrap gap-2 pt-1">
+      <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
+        <div
+          className="relative h-36 bg-cover bg-center sm:h-48"
+          style={
+            info.cover_url
+              ? { backgroundImage: `url("${info.cover_url}")` }
+              : { background: `linear-gradient(120deg, oklch(0.62 0.13 ${hue}), oklch(0.45 0.12 ${(hue + 50) % 360}))` }
+          }
+        >
+          {mod && (
+            <div className="absolute right-3 bottom-3">
+              <PhotoButton label="Trocar capa" busy={uploading === "cover"} onPick={(f) => upload("cover", f)} className="bg-card/80 backdrop-blur" />
+            </div>
+          )}
+        </div>
+        <div className="flex flex-wrap items-end gap-4 px-5 pb-5">
+          <CommunityPhoto c={info} size={112} className="-mt-14 rounded-2xl ring-4 ring-card" />
+          <div className="min-w-0 flex-1 space-y-1 pt-2">
+            <span className="inline-block rounded-full bg-primary/15 px-2.5 py-0.5 text-[11px] font-medium tracking-wide text-primary uppercase">{CATEGORIES[info.category]}</span>
+            <h2 className="truncate text-2xl font-semibold">{info.name}</h2>
+            <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <Users className="size-4" /> {plural(info.member_count, "membro", "membros")}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Shield className="size-4" /> {plural(mods.length, "moderador", "moderadores")}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <CalendarDays className="size-4" /> desde {formatDate(info.created_at)}
+              </span>
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
             {!mine && m.data && (
-              <Button size="sm" disabled={busy} onClick={() => void act(() => joinCommunity(id), "Você entrou na comunidade").then((ok) => ok && reloadAll())}>
+              <Button disabled={busy} onClick={() => void act(() => joinCommunity(id), "Você entrou na comunidade").then((ok) => ok && reloadAll())}>
                 <LogIn /> Participar
               </Button>
             )}
+            {mine && (
+              <span className="rounded-full bg-success/15 px-3 py-1 text-xs font-medium text-success">
+                {mine.role === "owner" ? "Você é o dono" : mine.role === "mod" ? "Você modera" : "Você participa"}
+              </span>
+            )}
+            {mod && <PhotoButton label="Foto" busy={uploading === "photo"} onPick={(f) => upload("photo", f)} />}
+            {mod && (
+              <Button variant="outline" size="sm" onClick={() => setEditing((e) => !e)}>
+                <Pencil /> Editar
+              </Button>
+            )}
             {mine && !owner && (
-              <Button variant="outline" size="sm" disabled={busy} onClick={() => void act(() => leaveCommunity(id), "Você saiu da comunidade").then((ok) => ok && reloadAll())}>
+              <Button variant="ghost" size="sm" disabled={busy} onClick={() => void act(() => leaveCommunity(id), "Você saiu da comunidade").then((ok) => ok && reloadAll())}>
                 <LogOut /> Sair
               </Button>
             )}
-            {mod && (
-              <PhotoButton
-                label="Trocar foto"
-                busy={uploading}
-                onPick={(f) => {
-                  setUploading(true);
-                  setCommunityPhoto(id, f)
-                    .then(() => c.reload(), toastError)
-                    .finally(() => setUploading(false));
-                }}
-              />
-            )}
             {owner && (
               <Button
-                variant="destructive"
+                variant="ghost"
                 size="sm"
+                className="text-destructive"
                 disabled={busy}
                 onClick={() => {
                   if (window.confirm(`Apagar a comunidade "${info.name}" com todo o conteúdo? Não dá para desfazer.`)) {
@@ -95,40 +136,179 @@ export function CommunityView({ id, me, open, back }: { id: string; me: string; 
         </div>
       </section>
 
-      {(daily.data || mine) && <DailyQuestionCard question={daily.data ?? null} community={info} canCreate={!!mine} onCreated={(q) => daily.setData(q)} />}
+      {editing && (
+        <EditCommunity
+          c={info}
+          onDone={(saved) => {
+            setEditing(false);
+            if (saved) c.reload();
+          }}
+        />
+      )}
 
-      <Segmented
-        label="Seções da comunidade"
-        value={section}
-        onChange={setSection}
-        options={[
-          ["forum", "Fórum"],
-          ["membros", `Membros (${info.member_count})`],
-        ]}
-      />
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,300px)]">
+        <div className="min-w-0 space-y-4">
+          {(daily.data || mine) && <DailyQuestionCard question={daily.data ?? null} community={info} canCreate={!!mine} onCreated={(q) => daily.setData(q)} />}
 
-      {section === "forum" && <Forum id={id} member={!!mine} open={open} />}
-      {section === "membros" && (
-        <div className="space-y-4">
-          <Box title="Membros" count={info.member_count}>
-            {m.data ? <PeopleGrid people={m.data.map((x) => x.user)} open={open} empty="Ninguém ainda." /> : <Skeleton className="h-32 rounded-xl" />}
+          <Segmented
+            label="Seções da comunidade"
+            value={section}
+            onChange={setSection}
+            options={[
+              ["forum", "Fórum"],
+              ["membros", `Membros (${info.member_count})`],
+            ]}
+          />
+
+          {section === "forum" && <Forum id={id} member={!!mine} open={open} />}
+          {section === "membros" && <Members id={id} me={me} list={m.data} viewerMod={mod} viewerOwner={owner} open={open} reload={m.reload} />}
+        </div>
+
+        <aside className="space-y-4">
+          <Box title="Sobre">
+            {info.description ? (
+              <p className="text-sm whitespace-pre-wrap text-muted-foreground">{info.description}</p>
+            ) : (
+              <p className="text-sm text-muted-foreground">{mod ? "Sem descrição ainda. Use Editar para contar do que se trata." : "Sem descrição."}</p>
+            )}
           </Box>
-          {m.data && (
-            <Box title="Moderação">
-              <ul className="space-y-1 text-sm">
-                {m.data
-                  .filter((x) => x.role !== "member")
-                  .map((x) => (
-                    <li key={x.user.id}>
-                      <PersonLink p={x.user} open={open} /> <span className="text-xs text-muted-foreground">{x.role === "owner" ? "dono" : "moderador"}</span>
-                    </li>
-                  ))}
-              </ul>
+          {(info.rules || mod) && (
+            <Box title="Regras" action={<ScrollText className="size-4 text-primary" />}>
+              {info.rules ? (
+                <ol className="list-inside list-decimal space-y-1 text-sm text-muted-foreground">
+                  {info.rules
+                    .split("\n")
+                    .map((r) => r.replace(/^\s*\d+[.)-]\s*/, "").trim())
+                    .filter(Boolean)
+                    .map((r, i) => (
+                      <li key={i}>{r}</li>
+                    ))}
+                </ol>
+              ) : (
+                <p className="text-sm text-muted-foreground">Nenhuma regra ainda. Moderadores podem escrever em Editar.</p>
+              )}
             </Box>
           )}
-        </div>
-      )}
+          <Box title="Moderação" count={mods.length}>
+            <ul className="space-y-2">
+              {mods.map((x) => (
+                <li key={x.user.id} className="flex items-center gap-2 text-sm">
+                  {x.role === "owner" ? <Crown className="size-4 text-primary" /> : <ShieldCheck className="size-4 text-muted-foreground" />}
+                  <PersonLink p={x.user} open={open} />
+                  <span className="ml-auto text-xs text-muted-foreground">{x.role === "owner" ? "dono" : "moderador"}</span>
+                </li>
+              ))}
+            </ul>
+          </Box>
+        </aside>
+      </div>
     </div>
+  );
+}
+
+/** Descrição e regras (dono ou moderador). */
+function EditCommunity({ c, onDone }: { c: Community; onDone: (saved: boolean) => void }) {
+  const [description, setDescription] = useState(c.description);
+  const [rules, setRules] = useState(c.rules ?? "");
+  const { busy, act } = useAction();
+  return (
+    <Box title="Editar comunidade">
+      <form
+        className="space-y-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void act(() => updateCommunity(c.id, { description: description.trim(), rules: rules.trim() }), "Comunidade atualizada").then((ok) => ok && onDone(true));
+        }}
+      >
+        <div className="space-y-1">
+          <label className="text-sm font-medium" htmlFor="community-desc">
+            Sobre
+          </label>
+          <Textarea id="community-desc" value={description} maxLength={1000} onChange={(e) => setDescription(e.target.value)} className="min-h-24" placeholder="Do que se trata, para quem é, o que se compartilha aqui…" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-sm font-medium" htmlFor="community-rules">
+            Regras <span className="font-normal text-muted-foreground">(uma por linha)</span>
+          </label>
+          <Textarea
+            id="community-rules"
+            value={rules}
+            maxLength={2000}
+            onChange={(e) => setRules(e.target.value)}
+            className="min-h-24"
+            placeholder={"Respeito sempre\nSem spam ou venda de material\nDúvida? Diga a matéria no título"}
+          />
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={() => onDone(false)}>
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={busy}>
+            Salvar
+          </Button>
+        </div>
+      </form>
+    </Box>
+  );
+}
+
+const ROLE_LABEL: Record<Member["role"], string> = { owner: "dono", mod: "moderador", member: "membro" };
+
+/** Lista de membros; moderador promove membro e o dono tira da moderação. */
+function Members({
+  id,
+  me,
+  list,
+  viewerMod,
+  viewerOwner,
+  open,
+  reload,
+}: {
+  id: string;
+  me: string;
+  list: Member[] | null;
+  viewerMod: boolean;
+  viewerOwner: boolean;
+  open: Open;
+  reload: () => void;
+}) {
+  const { busy, act } = useAction();
+  const [q, setQ] = useState("");
+  if (!list) return <Skeleton className="h-40 rounded-2xl" />;
+  const order = { owner: 0, mod: 1, member: 2 } as const;
+  const shown = list
+    .filter((x) => !q || x.user.display_name.toLowerCase().includes(q.toLowerCase()))
+    .sort((a, b) => order[a.role] - order[b.role]);
+  return (
+    <Box title="Membros" count={list.length} action={<Input className="h-8 w-44" placeholder="Procurar…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Procurar membro" />}>
+      {viewerMod && <p className="text-xs text-muted-foreground">Moderadores podem nomear outros moderadores. Só o dono tira alguém da moderação.</p>}
+      <ul className="divide-y divide-border">
+        {shown.map((x) => (
+          <li key={x.user.id} className="flex items-center gap-3 py-2 text-sm">
+            <PersonLink p={x.user} open={open} />
+            <span
+              className={cn(
+                "rounded-full px-2 py-0.5 text-[11px]",
+                x.role === "owner" ? "bg-primary/15 text-primary" : x.role === "mod" ? "bg-secondary text-foreground" : "text-muted-foreground",
+              )}
+            >
+              {ROLE_LABEL[x.role]}
+            </span>
+            <span className="flex-1" />
+            {viewerMod && x.role === "member" && (
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => void act(() => setMemberRole(id, x.user.id, "mod"), `${x.user.display_name} agora modera`).then((ok) => ok && reload())}>
+                <ShieldCheck /> Tornar moderador
+              </Button>
+            )}
+            {x.role === "mod" && (viewerOwner || x.user.id === me) && (
+              <Button size="sm" variant="ghost" disabled={busy} onClick={() => void act(() => setMemberRole(id, x.user.id, "member"), "Moderação removida").then((ok) => ok && reload())}>
+                <ShieldOff /> {x.user.id === me ? "Deixar de moderar" : "Tirar moderação"}
+              </Button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </Box>
   );
 }
 

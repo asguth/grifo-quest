@@ -29,7 +29,7 @@ pub fn exe(app: &AppHandle) -> PathBuf {
     }
 }
 
-fn command(app: &AppHandle) -> tokio::process::Command {
+pub(crate) fn command(app: &AppHandle) -> tokio::process::Command {
     let exe = exe(app);
     // `codex` do npm é um .cmd: só o cmd.exe o acha
     if cfg!(windows) && exe.extension().is_none() {

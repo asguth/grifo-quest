@@ -35,6 +35,8 @@ pub struct IntegrationsStatus {
     pub mcp_built: bool,
     pub mcp_code: bool,
     pub mcp_desktop: bool,
+    /// Servidor MCP registrado no Codex (ChatGPT pela assinatura).
+    pub mcp_codex: bool,
     /// whisper.cpp + modelo de voz baixados.
     pub voice_installed: bool,
     /// Placa de vídeo: sem placa dedicada, a IA local nem aparece como opção.
@@ -110,6 +112,11 @@ async fn mcp_in_claude_code(cli: &str) -> bool {
     matches!(tokio::time::timeout(Duration::from_secs(20), run).await, Ok(Ok(o)) if o.status.success())
 }
 
+async fn mcp_in_codex(app: &AppHandle) -> bool {
+    let run = codex::command(app).args(["mcp", "get", "grifo-quest"]).output();
+    matches!(tokio::time::timeout(Duration::from_secs(15), run).await, Ok(Ok(o)) if o.status.success())
+}
+
 fn mcp_in_desktop() -> bool {
     let Some(text) = desktop_config_path().and_then(|p| std::fs::read_to_string(p).ok()) else { return false };
     serde_json::from_str::<serde_json::Value>(&text).is_ok_and(|v| v.pointer("/mcpServers/grifo-quest").is_some())
@@ -119,7 +126,7 @@ fn mcp_in_desktop() -> bool {
 #[specta::specta]
 pub async fn integrations_status(app: AppHandle, pool: State<'_, SqlitePool>) -> AppResult<IntegrationsStatus> {
     let cfg = settings::load::<AppConfig>(&pool).await?;
-    let (models, version, account, code, gpu, gpt_version, gpt_in) = tokio::join!(
+    let (models, version, account, code, gpu, gpt_version, gpt_in, in_codex) = tokio::join!(
         ollama::list_models(&cfg.ollama_url),
         claude_version(&cfg.claude_cli),
         claude_account(&cfg.claude_cli),
@@ -127,6 +134,7 @@ pub async fn integrations_status(app: AppHandle, pool: State<'_, SqlitePool>) ->
         gpu::info(),
         codex::version(&app),
         codex::logged_in(&app),
+        mcp_in_codex(&app),
     );
     let mut wanted = vec![cfg.student_model.clone(), cfg.evaluator_model.clone(), cfg.task_model.clone()];
     wanted.sort();
@@ -139,6 +147,7 @@ pub async fn integrations_status(app: AppHandle, pool: State<'_, SqlitePool>) ->
         claude_account: account.filter(|_| version.is_some()),
         claude_version: version,
         chatgpt_logged_in: gpt_in && gpt_version.is_some(),
+        mcp_codex: in_codex && gpt_version.is_some(),
         chatgpt_version: gpt_version,
         grifo_version: grifo::bundled_version(&app)?,
         mcp_built: mcp_exe()?.exists(),
@@ -410,6 +419,8 @@ pub async fn test_claude(app: AppHandle, pool: State<'_, SqlitePool>) -> AppResu
 pub enum McpTarget {
     ClaudeCode,
     ClaudeDesktop,
+    /// Codex CLI (ChatGPT pela assinatura); o app do Codex lê o mesmo `~/.codex/config.toml`.
+    Codex,
 }
 
 /// Registra o servidor MCP do Grifo Quest no Claude Code (`claude mcp add`) ou no Claude Desktop (JSON, com backup).
@@ -437,6 +448,17 @@ pub async fn connect_mcp(app: AppHandle, pool: State<'_, SqlitePool>, target: Mc
                 return Err(AppError::Invalid(format!("claude mcp add falhou: {}", String::from_utf8_lossy(&out.stderr).trim())));
             }
             Ok("Conectado ao Claude Code. Pergunte lá: \"como foi minha semana de estudos?\"".into())
+        }
+        McpTarget::Codex => {
+            if codex::version(&app).await.is_none() {
+                return Err(AppError::Invalid("Instale o ChatGPT (Codex) em Integrações primeiro.".into()));
+            }
+            let _ = codex::command(&app).args(["mcp", "remove", "grifo-quest"]).output().await;
+            let out = codex::command(&app).args(["mcp", "add", "grifo-quest", "--", &exe, &db]).output().await?;
+            if !out.status.success() {
+                return Err(AppError::Invalid(format!("codex mcp add falhou: {}", String::from_utf8_lossy(&out.stderr).trim())));
+            }
+            Ok("Conectado ao ChatGPT (Codex). Pergunte lá: \"como foi minha semana de estudos?\"".into())
         }
         McpTarget::ClaudeDesktop => {
             let path = desktop_config_path().ok_or_else(|| AppError::Invalid("APPDATA não definido".into()))?;

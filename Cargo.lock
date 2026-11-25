@@ -1836,6 +1836,7 @@ dependencies = [
  "base64 0.22.1",
  "cpal",
  "feed-rs",
+ "flate2",
  "futures-util",
  "keyring",
  "pdf-extract",

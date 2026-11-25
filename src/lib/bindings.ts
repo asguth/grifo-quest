@@ -13,6 +13,13 @@ export const commands = {
 	accountAccess: (options?: InvokeOptions) => __TAURI_INVOKE<CloudAccess>("account_access", undefined, options),
 	accountSignOut: (options?: InvokeOptions) => __TAURI_INVOKE<null>("account_sign_out", undefined, options),
 	accountPlan: (options?: InvokeOptions) => __TAURI_INVOKE<Plan_Serialize>("account_plan", undefined, options),
+	/**  Backups do banco de estudos na nuvem (mais novo primeiro). */
+	cloudBackups: (options?: InvokeOptions) => __TAURI_INVOKE<CloudBackup_Serialize[]>("cloud_backups", undefined, options),
+	cloudBackupNow: (options?: InvokeOptions) => __TAURI_INVOKE<CloudBackup_Serialize>("cloud_backup_now", undefined, options),
+	/**  Baixa e restaura um backup da nuvem (guarda o atual antes; o app reinicia). */
+	cloudRestore: (name: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("cloud_restore", { name }, options),
+	/**  Avisos do dev para todo mundo (com ou sem conta). */
+	announcements: (options?: InvokeOptions) => __TAURI_INVOKE<Announcement[]>("announcements", undefined, options),
 	dailyQuestionDraft: (theme: string, options?: InvokeOptions) => __TAURI_INVOKE<DailyDraft>("daily_question_draft", { theme }, options),
 	listSubjects: (options?: InvokeOptions) => __TAURI_INVOKE<Subject[]>("list_subjects", undefined, options),
 	createSubject: (input: SubjectInput, options?: InvokeOptions) => __TAURI_INVOKE<number>("create_subject", { input }, options),
@@ -268,6 +275,16 @@ export type Account_Serialize = {
 	plan: string | null,
 };
 
+/**  Aviso do dev para todos que usam o app (popup ao abrir). */
+export type Announcement = {
+	id: string,
+	title: string,
+	body: string,
+	/**  info | update | warning */
+	kind: string,
+	created_at: string,
+};
+
 export type AnswerResult = AnswerResult_Serialize | AnswerResult_Deserialize;
 
 export type AnswerResult_Deserialize = {
@@ -427,6 +444,24 @@ export type CloudAccess = {
 	user_id: string,
 	/**  Segundos Unix em que o token vence. */
 	expires_at: number | null,
+};
+
+export type CloudBackup = CloudBackup_Serialize | CloudBackup_Deserialize;
+
+export type CloudBackup_Deserialize = {
+	name: string,
+	/**  Tamanho comprimido, em KB. */
+	kb: number,
+	/**  ISO 8601 (vem do servidor). */
+	created_at?: string | null,
+};
+
+export type CloudBackup_Serialize = {
+	name: string,
+	/**  Tamanho comprimido, em KB. */
+	kb: number,
+	/**  ISO 8601 (vem do servidor). */
+	created_at: string | null,
 };
 
 export type CloudModels = CloudModels_Serialize | CloudModels_Deserialize;
@@ -797,6 +832,8 @@ export type IntegrationsStatus_Deserialize = {
 	mcp_built: boolean,
 	mcp_code: boolean,
 	mcp_desktop: boolean,
+	/**  Servidor MCP registrado no Codex (ChatGPT pela assinatura). */
+	mcp_codex: boolean,
 	/**  whisper.cpp + modelo de voz baixados. */
 	voice_installed: boolean,
 	/**  Placa de vídeo: sem placa dedicada, a IA local nem aparece como opção. */
@@ -822,6 +859,8 @@ export type IntegrationsStatus_Serialize = {
 	mcp_built: boolean,
 	mcp_code: boolean,
 	mcp_desktop: boolean,
+	/**  Servidor MCP registrado no Codex (ChatGPT pela assinatura). */
+	mcp_codex: boolean,
 	/**  whisper.cpp + modelo de voz baixados. */
 	voice_installed: boolean,
 	/**  Placa de vídeo: sem placa dedicada, a IA local nem aparece como opção. */
@@ -897,7 +936,9 @@ export type Material_Serialize = {
 	created_at: string,
 };
 
-export type McpTarget = "claude_code" | "claude_desktop";
+export type McpTarget = "claude_code" | "claude_desktop" | 
+/**  Codex CLI (ChatGPT pela assinatura); o app do Codex lê o mesmo `~/.codex/config.toml`. */
+"codex";
 
 export type Mission = {
 	id: number,
@@ -1387,7 +1428,11 @@ export type UiKey = "theme" | "home_layout" | "sound" | "sidebar_collapsed" | "w
 /**  IA escolhida no Tira-dúvidas (`id` de `tutor_models`) */
 "tutor_model" | 
 /**  Mundo: estilo de visualização e ordem das notícias (JSON) */
-"news_view";
+"news_view" | 
+/**  Backup automático diário na nuvem ("off" desliga; o padrão é ligado para assinantes) */
+"cloud_backup" | 
+/**  Ids dos avisos do dev já vistos (JSON) */
+"seen_announcements";
 
 export type UpdateInfo = UpdateInfo_Serialize | UpdateInfo_Deserialize;
 

@@ -206,6 +206,10 @@ wire_enum! {
         TutorModel = "tutor_model",
         /// Mundo: estilo de visualização e ordem das notícias (JSON)
         NewsView = "news_view",
+        /// Backup automático diário na nuvem ("off" desliga; o padrão é ligado para assinantes)
+        CloudBackup = "cloud_backup",
+        /// Ids dos avisos do dev já vistos (JSON)
+        SeenAnnouncements = "seen_announcements",
     }
 }
 

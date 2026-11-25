@@ -85,6 +85,37 @@ pub struct Plan {
     pub current_period_end: Option<String>,
 }
 
+/// Aviso do dev para todos que usam o app (popup ao abrir).
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct Announcement {
+    pub id: String,
+    pub title: String,
+    pub body: String,
+    /// info | update | warning
+    pub kind: String,
+    pub created_at: String,
+}
+
+/// Avisos ativos, mais novo primeiro. Não precisa de conta (lidos com a chave publicável).
+pub async fn announcements() -> AppResult<Vec<Announcement>> {
+    if !ENABLED {
+        return Ok(Vec::new());
+    }
+    let res = sys::http()
+        .get(format!("{URL}/rest/v1/announcements?select=id,title,body,kind,created_at&order=created_at.desc&limit=5"))
+        .timeout(TIMEOUT)
+        .header("apikey", KEY)
+        .send()
+        .await
+        .map_err(|e| AppError::Invalid(format!("Sem conexão com a nuvem: {e}")))?;
+    let status = res.status();
+    let text = res.text().await?;
+    if !status.is_success() {
+        return Err(AppError::Invalid(format!("Avisos ({status}): {}", crate::domain::text::head(&text, 200))));
+    }
+    Ok(serde_json::from_str(&text)?)
+}
+
 fn now() -> i64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs() as i64)
 }

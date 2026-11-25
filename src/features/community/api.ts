@@ -38,6 +38,10 @@ export type Community = {
   owner_id: string;
   member_count: number;
   photo_url: string | null;
+  /** Capa larga (moderador troca). */
+  cover_url?: string | null;
+  /** Regras da comunidade (moderador edita). */
+  rules?: string;
   created_at: string;
 };
 
@@ -254,7 +258,19 @@ export async function setCommunityPhoto(id: string, file: File): Promise<string>
   return url;
 }
 
-export function updateCommunity(id: string, patch: Partial<Pick<Community, "name" | "description" | "category">>) {
+/** Capa da comunidade (dono ou moderador). */
+export async function setCommunityCover(id: string, file: File): Promise<string> {
+  const url = await uploadImage(`communities/${id}/cover-${photoName()}`, await coverWebp(file));
+  await rest(`communities?id=eq.${enc(id)}`, { method: "PATCH", body: { cover_url: url } });
+  return url;
+}
+
+/** Moderador promove membro; só o dono tira alguém da moderação (o servidor confere). */
+export function setMemberRole(community: string, user: string, role: Exclude<Role, "owner">) {
+  return rest("rpc/set_member_role", { method: "POST", body: { cid: community, uid: user, new_role: role } });
+}
+
+export function updateCommunity(id: string, patch: Partial<Pick<Community, "name" | "description" | "category" | "rules">>) {
   return rest(`communities?id=eq.${enc(id)}`, { method: "PATCH", body: patch });
 }
 

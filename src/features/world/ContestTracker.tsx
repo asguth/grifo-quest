@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { CalendarPlus, ExternalLink, Loader2, Search, Star, Trash2 } from "lucide-react";
+import { CalendarPlus, ChevronDown, ExternalLink, Loader2, Search, SlidersHorizontal, Star, Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/motion";
 import { toast, toastError } from "@/components/toast";
 import { Button } from "@/components/ui/button";
@@ -11,23 +11,45 @@ import { itemIn, listIn, spring } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { isDone, STAGES, stageOf } from "./contests";
 import { createExam, toggleFollow, useContestSearch } from "./exams";
+import { TrackerSettings } from "./TrackerSettings";
 
 export function ContestTracker() {
   const [items, setItems] = useState<Contest[] | null>(null);
   const load = useCallback(() => void commands.listContests().then(setItems, toastError), []);
   useEffect(load, [load]);
   const { searching: busy, search } = useContestSearch(load);
+  const [tuning, setTuning] = useState(false);
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card p-4">
-        <div className="min-w-60 flex-1">
-          <p className="font-medium">Rastreador de concursos</p>
-          <p className="text-xs text-muted-foreground">O Claude pesquisa na web pela sua área (1–3 min). Notícias com suas palavras-chave também entram aqui, e o mesmo concurso vindo de fontes diferentes vira um só.</p>
+      <div className="rounded-2xl border border-border bg-card">
+        <div className="flex flex-wrap items-center gap-3 p-4">
+          <div className="min-w-60 flex-1">
+            <p className="font-medium">Rastreador de concursos</p>
+            <p className="text-xs text-muted-foreground">O Claude pesquisa na web pela sua área (1–3 min). Notícias com suas palavras-chave também entram aqui, e o mesmo concurso vindo de fontes diferentes vira um só.</p>
+          </div>
+          <Button variant="ghost" aria-expanded={tuning} onClick={() => setTuning((t) => !t)}>
+            <SlidersHorizontal /> Área e palavras-chave <ChevronDown className={cn("transition-transform", tuning && "rotate-180")} />
+          </Button>
+          <Button disabled={busy} onClick={() => void search()}>
+            {busy ? <Loader2 className="animate-spin" /> : <Search />} {busy ? "Pesquisando…" : "Buscar com Claude"}
+          </Button>
         </div>
-        <Button disabled={busy} onClick={() => void search()}>
-          {busy ? <Loader2 className="animate-spin" /> : <Search />} {busy ? "Pesquisando…" : "Buscar com Claude"}
-        </Button>
+        <AnimatePresence initial={false}>
+          {tuning && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={spring.soft}
+              className="overflow-hidden"
+            >
+              <div className="border-t border-border p-4">
+                <TrackerSettings onSaved={load} />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {items === null ? (

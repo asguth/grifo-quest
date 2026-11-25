@@ -10,10 +10,13 @@ import { toastError } from "@/components/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SignIn } from "@/features/settings/Account";
 import { Integrations } from "@/features/settings/Integrations";
 import { ExamForm, toggleFollow, useContestSearch, useExams, useNextExam } from "@/features/world/exams";
-import { commands, type Contest_Serialize as Contest, type PomodoroConfig, type Profile_Serialize as Profile } from "@/lib/bindings";
+import { commands, type AccountStatus, type Contest_Serialize as Contest, type PomodoroConfig, type Profile_Serialize as Profile } from "@/lib/bindings";
 import { hours as fmtHours, plural } from "@/lib/format";
+import { emit } from "@/lib/bus";
+import { forgetCloudAccess } from "@/lib/cloud";
 import { breathe, spring } from "@/lib/motion";
 import { sfx } from "@/lib/sound";
 import { cn, warn } from "@/lib/utils";
@@ -26,6 +29,7 @@ const DAY_NAMES = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", 
 /** Passos do assistente. `skip`: pode pular. `speech`: o que o Grifo diz no balão. */
 const STEPS: { id: string; title: string; skip?: boolean; speech: (nome: string) => string }[] = [
   { id: "oi", title: "Oi!", speech: () => "Oi! Eu sou o Grifo. Em uns 3 minutos eu monto o seu QG de estudos." },
+  { id: "conta", title: "Conta", skip: true, speech: () => "Tem conta do Grifo Quest Cloud? Ela libera a comunidade e o backup na nuvem. Não tem? Sem problema: pula que tudo funciona no seu PC." },
   { id: "voce", title: "Você", speech: () => "Primeiro: como eu te chamo, e qual área você está mirando?" },
   { id: "provas", title: "Provas", skip: true, speech: (nome) => `Prazer, ${nome}! Tem alguma prova em vista? Se não tiver, eu procuro as abertas na sua área.` },
   { id: "rotina", title: "Rotina", speech: () => "Agora a rotina. Seja honesto(a): constância ganha de maratona." },
@@ -34,13 +38,12 @@ const STEPS: { id: string; title: string; skip?: boolean; speech: (nome: string)
   { id: "pronto", title: "Pronto", speech: (nome) => `Tudo pronto, ${nome}! Bora pro primeiro pomodoro?` },
 ];
 
-const LAST = STEPS.length - 1;
-/** Do passo Matérias em diante o Grifinho já está de boné. */
-const CAP_FROM = STEPS.findIndex((s) => s.id === "materias");
 /** As pílulas do assistente são maiores que os filtros do resto do app. */
 const CHIP = "px-3.5 text-sm";
 
 export default function Onboarding({ onDone }: { onDone: () => void }) {
+  // O passo Conta só existe no build com a nuvem; espera saber antes de montar (os índices mudam).
+  const [cloud, setCloud] = useState<AccountStatus | null>(null);
   const [step, setStep] = useState(0);
   const [dir, setDir] = useState(1);
   const [p, setP] = useState<Profile | null>(null);
@@ -50,10 +53,18 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   useEffect(() => {
     commands.getProfile().then(setP, toastError);
     commands.getPomodoroConfig().then(setPomo, (e) => warn("ler o pomodoro", e));
+    commands.accountStatus().then(setCloud, (e) => {
+      warn("ler a conta", e);
+      setCloud({ available: false, signed_in: false, email: null, user_id: null });
+    });
   }, []);
 
-  if (!p) return null;
-  const current = STEPS[step];
+  if (!p || !cloud) return null;
+  const steps = cloud.available ? STEPS : STEPS.filter((s) => s.id !== "conta");
+  const LAST = steps.length - 1;
+  /** Do passo Matérias em diante o Grifinho já está de boné. */
+  const CAP_FROM = steps.findIndex((s) => s.id === "materias");
+  const current = steps[step];
   const id = current.id;
   const set = (patch: Partial<Profile>) => setP({ ...p, ...patch });
 
@@ -95,7 +106,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
       <div className="relative z-10 flex flex-1 items-center justify-center overflow-y-auto p-6">
         <div className="w-full max-w-3xl">
           <ol className="mb-5 flex items-center justify-center gap-2" aria-label="Passos">
-            {STEPS.map((s, i) => (
+            {steps.map((s, i) => (
               <li key={s.id} className="flex items-center gap-2">
                 <motion.span
                   animate={{ width: i === step ? 28 : 8, opacity: i <= step ? 1 : 0.35 }}
@@ -140,6 +151,18 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
                 className="min-h-[220px]"
               >
                 {id === "oi" && <Welcome />}
+                {id === "conta" && (
+                  <AccountStep
+                    status={cloud}
+                    onSignedIn={(s) => {
+                      setCloud(s);
+                      forgetCloudAccess();
+                      emit("account");
+                      sfx("success");
+                      void go(1);
+                    }}
+                  />
+                )}
                 {id === "voce" && (
                   <div className="space-y-5">
                     <Field label="Como o Grifo te chama?" id="ob-name">
@@ -201,9 +224,9 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
                 </Button>
               )}
               <span className="flex-1" />
-              {current.skip && (
+              {current.skip && !(id === "conta" && cloud.signed_in) && (
                 <Button variant="ghost" onClick={() => void go(1)}>
-                  Pular este passo
+                  {id === "conta" ? "Pular, usar sem conta" : "Pular este passo"}
                 </Button>
               )}
               {step < LAST ? (
@@ -222,6 +245,17 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
       </div>
     </div>
   );
+}
+
+function AccountStep({ status, onSignedIn }: { status: AccountStatus; onSignedIn: (s: AccountStatus) => void }) {
+  if (status.signed_in) {
+    return (
+      <p className="flex items-center gap-2 rounded-xl bg-success/10 px-4 py-3 text-sm text-success">
+        <Check className="size-4" /> Você entrou como <b>{status.email}</b>. Pode continuar.
+      </p>
+    );
+  }
+  return <SignIn bare onDone={onSignedIn} />;
 }
 
 function Field({ label, id, children }: { label: string; id?: string; children: ReactNode }) {
@@ -392,7 +426,7 @@ function SubjectsStep() {
           <Check className="size-4" /> Você já tem {plural(count, "matéria", "matérias")}. Pode importar mais ou pular.
         </p>
       )}
-      <SubjectPlanner key={exam?.id ?? 0} defaultRole={exam?.role ?? ""} defaultBanca={exam?.banca ?? ""} onApplied={loadCount} />
+      <SubjectPlanner defaultRole={exam?.role ?? ""} defaultBanca={exam?.banca ?? ""} onApplied={loadCount} />
     </div>
   );
 }

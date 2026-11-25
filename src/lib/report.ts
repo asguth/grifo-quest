@@ -25,7 +25,7 @@ export function issueUrl(kind: ReportKind, fields: { title?: string; version: st
   return `${REPO}/issues/new?${q.toString()}`;
 }
 
-function system(): string {
+export function systemName(): string {
   const m = navigator.userAgent.match(/Windows NT [\d.]+/);
   return m ? m[0].replace("Windows NT 10.0", "Windows 10/11") : navigator.platform;
 }
@@ -38,5 +38,5 @@ export async function reportIssue(kind: ReportKind, extra: { title?: string; whe
   } catch (e) {
     warn("versão do app", e);
   }
-  await commands.openLink(issueUrl(kind, { ...extra, version, system: system() })).catch(toastError);
+  await commands.openLink(issueUrl(kind, { ...extra, version, system: systemName() })).catch(toastError);
 }

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { FileUp, Loader2, Plus, Search, X } from "lucide-react";
 import { ReadingProgress, type Reading } from "./ReadingProgress";
@@ -44,6 +44,15 @@ export function SubjectPlanner({ defaultRole = "", defaultBanca = "", onApplied 
   const fileInput = useRef<HTMLInputElement>(null);
 
   useTauriEvent(events.plannerEvent, setProgress);
+
+  // A prova chega depois da primeira pintura: preenche só o que está vazio. Trocar a `key` para isso
+  // remontava o componente e jogava fora o PDF que a pessoa já tinha mandado (tinha que mandar de novo).
+  useEffect(() => {
+    if (defaultRole) setRole((r) => r || defaultRole);
+  }, [defaultRole]);
+  useEffect(() => {
+    if (defaultBanca) setBanca((b) => b || defaultBanca);
+  }, [defaultBanca]);
 
   async function readPdf(file: File) {
     if (!file.name.toLowerCase().endsWith(".pdf")) return toast("Esse arquivo não é PDF. Para texto, use “cole o texto” abaixo.", "error");

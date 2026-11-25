@@ -1,6 +1,7 @@
 import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { LevelUpOverlay } from "@/components/LevelUp";
+import { AnnouncementPopup } from "./Announcement";
 import Scenery from "@/components/Scenery";
 import { Toaster } from "@/components/toast";
 import { commands, events } from "@/lib/bindings";
@@ -159,6 +160,7 @@ export default function App() {
       </div>
       <Toaster />
       <LevelUpOverlay />
+      <AnnouncementPopup />
       {tour && (
         <Tour
           go={setSlot}

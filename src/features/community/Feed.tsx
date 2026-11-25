@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { motion } from "motion/react";
-import { BookOpenCheck, CircleCheck, Feather, HelpCircle, MessageCircle, Sparkles, Target, Trash2 } from "lucide-react";
+import { BookOpenCheck, ChevronDown, ChevronUp, CircleCheck, Feather, HelpCircle, MessageCircle, Sparkles, Target, Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/motion";
 import { TierBadge } from "@/components/TierBadge";
 import { toastError } from "@/components/toast";
@@ -409,6 +409,18 @@ function Comments({
 
 // ---- questão do dia ------------------------------------------------------------------------
 
+/** Alvo da questão do dia; pulsa enquanto há questão sem resposta. */
+function PulseTarget({ on }: { on: boolean }) {
+  return (
+    <span className="relative grid size-9 shrink-0 place-items-center">
+      {on && <span className="absolute inset-0 animate-ping rounded-full bg-primary/40" />}
+      <span className={cn("relative grid size-9 place-items-center rounded-full", on ? "bg-primary/20" : "bg-secondary")}>
+        <Target className={cn("size-5", on ? "text-primary" : "text-muted-foreground")} />
+      </span>
+    </span>
+  );
+}
+
 const LETTERS = ["A", "B", "C", "D", "E"];
 
 /** Questão do dia de uma comunidade. Sem questão ainda, quem é membro pode gerar com a própria IA. */
@@ -427,6 +439,7 @@ export function DailyQuestionCard({
 }) {
   const result = useLoad(async () => (question ? dailyResult(question.id) : null), [question?.id]);
   const [busy, setBusy] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const { act } = useAction();
 
   if (!question) {
@@ -454,8 +467,31 @@ export function DailyQuestionCard({
 
   const r: DailyResult | null = result.data ?? null;
   const total = r ? r.votes.reduce((a, b) => a + b, 0) : 0;
+  if (!expanded) {
+    return (
+      <button
+        onClick={() => setExpanded(true)}
+        aria-expanded={false}
+        className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left shadow-soft transition-colors hover:border-primary/50"
+      >
+        <PulseTarget on={!r} />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold">{title ?? "Questão do dia"}</span>
+          <span className="block truncate text-xs text-muted-foreground">{r ? (r.choice === r.answer ? "Você acertou hoje ✓" : "Respondida. Veja o gabarito") : "Nova questão esperando sua resposta"}</span>
+        </span>
+        <ChevronDown className="size-4 text-muted-foreground" />
+      </button>
+    );
+  }
   return (
-    <Box title={title ?? "Questão do dia"} action={<Target className="size-4 text-primary" />}>
+    <Box
+      title={title ?? "Questão do dia"}
+      action={
+        <button onClick={() => setExpanded(false)} aria-label="Minimizar a questão do dia" className="text-muted-foreground hover:text-foreground">
+          <ChevronUp className="size-4" />
+        </button>
+      }
+    >
       <p className="text-sm whitespace-pre-wrap">{question.statement}</p>
       <ul className="space-y-1.5">
         {question.options.map((o, i) => {
