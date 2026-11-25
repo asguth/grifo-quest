@@ -53,6 +53,22 @@ Legenda: 🔵 planejado · ⚪ ideia (sem compromisso) · ✋ depende de você
 | ⚪ | Issue automática sem conta no GitHub | Precisa de um servidor intermediário (o app não pode carregar token) |
 | ⚪ | Sincronização na nuvem / app no celular | |
 
+#### Grifo Quest Cloud (versão paga)
+
+Duas versões do mesmo código: a **base** (como hoje, sem conta) e a **Cloud** (`cargo … --features cloud`). Login é opcional e só serve a quem assina; comunidade e backup na nuvem são só para assinantes. O servidor (Supabase: esquema, RLS, Storage, webhooks) fica no repositório privado `asguth/grifo-cloud`; quem libera é o RLS (`public.subscribed()`), não o app.
+
+| | Item | Situação |
+|---|---|---|
+| 🟢 | Conta: login por código no e-mail ou senha (Config → Conta, só no build Cloud), sessão no cofre do Windows, plano via `my_plan` | Feito; chave em `src-tauri/cloud.env` (fora do git). Código por e-mail espera o SMTP |
+| 🔵 | Esquema da comunidade (perfis, amigos, recados, depoimentos, comunidades, fórum, bloqueios, denúncias) + bucket `backups` | Migração escrita no `grifo-cloud`, falta aplicar |
+| ⚪ | Backup do banco para o Storage (ao fechar e a cada X h, últimas N versões, restaurar em outro PC) | Reaproveitar `backup_database`/`restore_backup` |
+| 🔵 | Tela Comunidade (perfil com recados/depoimentos/amigos, comunidades com fórum, busca, bloqueio, denúncia) | Feita (`features/community`), falta testar com a migração aplicada |
+| ⚪ | Pagamento (Pix + cartão) com webhook gravando `subscriptions` | Gateway a escolher |
+| ⚪ | Dois canais de atualização: base e Cloud com `latest.json` separados (a base nunca vira Cloud sozinha) | `updater.rs` escolhe o endpoint pela feature |
+| ⚪ | Login com Google (PKCE + retorno em 127.0.0.1) | Depois do código por e-mail |
+| ⚪ | SMTP próprio no domínio (Resend/Brevo) para o código por e-mail | Domínio comprado, falta configurar |
+| ⚪ | Nível/XP do perfil são informados pelo app (dá para forjar) | Ranking com prêmio exige cálculo no servidor |
+
 ---
 
 ## Entregue

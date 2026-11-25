@@ -1,3 +1,4 @@
+pub mod account;
 pub mod classroom;
 pub mod config;
 pub mod diary;

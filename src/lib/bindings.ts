@@ -6,6 +6,13 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 
 /** Commands */
 export const commands = {
+	accountStatus: (options?: InvokeOptions) => __TAURI_INVOKE<AccountStatus_Serialize>("account_status", undefined, options),
+	accountSendCode: (email: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("account_send_code", { email }, options),
+	accountVerifyCode: (email: string, code: string, options?: InvokeOptions) => __TAURI_INVOKE<AccountStatus_Serialize>("account_verify_code", { email, code }, options),
+	accountSignInPassword: (email: string, password: string, options?: InvokeOptions) => __TAURI_INVOKE<AccountStatus_Serialize>("account_sign_in_password", { email, password }, options),
+	accountAccess: (options?: InvokeOptions) => __TAURI_INVOKE<CloudAccess>("account_access", undefined, options),
+	accountSignOut: (options?: InvokeOptions) => __TAURI_INVOKE<null>("account_sign_out", undefined, options),
+	accountPlan: (options?: InvokeOptions) => __TAURI_INVOKE<Plan_Serialize>("account_plan", undefined, options),
 	listSubjects: (options?: InvokeOptions) => __TAURI_INVOKE<Subject[]>("list_subjects", undefined, options),
 	createSubject: (input: SubjectInput, options?: InvokeOptions) => __TAURI_INVOKE<number>("create_subject", { input }, options),
 	updateSubject: (id: number, input: SubjectInput, options?: InvokeOptions) => __TAURI_INVOKE<null>("update_subject", { id, input }, options),
@@ -228,6 +235,24 @@ export const events = {
 /**  Quem está logado (mostrado como "Conectado como …"). */
 export type Account = Account_Serialize | Account_Deserialize;
 
+export type AccountStatus = AccountStatus_Serialize | AccountStatus_Deserialize;
+
+export type AccountStatus_Deserialize = {
+	/**  Este build tem a nuvem (versão Cloud). Falso = esconder tudo de conta e comunidade. */
+	available: boolean,
+	signed_in: boolean,
+	email?: string | null,
+	user_id?: string | null,
+};
+
+export type AccountStatus_Serialize = {
+	/**  Este build tem a nuvem (versão Cloud). Falso = esconder tudo de conta e comunidade. */
+	available: boolean,
+	signed_in: boolean,
+	email: string | null,
+	user_id: string | null,
+};
+
 /**  Quem está logado (mostrado como "Conectado como …"). */
 export type Account_Deserialize = {
 	email?: string | null,
@@ -392,6 +417,16 @@ export type Cloud = "gemini" | "openai" | "grok" | "deepseek" | "glm" |
  *  a pessoa informa o endereço.
  */
 "custom";
+
+/**  O que o front precisa para falar com a API (PostgREST) em nome da pessoa. */
+export type CloudAccess = {
+	url: string,
+	key: string,
+	token: string,
+	user_id: string,
+	/**  Segundos Unix em que o token vence. */
+	expires_at: number | null,
+};
 
 export type CloudModels = CloudModels_Serialize | CloudModels_Deserialize;
 
@@ -937,12 +972,37 @@ export type Performance = {
 
 export type Phase = "focus" | "break";
 
+/**  Assinatura de quem está logado (lida do servidor: `my_plan`). */
+export type Plan = Plan_Serialize | Plan_Deserialize;
+
 /**  Uma matéria proposta (ainda não salva): o usuário revisa antes de aplicar. */
 export type PlanSubject = {
 	name: string,
 	/**  Peso no edital (nº de questões ou peso declarado). 1 quando não se sabe. */
 	weight: number | null,
 	topics: string[],
+};
+
+/**  Assinatura de quem está logado (lida do servidor: `my_plan`). */
+export type Plan_Deserialize = {
+	/**  Comunidade e backup liberados. */
+	active: boolean,
+	plan?: string | null,
+	/**  active | trialing | past_due | canceled */
+	status?: string | null,
+	/**  ISO 8601, fim do período pago. */
+	current_period_end?: string | null,
+};
+
+/**  Assinatura de quem está logado (lida do servidor: `my_plan`). */
+export type Plan_Serialize = {
+	/**  Comunidade e backup liberados. */
+	active: boolean,
+	plan: string | null,
+	/**  active | trialing | past_due | canceled */
+	status: string | null,
+	/**  ISO 8601, fim do período pago. */
+	current_period_end: string | null,
 };
 
 export type PlannerEvent = PlannerEvent_Serialize | PlannerEvent_Deserialize;

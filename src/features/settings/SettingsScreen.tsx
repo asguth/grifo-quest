@@ -1,7 +1,7 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
-import { Bot, Bug, Cog, DatabaseBackup, Lightbulb, Newspaper, Paintbrush, Plug, RotateCcw, Save, Timer, Trash2 } from "lucide-react";
+import { Bot, Bug, Cloud, Cog, DatabaseBackup, Lightbulb, Newspaper, Paintbrush, Plug, RotateCcw, Save, Timer, Trash2 } from "lucide-react";
 import { SectionTabs } from "@/components/SectionTabs";
 import { NativeSelect } from "@/components/fields";
 import { Segmented } from "@/components/Segmented";
@@ -20,7 +20,7 @@ import {
   type Route,
   type PomodoroConfig,
 } from "@/lib/bindings";
-import { emit } from "@/lib/bus";
+import { emit, useAppEvent } from "@/lib/bus";
 import { getFlag, saveFlag } from "@/lib/prefs";
 import { reportIssue } from "@/lib/report";
 import { QUICK_LOG_SHORTCUT } from "@/lib/rules";
@@ -44,12 +44,23 @@ import {
 import { installUpdate, useUpdate } from "@/lib/update";
 import { errorMessage, warn } from "@/lib/utils";
 import { TagInput, splitTags } from "@/components/TagInput";
+import { Account, useCloudAvailable } from "./Account";
 import { Integrations } from "./Integrations";
+import { getSettingsTab, setSettingsTab, type SettingsTab } from "./tabRequest";
 
-type Tab = "integracoes" | "aparencia" | "pomodoro" | "concursos" | "ia" | "sistema";
+type Tab = SettingsTab;
 
 export default function SettingsScreen() {
-  const [tab, setTab] = useState<Tab>("integracoes");
+  const [tab, setTabState] = useState<Tab>(getSettingsTab);
+  const setTab = (t: Tab) => {
+    setSettingsTab(t);
+    setTabState(t);
+  };
+  useAppEvent("settingsTab", (t) => {
+    if (t === "conta" || t === "integracoes" || t === "aparencia" || t === "pomodoro" || t === "concursos" || t === "ia" || t === "sistema") setTabState(t);
+  });
+  // só a versão Cloud tem conta; a base nem mostra a aba
+  const cloud = useCloudAvailable();
   return (
     <div className="mx-auto max-w-4xl space-y-5">
       <h1 className="retro text-sm text-primary">Config</h1>
@@ -64,6 +75,7 @@ export default function SettingsScreen() {
           { id: "concursos", label: "Concursos", icon: Newspaper },
           { id: "ia", label: "IA", icon: Bot },
           { id: "sistema", label: "Sistema", icon: Cog },
+          ...(cloud ? [{ id: "conta" as const, label: "Conta", icon: Cloud }] : []),
         ]}
       />
       {tab === "integracoes" && <Integrations />}
@@ -72,6 +84,7 @@ export default function SettingsScreen() {
       {tab === "concursos" && <ContestsAndNews />}
       {tab === "ia" && <Ai />}
       {tab === "sistema" && <System />}
+      {tab === "conta" && cloud && <Account />}
     </div>
   );
 }

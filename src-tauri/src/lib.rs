@@ -1,6 +1,7 @@
 #[macro_use]
 mod wire;
 
+mod account;
 mod ai;
 mod claude;
 mod cloud;
@@ -25,10 +26,17 @@ use tauri_specta::{collect_commands, collect_events};
 type SetupResult = Result<(), Box<dyn std::error::Error>>;
 
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
-    use commands::{classroom, config, diary, integrations, log, material, planner, study, subjects, timer, tutor, updater, voice, window, world};
+    use commands::{account, classroom, config, diary, integrations, log, material, planner, study, subjects, timer, tutor, updater, voice, window, world};
     tauri_specta::Builder::<tauri::Wry>::new()
         .events(collect_events![classroom::ClassEvent, material::GrifoEvent, sys::IntegrationEvent, planner::PlannerEvent, timer::TimerTick, study::StudyEvent, window::NavigateTo, voice::VoiceLevel, updater::UpdateReady, tutor::TutorToken])
         .commands(collect_commands![
+        account::account_status,
+        account::account_send_code,
+        account::account_verify_code,
+        account::account_sign_in_password,
+        account::account_access,
+        account::account_sign_out,
+        account::account_plan,
         subjects::list_subjects,
         subjects::create_subject,
         subjects::update_subject,
@@ -243,6 +251,7 @@ fn setup(app: &mut tauri::App) -> SetupResult {
     app.manage(commands::study::StudyState::default());
     app.manage(commands::voice::VoiceState::default());
     app.manage(commands::updater::PendingUpdate::default());
+    app.manage(account::AccountState::default());
     // Janelas só agora (`create: false` no tauri.conf): criadas antes do `manage`, a página embutida do
     // build final carrega rápido e os primeiros comandos (tema, perfil) falham com "state not managed",
     // e o app abria com o tema padrão.

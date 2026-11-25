@@ -10,7 +10,8 @@ import { digitsClaimed, useKey, useTauriEvent } from "@/lib/hooks";
 import { reportIssue } from "@/lib/report";
 import { useTheme } from "@/lib/theme";
 import { warn } from "@/lib/utils";
-import { SLOTS, toSlot, type SlotId } from "./nav";
+import { useAccount } from "@/lib/access";
+import { toSlot, visibleSlots, type SlotId } from "./nav";
 import { Sidebar } from "./Sidebar";
 import { Tour } from "./Tour";
 import { PageTransition, ScreenSkeleton } from "./transitions";
@@ -22,6 +23,7 @@ const ClassroomScreen = lazy(() => import("@/features/classroom/ClassroomScreen"
 const SubjectsScreen = lazy(() => import("@/features/subjects/SubjectsScreen"));
 const WorldScreen = lazy(() => import("@/features/world/WorldScreen"));
 const SettingsScreen = lazy(() => import("@/features/settings/SettingsScreen"));
+const CommunityScreen = lazy(() => import("@/features/community/CommunityScreen"));
 const Onboarding = lazy(() => import("@/features/onboarding/Onboarding"));
 
 /** Erro numa tela não derruba o app: mostra o aviso e deixa tentar de novo. */
@@ -62,6 +64,8 @@ export default function App() {
   const { motion: motionOn } = useTheme();
   const [onboarding, setOnboarding] = useState<boolean | null>(null);
   const [tour, setTour] = useState(false);
+  const account = useAccount();
+  const community = account.community;
 
   useEffect(() => {
     commands.getProfile().then(
@@ -89,7 +93,7 @@ export default function App() {
   });
 
   useKey((e) => {
-    const target = SLOTS[Number(e.key) - 1];
+    const target = visibleSlots(community)[Number(e.key) - 1];
     if (target && !digitsClaimed()) setSlot(target.id);
   });
 
@@ -116,7 +120,7 @@ export default function App() {
   return (
     <>
       <div className="flex h-screen overflow-hidden">
-        <Sidebar slot={slot} go={setSlot} />
+        <Sidebar slot={slot} go={setSlot} account={account} />
 
         <main className="relative flex-1 overflow-y-auto [scrollbar-gutter:stable]">
           <AnimatePresence>
@@ -145,6 +149,7 @@ export default function App() {
                     {slot === "materias" && <SubjectsScreen />}
                     {slot === "mundo" && <WorldScreen />}
                     {slot === "config" && <SettingsScreen />}
+                    {slot === "comunidade" && community && <CommunityScreen />}
                   </ScreenBoundary>
                 </PageTransition>
               </AnimatePresence>

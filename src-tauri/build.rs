@@ -1,5 +1,6 @@
 fn main() {
     placeholder_sidecar();
+    cloud_env();
     tauri_build::build()
 }
 
@@ -18,5 +19,21 @@ fn placeholder_sidecar() {
         let _ = std::fs::create_dir_all("binaries");
         let _ = std::fs::write(&path, b"");
         println!("cargo:warning=binário do MCP ausente: placeholder vazio em {} (rode `node scripts/sidecar.mjs` para o real)", path.display());
+    }
+}
+
+/// Endereço e chave do Supabase da versão Cloud: lidos de `src-tauri/cloud.env` (fora do git) ou do
+/// ambiente (CI), nunca escritos no código. Sem eles o app compila como a versão base.
+fn cloud_env() {
+    println!("cargo:rerun-if-changed=cloud.env");
+    println!("cargo:rerun-if-env-changed=GRIFO_SUPABASE_URL");
+    println!("cargo:rerun-if-env-changed=GRIFO_SUPABASE_KEY");
+    let Ok(text) = std::fs::read_to_string("cloud.env") else { return };
+    for line in text.lines() {
+        let Some((k, v)) = line.split_once('=') else { continue };
+        let (k, v) = (k.trim(), v.trim());
+        if (k == "GRIFO_SUPABASE_URL" || k == "GRIFO_SUPABASE_KEY") && std::env::var(k).is_err() {
+            println!("cargo:rustc-env={k}={v}");
+        }
     }
 }

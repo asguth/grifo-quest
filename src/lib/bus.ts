@@ -17,6 +17,10 @@ type AppEvents = {
   theme: Theme;
   /** Festa de nível novo. */
   levelup: number;
+  /** Entrou ou saiu da conta do Grifo Quest Cloud (menu reconfere a assinatura). */
+  account: undefined;
+  /** Trocar a aba da Config (o menu pede "conta"). */
+  settingsTab: string;
 };
 
 type Name = keyof AppEvents;

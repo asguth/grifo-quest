@@ -1,19 +1,21 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { PanelLeftClose, PanelLeftOpen, Pause, Play } from "lucide-react";
-import { Mascot } from "@/components/Mascot";
+import { LogIn, PanelLeftClose, PanelLeftOpen, Pause, Play } from "lucide-react";
+import { lookOf, Mascot } from "@/components/Mascot";
+import type { Account } from "@/lib/access";
 import { commands, type NavBadges } from "@/lib/bindings";
 import { spring } from "@/lib/motion";
 import { getFlag, saveFlag } from "@/lib/prefs";
 import { clock, timerFraction, timerLabel, timerSeconds, useTimer } from "@/lib/timer";
 import { sfx } from "@/lib/sound";
 import { cn, warn } from "@/lib/utils";
-import { badgeOf, SLOTS, type Navigate, type SlotId } from "./nav";
+import { badgeOf, visibleSlots, type Navigate, type SlotId } from "./nav";
 import { UpdateButton } from "./UpdateButton";
 import { toastError } from "@/components/toast";
 import { PixelBar } from "@/features/focus/PixelRing";
 import { requestStudyTab } from "@/features/study/tabRequest";
+import { requestSettingsTab } from "@/features/settings/tabRequest";
 
 function useBadges(slot: SlotId) {
   const [b, setB] = useState<NavBadges>({ unread_news: 0, reviews_due: 0, study_due: 0 });
@@ -26,7 +28,7 @@ function useBadges(slot: SlotId) {
   return b;
 }
 
-export function Sidebar({ slot, go }: { slot: SlotId; go: Navigate }) {
+export function Sidebar({ slot, go, account }: { slot: SlotId; go: Navigate; account: Account }) {
   const [collapsed, setCollapsed] = useState(false);
   const [timer, setTimer] = useTimer();
   const [version, setVersion] = useState("");
@@ -55,7 +57,9 @@ export function Sidebar({ slot, go }: { slot: SlotId; go: Navigate }) {
         {!collapsed && <span className="retro truncate text-[10px] text-primary">Grifo Quest</span>}
       </div>
 
-      {SLOTS.map((s) => {
+      <AccountChip account={account} collapsed={collapsed} go={go} />
+
+      {visibleSlots(account.community).map((s) => {
         const active = slot === s.id;
         const badge = badgeBySlot[s.id] ?? 0;
         const Icon = s.icon;
@@ -179,5 +183,48 @@ export function Sidebar({ slot, go }: { slot: SlotId; go: Navigate }) {
         )}
       </div>
     </motion.nav>
+  );
+}
+
+/** Quem está logado (versão Cloud): nome e avatar; sem login, o convite para entrar. Leva à Config → Conta. */
+function AccountChip({ account, collapsed, go }: { account: Account; collapsed: boolean; go: Navigate }) {
+  if (!account.available) return null;
+  const openAccount = () => {
+    requestSettingsTab("conta");
+    go("config");
+  };
+  if (!account.signedIn) {
+    return (
+      <button
+        onClick={openAccount}
+        title={collapsed ? "Entrar no Grifo Quest Cloud" : undefined}
+        className={cn(
+          "mb-3 flex h-10 items-center gap-2 rounded-lg border border-dashed border-primary/50 text-sm text-primary hover:bg-primary/10",
+          collapsed ? "justify-center px-0" : "px-3",
+        )}
+      >
+        <LogIn className="size-4 shrink-0" />
+        {!collapsed && <span className="truncate font-medium">Entrar na conta</span>}
+      </button>
+    );
+  }
+  return (
+    <button
+      onClick={openAccount}
+      title={collapsed ? account.name : account.email}
+      className={cn("mb-3 flex items-center gap-2.5 rounded-xl bg-secondary/60 p-1.5 text-left hover:bg-secondary", collapsed && "justify-center")}
+    >
+      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-card">
+        <Mascot look={lookOf(account.avatar)} scale={1.5} title="" />
+      </span>
+      {!collapsed && (
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium">{account.name}</span>
+          <span className={cn("block truncate text-[11px]", account.community ? "text-primary" : "text-muted-foreground")}>
+            {account.community ? "Cloud ativo" : "sem assinatura"}
+          </span>
+        </span>
+      )}
+    </button>
   );
 }

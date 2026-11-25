@@ -10,5 +10,6 @@ if not exist "%SHIMS%" mkdir "%SHIMS%"
 where pnpm >nul 2>&1 || call corepack enable --install-directory "%SHIMS%" pnpm
 powershell -NoProfile -Command "Get-Process grifo-quest -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '*\Grifo Quest\*' } | Stop-Process -Force"
 cd /d "%~dp0.."
-call pnpm tauri dev
+rem Argumentos passam adiante: "scripts\dev.cmd --features cloud" abre a versao Cloud.
+call pnpm tauri dev %*
 pause
