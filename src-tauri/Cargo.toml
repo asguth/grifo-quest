@@ -1,6 +1,6 @@
 [package]
 name = "grifo-quest"
-version = "0.5.0"
+version = "0.6.0"
 description = "Monitor de estudos para concursos"
 authors = ["Alberto Guth"]
 license-file = "../LICENSE"
