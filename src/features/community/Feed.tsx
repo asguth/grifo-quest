@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
-import { motion } from "motion/react";
-import { ArrowBigDown, ArrowBigUp, BookOpenCheck, ChartBar, Plus, ChevronDown, ChevronUp, CircleCheck, Feather, HelpCircle, MessageCircle, PlusCircle, Sparkles, Target, Trash2 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { BookOpenCheck, ChartBar, Plus, ChevronDown, ChevronUp, CircleCheck, Feather, HelpCircle, MessageCircle, PlusCircle, Sparkles, Target, Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/motion";
 import { TierBadge } from "@/components/TierBadge";
 import { toastError } from "@/components/toast";
@@ -20,8 +20,6 @@ import {
   deleteComment,
   pollResult,
   votePoll,
-  myCommentVotes,
-  voteComment,
   deleteItem,
   giveFeather,
   markSolved,
@@ -301,7 +299,7 @@ export function FeedCard({ item, me, open, feathered, onDeleted, startOpen }: { 
   };
 
   return (
-    <motion.article layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
+    <motion.article initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
       <header className="flex items-start gap-3">
         <button onClick={() => open({ kind: "profile", id: item.author.id })}>
           <PersonPhoto p={item.author} size={40} />
@@ -357,7 +355,16 @@ export function FeedCard({ item, me, open, feathered, onDeleted, startOpen }: { 
         </span>
       </footer>
 
-      {showComments && (
+      <AnimatePresence initial={false}>
+        {showComments && (
+          <motion.div
+            key="comments"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+            className="overflow-hidden"
+          >
         <Comments
           item={item}
           me={me}
@@ -374,7 +381,9 @@ export function FeedCard({ item, me, open, feathered, onDeleted, startOpen }: { 
           }}
           onCount={setComments}
         />
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.article>
   );
 }
@@ -399,7 +408,7 @@ function PollBody({ item }: { item: FeedItem }) {
     const changed = votes.map((v, j) => v + (j === next ? 1 : 0) - (j === mine ? 1 : 0));
     result.setData({ votes: changed, mine: next });
     setBusy(true);
-    votePoll(item.id, next)
+    votePoll(item.id, next, mine !== null)
       .catch((e) => {
         result.setData(before);
         toastError(e);
@@ -471,7 +480,7 @@ function Pill({ children, tone }: { children: ReactNode; tone?: "good" }) {
   return <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", tone === "good" ? "bg-success/15 text-success" : "bg-card")}>{children}</span>;
 }
 
-type SortMode = "best" | "new" | "old";
+type SortMode = "new" | "old";
 type Node = FeedComment & { children: Node[] };
 
 /** Monta a árvore (respostas sob o pai) e ordena cada nível. A melhor resposta da dúvida vem primeiro. */
@@ -484,7 +493,6 @@ function threadOf(list: FeedComment[], sort: SortMode, accepted: string | null):
   }
   const cmp = (a: Node, b: Node) => {
     if (a.id === accepted || b.id === accepted) return Number(b.id === accepted) - Number(a.id === accepted);
-    if (sort === "best") return (b.score ?? 0) - (a.score ?? 0) || a.created_at.localeCompare(b.created_at);
     return sort === "new" ? b.created_at.localeCompare(a.created_at) : a.created_at.localeCompare(b.created_at);
   };
   const order = (ns: Node[]) => {
@@ -520,8 +528,7 @@ function Comments({
   onCount: (n: number) => void;
 }) {
   const list = useLoad(() => commentsOf(item.id), [item.id]);
-  const votes = useLoad(() => myCommentVotes(item.id), [item.id]);
-  const [sort, setSort] = useState<SortMode>("best");
+  const [sort, setSort] = useState<SortMode>("old");
   const [writing, setWriting] = useState(false);
   const { act } = useAction();
   const reload = () => {
@@ -538,18 +545,6 @@ function Comments({
     accepted,
     canAccept,
     onAccept,
-    votes: votes.data ?? {},
-    setVote: (id, v) => {
-      const before = votes.data ?? {};
-      const old = before[id] ?? 0;
-      votes.setData({ ...before, [id]: v });
-      list.setData((list.data ?? []).map((c) => (c.id === id ? { ...c, score: (c.score ?? 0) - old + v } : c)));
-      voteComment(id, v).catch((e) => {
-        votes.setData(before);
-        reload();
-        toastError(e);
-      });
-    },
     reply: (parent, text) => act(() => comment(item.id, text, parent)).then((ok) => (ok && reload(), ok)),
     remove: (id) => void act(() => deleteComment(id)).then((ok) => ok && reload()),
   };
@@ -582,7 +577,6 @@ function Comments({
           <span>Ordenar:</span>
           {(
             [
-              ["best", "Melhores"],
               ["new", "Mais novos"],
               ["old", "Mais antigos"],
             ] as const
@@ -611,8 +605,6 @@ type ThreadCtx = {
   accepted: string | null;
   canAccept: boolean;
   onAccept: (id: string | null) => void;
-  votes: Record<string, number>;
-  setVote: (id: string, v: -1 | 0 | 1) => void;
   reply: (parent: string | null, text: string) => Promise<boolean>;
   remove: (id: string) => void;
 };
@@ -622,7 +614,6 @@ function Thread({ node: c, depth, ctx }: { node: Node; depth: number; ctx: Threa
   const [collapsed, setCollapsed] = useState(false);
   const [replying, setReplying] = useState(false);
   const [deep, setDeep] = useState(false);
-  const mine = ctx.votes[c.id] ?? 0;
   const best = c.id === ctx.accepted;
   const hidden = countAll(c.children);
 
@@ -645,8 +636,8 @@ function Thread({ node: c, depth, ctx }: { node: Node; depth: number; ctx: Threa
           <PersonPhoto p={c.author} size={28} />
         </button>
         {/* linha do fio: clicar recolhe */}
-        <button onClick={() => setCollapsed(true)} aria-label="Recolher o fio" className="group mt-1 flex w-4 flex-1 justify-center">
-          <span className="w-0.5 flex-1 rounded-full bg-border transition-colors group-hover:bg-primary" />
+        <button onClick={() => setCollapsed(true)} aria-label="Recolher o fio" title="Recolher" className="group mt-1 flex w-4 flex-1 justify-center">
+          <span className="w-px flex-1 bg-border transition-colors group-hover:w-0.5 group-hover:bg-primary" />
         </button>
       </div>
       <div className="min-w-0 flex-1 pb-2">
@@ -659,24 +650,7 @@ function Thread({ node: c, depth, ctx }: { node: Node; depth: number; ctx: Threa
           </p>
           <p className="mt-0.5 text-sm break-words whitespace-pre-wrap">{c.body}</p>
         </div>
-        <div className="mt-1 flex flex-wrap items-center gap-0.5 text-xs text-muted-foreground">
-          <span className="flex items-center rounded-full bg-secondary/50">
-            <button
-              aria-label="Votar a favor"
-              className={cn("grid size-7 place-items-center rounded-full hover:bg-secondary hover:text-primary", mine === 1 && "text-primary")}
-              onClick={() => ctx.setVote(c.id, mine === 1 ? 0 : 1)}
-            >
-              <ArrowBigUp className={cn("size-4", mine === 1 && "fill-current")} />
-            </button>
-            <span className={cn("tabular min-w-4 text-center font-semibold", mine === 1 && "text-primary", mine === -1 && "text-sky-400")}>{c.score ?? 0}</span>
-            <button
-              aria-label="Votar contra"
-              className={cn("grid size-7 place-items-center rounded-full hover:bg-secondary hover:text-sky-400", mine === -1 && "text-sky-400")}
-              onClick={() => ctx.setVote(c.id, mine === -1 ? 0 : -1)}
-            >
-              <ArrowBigDown className={cn("size-4", mine === -1 && "fill-current")} />
-            </button>
-          </span>
+        <div className="mt-0.5 flex flex-wrap items-center gap-0.5 text-xs text-muted-foreground">
           <button className="flex items-center gap-1 rounded-full px-2 py-1 font-medium hover:bg-secondary hover:text-foreground" onClick={() => setReplying((r) => !r)}>
             <MessageCircle className="size-3.5" /> Responder
           </button>

@@ -342,10 +342,15 @@ export function pollResult(item: string): Promise<PollResult | null> {
   return rest<PollResult | null>(`rpc/poll_result`, { method: "POST", body: { item } });
 }
 
-/** Vota (ou troca o voto); `null` tira o voto. */
-export async function votePoll(item: string, choice: number | null) {
-  if (choice === null) return rest(`poll_votes?item_id=eq.${enc(item)}&user_id=eq.${await myUserId()}`, { method: "DELETE" });
-  return rest(`poll_votes?on_conflict=item_id,user_id`, { method: "POST", body: { item_id: item, choice }, prefer: "resolution=merge-duplicates" });
+/**
+ * Vota, troca o voto (`had` = já tinha votado) ou tira (`null`). Sem upsert: o "insert ... on conflict"
+ * do PostgREST exige permissão de update em todas as colunas, e o servidor só libera `choice`.
+ */
+export async function votePoll(item: string, choice: number | null, had: boolean) {
+  const mine = `poll_votes?item_id=eq.${enc(item)}&user_id=eq.${await myUserId()}`;
+  if (choice === null) return rest(mine, { method: "DELETE" });
+  if (had) return rest(mine, { method: "PATCH", body: { choice } });
+  return rest(`poll_votes`, { method: "POST", body: { item_id: item, choice } });
 }
 
 export function deleteItem(id: string) {
@@ -378,21 +383,6 @@ export function commentsOf(item: string): Promise<FeedComment[]> {
 
 export function comment(item: string, body: string, parent: string | null = null) {
   return rest(`feed_comments`, { method: "POST", body: parent ? { item_id: item, body, parent_id: parent } : { item_id: item, body } });
-}
-
-/** Meus votos nos comentários de uma publicação: id → 1 ou -1. */
-export async function myCommentVotes(item: string): Promise<Record<string, number>> {
-  const rows = await rest<{ comment_id: string; value: number }[]>(
-    `comment_votes?user_id=eq.${await myUserId()}&select=comment_id,value,feed_comments!inner(item_id)&feed_comments.item_id=eq.${enc(item)}`,
-  );
-  return Object.fromEntries(rows.map((r) => [r.comment_id, r.value]));
-}
-
-/** Vota (1/-1) ou tira o voto (0). */
-export async function voteComment(id: string, value: -1 | 0 | 1) {
-  const me = await myUserId();
-  if (value === 0) return rest(`comment_votes?comment_id=eq.${enc(id)}&user_id=eq.${me}`, { method: "DELETE" });
-  return rest(`comment_votes?on_conflict=comment_id,user_id`, { method: "POST", body: { comment_id: id, value }, prefer: "resolution=merge-duplicates" });
 }
 
 export function deleteComment(id: string) {

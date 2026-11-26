@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { motion } from "motion/react";
-import { Check, CloudDownload, CloudUpload, Loader2, LogIn, LogOut, Palette, ShieldCheck, Sparkles, Users } from "lucide-react";
+import { CloudDownload, CloudUpload, Loader2, LogIn, LogOut, Palette, ShieldCheck, Sparkles, Users } from "lucide-react";
 import { Mascot } from "@/components/Mascot";
 import { PersonPhoto } from "@/components/PersonPhoto";
 import { TierBadge } from "@/components/TierBadge";
@@ -17,7 +17,6 @@ import { getFlag, saveFlag } from "@/lib/prefs";
 import { useAccount } from "@/lib/access";
 import { AdminPanel, useIsAdmin } from "./AdminPanel";
 import { breathe } from "@/lib/motion";
-import { TIERS, type Tier } from "@/lib/tiers";
 import { cn, errorMessage, warn } from "@/lib/utils";
 
 /** Este build tem a nuvem? (a versão base responde que não e a aba Conta nem aparece) */
@@ -106,15 +105,6 @@ export function Account() {
 
       {admin && <AdminPanel />}
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold">Planos</h2>
-        <div className="grid gap-3 md:grid-cols-3">
-          {TIERS.map((t) => (
-            <TierCard key={t.id} tier={t} current={!!plan?.active && plan.plan === t.id} />
-          ))}
-        </div>
-        <p className="text-xs text-muted-foreground">O pagamento pelo app chega em breve. Sem plano, o Grifo Quest continua completo no seu PC.</p>
-      </section>
     </div>
   );
 }
@@ -240,33 +230,6 @@ function CloudData({ active, checking }: { active: boolean; checking: boolean })
         </details>
       )}
     </section>
-  );
-}
-
-function TierCard({ tier, current }: { tier: Tier; current: boolean }) {
-  return (
-    <div
-      className="flex flex-col gap-3 rounded-2xl border bg-card p-5 shadow-soft"
-      style={{ borderColor: current ? tier.tone.fg : undefined, boxShadow: current ? `0 0 0 1px ${tier.tone.fg}` : undefined }}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <TierBadge plan={tier.id} />
-        {current && <span className="text-xs font-medium" style={{ color: tier.tone.fg }}>Seu plano</span>}
-      </div>
-      <p className="text-sm text-muted-foreground">{tier.tagline}</p>
-      <ul className="flex-1 space-y-1.5 text-sm">
-        {tier.perks.map((perk) => (
-          <li key={perk} className="flex gap-2">
-            <Check className="mt-0.5 size-4 shrink-0" style={{ color: tier.tone.fg }} /> {perk}
-          </li>
-        ))}
-      </ul>
-      {!current && (
-        <Button variant="outline" size="sm" onClick={() => toast("O pagamento pelo app chega em breve.")}>
-          Quero este
-        </Button>
-      )}
-    </div>
   );
 }
 
