@@ -1,5 +1,5 @@
 //! Voz na sala de aula: grava o microfone (cpal), transcreve no PC com o whisper.cpp oficial
-//! (`whisper-cli.exe`, baixado em Config → Integrações) e devolve o texto para você revisar.
+//! (`whisper-cli.exe`, baixado em Configurações → Integrações) e devolve o texto para você revisar.
 //! Roda na CPU: a placa de vídeo fica livre para o modelo do Ollama.
 
 use std::path::{Path, PathBuf};
@@ -117,7 +117,7 @@ fn record(app: AppHandle, stop: mpsc::Receiver<()>) -> Recorded {
 #[specta::specta]
 pub fn voice_start(app: AppHandle, state: State<'_, VoiceState>) -> AppResult<()> {
     if !installed(&app) {
-        return Err(AppError::Invalid("Instale a voz em Config → Integrações (um clique)".into()));
+        return Err(AppError::Invalid("Instale a voz em Configurações → Integrações (um clique)".into()));
     }
     let mut cur = state.0.lock().map_err(|_| AppError::Invalid("estado da voz corrompido".into()))?;
     if cur.is_some() {

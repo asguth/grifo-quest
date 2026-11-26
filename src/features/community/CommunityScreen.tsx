@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, BookOpenCheck, CalendarClock, HelpCircle, Home, LayoutList, MessageCircle, MessageSquareText, Trophy, UserRound, Users, UsersRound } from "lucide-react";
+import { ArrowLeft, BookOpenCheck, CalendarClock, ChartBar, HelpCircle, Home, LayoutList, MessageCircle, MessageSquareText, Trophy, UserRound, Users, UsersRound } from "lucide-react";
 import { MascotEmpty } from "@/components/MascotEmpty";
 import { Skeleton } from "@/components/motion";
 import { SectionTabs } from "@/components/SectionTabs";
@@ -11,6 +11,7 @@ import { plural } from "@/lib/format";
 import { cn, warn } from "@/lib/utils";
 import {
   blockedIds,
+  incomingRequests,
   dailyFromMine,
   friendsOf,
   homeFeed,
@@ -46,6 +47,8 @@ export default function CommunityScreen() {
   const [stack, setStack] = useState<Route[]>([]);
   const unread = useUnreadMessages();
   const blocks = useLoad(blockedIds, []);
+  // pedidos de amizade esperando resposta: contador na aba Amigos (recarrega ao trocar de aba)
+  const requests = useLoad(incomingRequests, [tab]);
   useSyncStats(profile.data);
 
   const route = stack[stack.length - 1];
@@ -74,7 +77,7 @@ export default function CommunityScreen() {
     return (
       <MascotEmpty title="A comunidade não abriu" text={me.error}>
         <Button variant="outline" onClick={() => emit("navigate", "config")}>
-          Abrir Config → Conta
+          Abrir Configurações → Conta
         </Button>
       </MascotEmpty>
     );
@@ -109,7 +112,7 @@ export default function CommunityScreen() {
             tabs={[
               { id: "mural", label: "Mural", icon: Home },
               { id: "comunidades", label: "Comunidades", icon: UsersRound },
-              { id: "amigos", label: "Amigos", icon: Users },
+              { id: "amigos", label: "Amigos", icon: Users, badge: requests.data?.length },
               { id: "mensagens", label: "Mensagens", icon: MessageCircle, badge: unread.count },
               { id: "perfil", label: "Perfil", icon: UserRound },
             ]}
@@ -181,6 +184,7 @@ const FILTERS: { id: FeedKind | "all"; label: string; icon: typeof Home }[] = [
   { id: "question", label: "Dúvidas", icon: HelpCircle },
   { id: "activity", label: "Estudos", icon: BookOpenCheck },
   { id: "post", label: "Posts", icon: MessageSquareText },
+  { id: "poll", label: "Enquetes", icon: ChartBar },
 ];
 
 function Mural({ me, open, goTab }: { me: Profile; open: Open; goTab: (t: Tab) => void }) {

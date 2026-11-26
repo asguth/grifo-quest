@@ -1,3 +1,4 @@
+import { openLink } from "@/components/ExternalLink";
 import { useEffect, useState, type ReactNode } from "react";
 import { motion } from "motion/react";
 import { Check, Play } from "lucide-react";
@@ -367,7 +368,7 @@ export function NewsWidget({ go }: { go: Navigate }) {
               className="min-w-0 flex-1 text-left"
               onClick={() => {
                 markRead(n);
-                commands.openLink(n.link).catch(toastError);
+                openLink(n.link);
               }}
             >
               <span className={cn("line-clamp-2 text-sm leading-snug", n.read ? "text-muted-foreground" : "font-medium")}>{n.title}</span>
@@ -403,7 +404,7 @@ export function ContestsWidget({ go }: { go: Navigate }) {
       <ul className="space-y-2 text-sm">
         {contests.slice(0, 5).map((c) => (
           <li key={c.id}>
-            <button className="text-left hover:text-primary" onClick={() => commands.openLink(c.url).catch(toastError)}>
+            <button className="text-left hover:text-primary" onClick={() => openLink(c.url)}>
               {c.followed && "★ "}
               {c.title}
             </button>

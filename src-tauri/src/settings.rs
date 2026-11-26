@@ -169,6 +169,14 @@ impl Profile {
 pub struct PomodoroConfig {
     pub focus_min: i32,
     pub break_min: i32,
+    /// Pausa longa (min) a cada `long_every` focos.
+    pub long_break_min: i32,
+    /// 0 = sem pausa longa.
+    pub long_every: i32,
+    pub auto_start_breaks: bool,
+    pub auto_start_focus: bool,
+    /// Notificação do Windows ao fim de cada fase.
+    pub notify: bool,
 }
 
 impl Stored for PomodoroConfig {
@@ -177,7 +185,7 @@ impl Stored for PomodoroConfig {
 
 impl Default for PomodoroConfig {
     fn default() -> Self {
-        Self { focus_min: 25, break_min: 5 }
+        Self { focus_min: 25, break_min: 5, long_break_min: 15, long_every: 4, auto_start_breaks: true, auto_start_focus: false, notify: true }
     }
 }
 
@@ -186,7 +194,22 @@ impl PomodoroConfig {
         if !(1..=180).contains(&self.focus_min) || !(1..=60).contains(&self.break_min) {
             return Err(AppError::Invalid("Foco entre 1 e 180 min, pausa entre 1 e 60 min".into()));
         }
+        if !(1..=90).contains(&self.long_break_min) || !(0..=12).contains(&self.long_every) {
+            return Err(AppError::Invalid("Pausa longa entre 1 e 90 min, a cada 0 a 12 focos".into()));
+        }
         Ok(())
+    }
+
+    /// Plano do timer (durações em segundos).
+    pub fn plan(&self) -> crate::domain::timer::Plan {
+        crate::domain::timer::Plan {
+            focus: i64::from(self.focus_min) * 60,
+            short_break: i64::from(self.break_min) * 60,
+            long_break: i64::from(self.long_break_min) * 60,
+            long_every: self.long_every,
+            auto_break: self.auto_start_breaks,
+            auto_focus: self.auto_start_focus,
+        }
     }
 }
 
@@ -210,6 +233,8 @@ wire_enum! {
         CloudBackup = "cloud_backup",
         /// Ids dos avisos do dev já vistos (JSON)
         SeenAnnouncements = "seen_announcements",
+        /// Pomodoro: layout do relógio, sons e tela cheia (JSON, `src/lib/pomodoro.ts`)
+        PomodoroView = "pomodoro_view",
     }
 }
 

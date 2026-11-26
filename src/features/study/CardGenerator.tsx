@@ -135,7 +135,7 @@ export function CardGenerator({ subjects, onSaved }: { subjects: Subject[]; onSa
           {busy === "gen" ? <Loader2 className="animate-spin" /> : <Sparkles />} {busy === "gen" ? "Gerando…" : "Gerar cartões"}
         </Button>
         {error && <p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
-        <p className="text-xs text-muted-foreground">Usa a IA de “Materiais rápidos” de Config → IA.</p>
+        <p className="text-xs text-muted-foreground">Usa a IA de “Materiais rápidos” de Configurações → IA.</p>
       </form>
 
       <section className="min-w-0 space-y-3">

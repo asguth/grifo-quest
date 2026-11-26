@@ -172,18 +172,73 @@ pub const DONE: &str = "prova realizada";
 /// Sinais, no título/resumo/status, de que a prova já passou. A IA às vezes chama o aditivo de vagas
 /// de um concurso antigo de "edital publicado" (caso real: Serpro 2023, 3º aditivo em 2026).
 /// Sem "contratação" (da banca vem antes da prova) e sem "convocação" sozinha (para a prova também).
-const AFTER_EXAM: [&str; 12] = [
+const AFTER_EXAM: [&str; 18] = [
     "aditivo", "convocacoes", "convocados", "convocacao de aprovados", "nomea", "homolog", "resultado",
-    "cadastro de reserva", "cadastro reserva", "prova realizada", "aprovados", "posse",
+    "cadastro de reserva", "cadastro reserva", "prova realizada", "aprovados", "posse", "prova foi aplicada",
+    "provas foram aplicadas", "prova aplicada", "provas aplicadas", "gabarito", "provas realizadas",
 ];
+
+/// Inscrições que fecharam há mais que isso (dias) sem data de prova futura: a prova já passou.
+const STALE_DEADLINE_DAYS: i64 = 90;
+
+/// Datas "dd/mm/aaaa" ou "aaaa-mm-dd" logo depois da palavra "prova" (até 40 caracteres), em
+/// "AAAA-MM-DD". O resumo da IA costuma trazer "a prova foi/será aplicada em 11/10/2026".
+fn exam_dates_in(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut rest = text;
+    while let Some(i) = rest.find("prova") {
+        let after = &rest[i + 5..];
+        let window: String = after.chars().take(40).collect();
+        out.extend(dates_in(&window));
+        rest = after;
+    }
+    out
+}
+
+fn dates_in(s: &str) -> Vec<String> {
+    let b = s.as_bytes();
+    let digits = |from: usize, n: usize| (from..from + n).all(|i| b.get(i).is_some_and(u8::is_ascii_digit));
+    let mut out = Vec::new();
+    for i in 0..b.len() {
+        if digits(i, 2) && b.get(i + 2) == Some(&b'/') && digits(i + 3, 2) && b.get(i + 5) == Some(&b'/') && digits(i + 6, 4) {
+            out.push(format!("{}-{}-{}", &s[i + 6..i + 10], &s[i + 3..i + 5], &s[i..i + 2]));
+        }
+        if digits(i, 4) && b.get(i + 4) == Some(&b'-') && digits(i + 5, 2) && b.get(i + 7) == Some(&b'-') && digits(i + 8, 2) {
+            out.push(s[i..i + 10].to_string());
+        }
+    }
+    out
+}
+
+/// Dias de `a` até `b` ("AAAA-MM-DD"); `None` se alguma não for data.
+fn days_between(a: &str, b: &str) -> Option<i64> {
+    fn days(d: &str) -> Option<i64> {
+        let y: i64 = d.get(0..4)?.parse().ok()?;
+        let m: i64 = d.get(5..7)?.parse().ok()?;
+        let dd: i64 = d.get(8..10)?.parse().ok()?;
+        // days-from-civil (H. Hinnant)
+        let y = if m <= 2 { y - 1 } else { y };
+        let era = y.div_euclid(400);
+        let yoe = y - era * 400;
+        let mp = (m + 9) % 12;
+        let doy = (153 * mp + 2) / 5 + dd - 1;
+        let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+        Some(era * 146_097 + doe)
+    }
+    Some(days(b)? - days(a)?)
+}
 
 /// Corrige o status de um concurso: se há sinal de que a prova já aconteceu (marcadores acima, data
 /// da prova no passado ou só anos anteriores no título), devolve [`DONE`] seja o que for que a IA
 /// disse. `today` = "AAAA-MM-DD".
-pub fn contest_status(title: &str, summary: Option<&str>, status: Option<&str>, exam_date: Option<&str>, today: &str) -> Option<String> {
+pub fn contest_status(title: &str, summary: Option<&str>, status: Option<&str>, exam_date: Option<&str>, deadline: Option<&str>, today: &str) -> Option<String> {
     let text = fold(&format!("{title} {} {}", summary.unwrap_or(""), status.unwrap_or("")));
     let marker = AFTER_EXAM.iter().any(|m| text.contains(m));
-    let past_exam = exam_date.is_some_and(|d| d.len() >= 10 && d[..10] < *today);
+    let mentioned = exam_dates_in(&text);
+    let future_exam = exam_date.is_some_and(|d| d.len() >= 10 && d[..10] >= *today) || mentioned.iter().any(|d| d.as_str() >= today);
+    let past_exam = exam_date.is_some_and(|d| d.len() >= 10 && d[..10] < *today) || (!future_exam && mentioned.iter().any(|d| d.as_str() < today));
+    // inscrições fechadas há meses e nenhuma prova marcada para frente
+    let stale = !future_exam && deadline.and_then(|d| days_between(d.get(..10)?, today)).is_some_and(|n| n > STALE_DEADLINE_DAYS);
     let year_now: i32 = today.get(..4).and_then(|y| y.parse().ok()).unwrap_or(0);
     let years: Vec<i32> = fold(title)
         .split(|c: char| !c.is_ascii_digit())
@@ -192,7 +247,7 @@ pub fn contest_status(title: &str, summary: Option<&str>, status: Option<&str>, 
         .filter(|y| (2000..2100).contains(y))
         .collect();
     let old_contest = !years.is_empty() && years.iter().all(|&y| y < year_now);
-    if marker || past_exam || old_contest {
+    if marker || past_exam || old_contest || stale {
         return Some(DONE.to_string());
     }
     status.map(str::to_string)
@@ -264,16 +319,33 @@ mod tests {
     fn exam_already_happened_is_never_an_open_edital() {
         let today = "2026-11-24";
         // caso real: aditivo de vagas do concurso de 2023, classificado pela IA como "edital publicado"
-        let serpro = contest_status("Serpro – 3º aditivo do concurso 2023 (Analista – Tecnologia)", None, Some("edital publicado"), None, today);
+        let serpro = contest_status("Serpro – 3º aditivo do concurso 2023 (Analista – Tecnologia)", None, Some("edital publicado"), None, None, today);
         assert_eq!(serpro.as_deref(), Some(DONE));
-        assert_eq!(contest_status("Concurso X", Some("convocação de aprovados"), Some("edital publicado"), None, today).as_deref(), Some(DONE));
-        assert_eq!(contest_status("Concurso Y", None, Some("inscrições abertas"), Some("2026-03-01"), today).as_deref(), Some(DONE));
+        assert_eq!(contest_status("Concurso X", Some("convocação de aprovados"), Some("edital publicado"), None, None, today).as_deref(), Some(DONE));
+        assert_eq!(contest_status("Concurso Y", None, Some("inscrições abertas"), Some("2026-03-01"), None, today).as_deref(), Some(DONE));
         // concurso do ano que vem ou deste ano, sem sinal de prova feita: mantém
-        assert_eq!(contest_status("Concurso ANPD 2026", None, Some("banca definida"), Some("2027-04-18"), today).as_deref(), Some("banca definida"));
-        assert_eq!(contest_status("Concurso INSS", None, Some("previsto"), None, today).as_deref(), Some("previsto"));
+        assert_eq!(contest_status("Concurso ANPD 2026", None, Some("banca definida"), Some("2027-04-18"), None, today).as_deref(), Some("banca definida"));
+        assert_eq!(contest_status("Concurso INSS", None, Some("previsto"), None, None, today).as_deref(), Some("previsto"));
         // fases antes da prova não podem virar "realizada"
-        assert_eq!(contest_status("Concurso ANPD: contratação do Cebraspe", None, Some("banca definida"), None, today).as_deref(), Some("banca definida"));
-        assert_eq!(contest_status("TRT-2 divulga convocação para a prova", None, Some("inscrições encerradas"), Some("2026-12-07"), today).as_deref(), Some("inscrições encerradas"));
+        assert_eq!(contest_status("Concurso ANPD: contratação do Cebraspe", None, Some("banca definida"), None, None, today).as_deref(), Some("banca definida"));
+        assert_eq!(contest_status("TRT-2 divulga convocação para a prova", None, Some("inscrições encerradas"), Some("2026-12-07"), None, today).as_deref(), Some("inscrições encerradas"));
+        // caso real: Dataprev 2026, prova aplicada em 11/10/2026 dita só no resumo, inscrições até 06/08
+        let dataprev = contest_status(
+            "Dataprev 2026 – Analista de Tecnologia da Informação (Análise de Negócios de TI)",
+            Some("Edital com vagas para Análise de Negócios de TI; as inscrições já foram encerradas e a prova foi aplicada em 11/10/2026."),
+            Some("edital publicado"),
+            None,
+            Some("2026-08-06"),
+            today,
+        );
+        assert_eq!(dataprev.as_deref(), Some(DONE));
+        // só a data passada no resumo: também
+        assert_eq!(contest_status("Concurso Z", Some("A prova será em 05/10/2026."), Some("inscrições encerradas"), None, None, today).as_deref(), Some(DONE));
+        // prova marcada para frente no resumo: mantém, mesmo com inscrições fechadas há tempo
+        assert_eq!(contest_status("Concurso W", Some("Prova em 14/12/2026."), Some("inscrições encerradas"), None, Some("2026-07-01"), today).as_deref(), Some("inscrições encerradas"));
+        // inscrições fechadas há mais de 90 dias, sem prova à frente: já passou
+        assert_eq!(contest_status("Concurso V", None, Some("edital publicado"), None, Some("2026-06-01"), today).as_deref(), Some(DONE));
+        assert_eq!(contest_status("Concurso U", None, Some("inscrições encerradas"), None, Some("2026-11-01"), today).as_deref(), Some("inscrições encerradas"));
     }
 
     #[test]

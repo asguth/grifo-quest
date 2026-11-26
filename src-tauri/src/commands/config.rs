@@ -121,6 +121,30 @@ pub fn list_backups(app: tauri::AppHandle) -> AppResult<Vec<BackupFile>> {
     Ok(out)
 }
 
+/// Apaga um backup da pasta (só arquivos `.db` da própria pasta, pelo nome).
+#[tauri::command]
+#[specta::specta]
+pub fn delete_backup(app: tauri::AppHandle, name: String) -> AppResult<()> {
+    if name.contains(['/', '\\']) || name.contains("..") || !name.ends_with(".db") {
+        return Err(AppError::Invalid("Backup inválido".into()));
+    }
+    let path = backup_dir(&app)?.join(&name);
+    match std::fs::remove_file(&path) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Err(AppError::Invalid("Backup não encontrado".into())),
+        r => Ok(r?),
+    }
+}
+
+/// Abre a pasta dos backups no Explorador.
+#[tauri::command]
+#[specta::specta]
+pub fn open_backup_folder(app: tauri::AppHandle) -> AppResult<()> {
+    use tauri_plugin_opener::OpenerExt;
+    let dir = backup_dir(&app)?;
+    std::fs::create_dir_all(&dir)?;
+    app.opener().open_path(dir.to_string_lossy(), None::<&str>).map_err(|e| AppError::Invalid(format!("Não consegui abrir a pasta: {e}")))
+}
+
 /// Restaura um backup da pasta: guarda o estado atual como `…-antes-de-restaurar.db`, fecha o
 /// banco, troca o arquivo e reinicia o app.
 #[tauri::command]

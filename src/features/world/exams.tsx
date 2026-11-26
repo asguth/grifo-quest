@@ -1,3 +1,4 @@
+import { DatePicker } from "@/components/DatePicker";
 import { useCallback, useEffect, useState } from "react";
 import { toast, toastError } from "@/components/toast";
 import { Button } from "@/components/ui/button";
@@ -64,7 +65,7 @@ export function ExamForm({ onCreated }: { onCreated: () => void }) {
     <form onSubmit={submit} className="@container">
       <div className="grid gap-2 @2xl:grid-cols-[minmax(0,1.4fr)_150px_minmax(0,1fr)_minmax(0,1fr)_auto]">
       <Input value={form.name} onChange={set("name")} placeholder="Prova (ex.: TRT-2)" aria-label="Nome da prova" />
-      <Input type="date" value={form.exam_date} onChange={set("exam_date")} aria-label="Data da prova" />
+      <DatePicker value={form.exam_date} onChange={(v) => setForm({ ...form, exam_date: v })} placeholder="Data da prova" aria-label="Data da prova" />
       <Input value={form.banca} onChange={set("banca")} placeholder="Banca" aria-label="Banca" />
       <Input value={form.role} onChange={set("role")} placeholder="Cargo" aria-label="Cargo" />
       <Button type="submit" disabled={!form.name || !form.exam_date}>
@@ -75,14 +76,14 @@ export function ExamForm({ onCreated }: { onCreated: () => void }) {
   );
 }
 
-/** Rastreador: o Claude pesquisa concursos da área configurada (1–3 min). */
+/** Rastreador: uma IA com busca na web (Claude ou ChatGPT) pesquisa concursos da área (1–3 min). */
 export function useContestSearch(onFound: () => void) {
   const [searching, setSearching] = useState(false);
   async function search() {
     setSearching(true);
     try {
-      const n = await commands.searchContestsWithClaude();
-      toast(n > 0 ? `${n} concursos novos encontrados` : "Nada novo por enquanto", n > 0 ? "success" : "info");
+      const { new: n, by } = await commands.searchContests();
+      toast(n > 0 ? `${by} encontrou ${n} concursos novos` : `${by} não achou nada novo por enquanto`, n > 0 ? "success" : "info");
       onFound();
     } catch (e) {
       toastError(e);

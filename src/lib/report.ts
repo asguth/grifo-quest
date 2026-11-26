@@ -1,6 +1,5 @@
+import { openLink } from "@/components/ExternalLink";
 import { getVersion } from "@tauri-apps/api/app";
-import { commands } from "@/lib/bindings";
-import { toastError } from "@/components/toast";
 import { warn } from "@/lib/utils";
 
 const REPO = "https://github.com/asguth/grifo-quest";
@@ -38,5 +37,5 @@ export async function reportIssue(kind: ReportKind, extra: { title?: string; whe
   } catch (e) {
     warn("versão do app", e);
   }
-  await commands.openLink(issueUrl(kind, { ...extra, version, system: systemName() })).catch(toastError);
+  await openLink(issueUrl(kind, { ...extra, version, system: systemName() }));
 }

@@ -21,7 +21,7 @@ import { warn } from "@/lib/utils";
 /** Some sozinha depois disso (a não ser que o mouse esteja em cima). */
 const AUTO_HIDE_S = 30;
 
-/** Janela compacta que aparece quando o Windows liga (e em Config → Sistema → Ver agora). */
+/** Janela compacta que aparece quando o Windows liga (e em Configurações → Sistema → Ver agora). */
 export default function Welcome() {
   const [d, setD] = useState<Dashboard | null>(null);
   const [home, setHome] = useState<StudyHome | null>(null);

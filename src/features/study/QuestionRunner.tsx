@@ -219,7 +219,9 @@ export function QuestionRunner({ session, onFinish }: { session: SessionInfo; on
                     <span className="size-2 rounded-full" style={{ background: q.color }} />
                     <span className="font-medium text-foreground">{q.subject}</span>
                     <span>· {q.topic}</span>
-                    {q.banca && <span className="rounded bg-secondary px-1.5 py-0.5">{q.banca}</span>}
+                    <span className="rounded bg-secondary px-1.5 py-0.5" title={q.banca ? `No estilo ${q.banca}` : undefined}>
+                      {q.format === "ce" ? "Certo ou errado" : "Múltipla escolha · A a E"}
+                    </span>
                     {q.difficulty && <span className="rounded bg-secondary px-1.5 py-0.5">{q.difficulty}</span>}
                     {q.from_errors && <span className="rounded bg-destructive/15 px-1.5 py-0.5 text-destructive">caderno de erros</span>}
                   </div>

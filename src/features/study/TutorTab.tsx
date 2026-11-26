@@ -203,7 +203,7 @@ export default function TutorTab() {
           )}
         </div>
         <p className="mx-auto mt-1.5 max-w-3xl px-1 text-[11px] text-muted-foreground">
-          Enter envia · Shift+Enter quebra a linha · {model ? `respondendo com ${model.id === AUTO_MODEL ? "a IA de Config → IA" : model.label}` : "carregando IAs…"} · pode sair da aba: eu aviso quando responder
+          Enter envia · Shift+Enter quebra a linha · {model ? `respondendo com ${model.id === AUTO_MODEL ? "a IA de Configurações → IA" : model.label}` : "carregando IAs…"} · pode sair da aba: eu aviso quando responder
         </p>
       </form>
     </div>

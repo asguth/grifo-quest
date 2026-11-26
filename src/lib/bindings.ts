@@ -18,6 +18,7 @@ export const commands = {
 	cloudBackupNow: (options?: InvokeOptions) => __TAURI_INVOKE<CloudBackup_Serialize>("cloud_backup_now", undefined, options),
 	/**  Baixa e restaura um backup da nuvem (guarda o atual antes; o app reinicia). */
 	cloudRestore: (name: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("cloud_restore", { name }, options),
+	cloudDeleteBackup: (name: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("cloud_delete_backup", { name }, options),
 	/**  Avisos do dev para todo mundo (com ou sem conta). */
 	announcements: (options?: InvokeOptions) => __TAURI_INVOKE<Announcement[]>("announcements", undefined, options),
 	dailyQuestionDraft: (theme: string, options?: InvokeOptions) => __TAURI_INVOKE<DailyDraft>("daily_question_draft", { theme }, options),
@@ -39,6 +40,9 @@ export const commands = {
 	stopTimer: (options?: InvokeOptions) => __TAURI_INVOKE<TimerView_Serialize>("stop_timer", undefined, options),
 	/**  Pausa ou retoma o timer que estiver rodando. */
 	togglePause: (options?: InvokeOptions) => __TAURI_INVOKE<TimerView_Serialize>("toggle_pause", undefined, options),
+	/**  Pula a fase do pomodoro (foco pulado grava o tempo estudado, sem o XP do pomodoro). */
+	skipPhase: (options?: InvokeOptions) => __TAURI_INVOKE<TimerView_Serialize>("skip_phase", undefined, options),
+	pomodoroToday: (options?: InvokeOptions) => __TAURI_INVOKE<PomodoroToday>("pomodoro_today", undefined, options),
 	getPomodoroConfig: (options?: InvokeOptions) => __TAURI_INVOKE<PomodoroConfig_Serialize>("get_pomodoro_config", undefined, options),
 	setPomodoroConfig: (config: PomodoroConfig_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_pomodoro_config", { config }, options),
 	/**  Tudo que o Diário precisa numa chamada só. */
@@ -55,6 +59,10 @@ export const commands = {
 	 *  banco, troca o arquivo e reinicia o app.
 	 */
 	restoreBackup: (name: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("restore_backup", { name }, options),
+	/**  Apaga um backup da pasta (só arquivos `.db` da própria pasta, pelo nome). */
+	deleteBackup: (name: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("delete_backup", { name }, options),
+	/**  Abre a pasta dos backups no Explorador. */
+	openBackupFolder: (options?: InvokeOptions) => __TAURI_INVOKE<null>("open_backup_folder", undefined, options),
 	/**
 	 *  Apaga tudo (matérias, questões, histórico, preferências) e reinicia no assistente inicial.
 	 *  Antes guarda um backup "antes-de-apagar" na pasta de backups: dá para voltar em Restaurar.
@@ -105,8 +113,11 @@ export const commands = {
 	listContests: (options?: InvokeOptions) => __TAURI_INVOKE<Contest_Serialize[]>("list_contests", undefined, options),
 	setContestFollowed: (id: number, followed: boolean, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_contest_followed", { id, followed }, options),
 	deleteContest: (id: number, options?: InvokeOptions) => __TAURI_INVOKE<null>("delete_contest", { id }, options),
-	/**  Pede ao Claude (CLI headless + WebSearch) concursos da área configurada. Devolve quantos novos. */
-	searchContestsWithClaude: (options?: InvokeOptions) => __TAURI_INVOKE<number>("search_contests_with_claude", undefined, options),
+	/**
+	 *  Pede a uma IA com busca na web (Claude pela conta; sem ele, ChatGPT pelo Codex) concursos da área
+	 *  configurada. Devolve quantos novos.
+	 */
+	searchContests: (options?: InvokeOptions) => __TAURI_INVOKE<ContestSearch>("search_contests", undefined, options),
 	listStudents: (options?: InvokeOptions) => __TAURI_INVOKE<StudentInfo[]>("list_students", undefined, options),
 	listAllTopics: (options?: InvokeOptions) => __TAURI_INVOKE<TopicRef_Serialize[]>("list_all_topics", undefined, options),
 	getTopicMaterial: (topicId: number, options?: InvokeOptions) => __TAURI_INVOKE<TopicMaterial_Serialize>("get_topic_material", { topicId }, options),
@@ -130,7 +141,7 @@ export const commands = {
 	/**  Abre o HTML/PDF do material no programa padrão do Windows. */
 	openMaterialFile: (id: number, options?: InvokeOptions) => __TAURI_INVOKE<null>("open_material_file", { id }, options),
 	cancelMaterial: (topicId: number, options?: InvokeOptions) => __TAURI_INVOKE<void>("cancel_material", { topicId }, options),
-	/**  Gera um material. `full = false`: rápido, pelo roteador (Config → IA). `full = true`: apostila do Claude. */
+	/**  Gera um material. `full = false`: rápido, pelo roteador (Configurações → IA). `full = true`: apostila do Claude. */
 	generateMaterial: (topicId: number, kind: MaterialKind, full: boolean, options?: InvokeOptions) => __TAURI_INVOKE<Generated_Serialize>("generate_material", { topicId, kind, full }, options),
 	integrationsStatus: (options?: InvokeOptions) => __TAURI_INVOKE<IntegrationsStatus_Serialize>("integrations_status", undefined, options),
 	gpuInfo: (options?: InvokeOptions) => __TAURI_INVOKE<GpuInfo_Serialize>("gpu_info", undefined, options),
@@ -501,6 +512,13 @@ export type CloudStatus = {
 
 export type Contest = Contest_Serialize | Contest_Deserialize;
 
+/**  Resultado da busca do rastreador: quantos novos e qual IA pesquisou. */
+export type ContestSearch = {
+	new: number,
+	/**  "Claude" ou "ChatGPT" */
+	by: string,
+};
+
 export type Contest_Deserialize = {
 	id: number,
 	title: string,
@@ -765,7 +783,7 @@ export type GpuInfo_Deserialize = {
 	/**  Modelo do Ollama que cabe, e o tamanho do download. */
 	model?: string | null,
 	model_size?: string | null,
-	/**  Catálogo para o seletor de Config → IA, com o que cabe nesta placa. */
+	/**  Catálogo para o seletor de Configurações → IA, com o que cabe nesta placa. */
 	options: ModelOption[],
 };
 
@@ -780,7 +798,7 @@ export type GpuInfo_Serialize = {
 	/**  Modelo do Ollama que cabe, e o tamanho do download. */
 	model: string | null,
 	model_size: string | null,
-	/**  Catálogo para o seletor de Config → IA, com o que cabe nesta placa. */
+	/**  Catálogo para o seletor de Configurações → IA, com o que cabe nesta placa. */
 	options: ModelOption[],
 };
 
@@ -1081,11 +1099,33 @@ export type PomodoroConfig = PomodoroConfig_Serialize | PomodoroConfig_Deseriali
 export type PomodoroConfig_Deserialize = {
 	focus_min?: number,
 	break_min?: number,
+	/**  Pausa longa (min) a cada `long_every` focos. */
+	long_break_min?: number,
+	/**  0 = sem pausa longa. */
+	long_every?: number,
+	auto_start_breaks?: boolean,
+	auto_start_focus?: boolean,
+	/**  Notificação do Windows ao fim de cada fase. */
+	notify?: boolean,
 };
 
 export type PomodoroConfig_Serialize = {
 	focus_min: number,
 	break_min: number,
+	/**  Pausa longa (min) a cada `long_every` focos. */
+	long_break_min: number,
+	/**  0 = sem pausa longa. */
+	long_every: number,
+	auto_start_breaks: boolean,
+	auto_start_focus: boolean,
+	/**  Notificação do Windows ao fim de cada fase. */
+	notify: boolean,
+};
+
+/**  Hoje no pomodoro: quantos focos completos e quantos minutos. */
+export type PomodoroToday = {
+	done: number,
+	minutes: number,
 };
 
 export type Profile = Profile_Serialize | Profile_Deserialize;
@@ -1199,7 +1239,7 @@ export type ReviewItem = {
 };
 
 /**
- *  Escolha do usuário em Config → IA. `Auto` = Ollama, e Claude se o Ollama estiver fora do ar.
+ *  Escolha do usuário em Configurações → IA. `Auto` = Ollama, e Claude se o Ollama estiver fora do ar.
  *  Gemini/GPT/Grok usam a chave de API da pessoa.
  */
 export type Route = "auto" | "ollama" | "claude" | 
@@ -1342,9 +1382,25 @@ export type TimerTick_Serialize = TimerView_Serialize;
 
 export type TimerView = TimerView_Serialize | TimerView_Deserialize;
 
-export type TimerView_Deserialize = { mode: "idle" } | { mode: "pomodoro"; phase: Phase; subject_id?: number | null; remaining: number; total: number; paused: boolean } | { mode: "stopwatch"; kind: TimerKind; subject_id?: number | null; elapsed: number; paused: boolean };
+export type TimerView_Deserialize = { mode: "idle" } | { mode: "pomodoro"; phase: Phase; subject_id?: number | null; remaining: number; total: number; paused: boolean; 
+/**  Fase esperando "Continuar" (não começou a contar). */
+waiting: boolean; 
+/**  Focos concluídos nesta sequência. */
+cycle: number; 
+/**  Pausa longa a cada N focos (0 = nunca). */
+long_every: number; 
+/**  A pausa atual é a longa. */
+long_break: boolean } | { mode: "stopwatch"; kind: TimerKind; subject_id?: number | null; elapsed: number; paused: boolean };
 
-export type TimerView_Serialize = { mode: "idle" } | { mode: "pomodoro"; phase: Phase; subject_id: number | null; remaining: number; total: number; paused: boolean } | { mode: "stopwatch"; kind: TimerKind; subject_id: number | null; elapsed: number; paused: boolean };
+export type TimerView_Serialize = { mode: "idle" } | { mode: "pomodoro"; phase: Phase; subject_id: number | null; remaining: number; total: number; paused: boolean; 
+/**  Fase esperando "Continuar" (não começou a contar). */
+waiting: boolean; 
+/**  Focos concluídos nesta sequência. */
+cycle: number; 
+/**  Pausa longa a cada N focos (0 = nunca). */
+long_every: number; 
+/**  A pausa atual é a longa. */
+long_break: boolean } | { mode: "stopwatch"; kind: TimerKind; subject_id: number | null; elapsed: number; paused: boolean };
 
 export type Topic = {
 	id: number,
@@ -1432,7 +1488,9 @@ export type UiKey = "theme" | "home_layout" | "sound" | "sidebar_collapsed" | "w
 /**  Backup automático diário na nuvem ("off" desliga; o padrão é ligado para assinantes) */
 "cloud_backup" | 
 /**  Ids dos avisos do dev já vistos (JSON) */
-"seen_announcements";
+"seen_announcements" | 
+/**  Pomodoro: layout do relógio, sons e tela cheia (JSON, `src/lib/pomodoro.ts`) */
+"pomodoro_view";
 
 export type UpdateInfo = UpdateInfo_Serialize | UpdateInfo_Deserialize;
 

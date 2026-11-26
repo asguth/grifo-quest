@@ -35,7 +35,7 @@ function accountChanged() {
   emit("account");
 }
 
-/** Config → Conta: entrar e ver a assinatura do Grifo Quest Cloud. */
+/** Configurações → Conta: entrar e ver a assinatura do Grifo Quest Cloud. */
 export function Account() {
   const [status, setStatus] = useState<AccountStatus | null>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
@@ -178,7 +178,7 @@ function CloudData({ active, checking }: { active: boolean; checking: boolean })
             {checking
               ? "Conferindo o seu plano…"
               : !active
-                ? "O backup na nuvem vem com qualquer plano. Sem plano, use o backup no PC (Config → Sistema)."
+                ? "O backup na nuvem vem com qualquer plano. Sem plano, use o backup no PC (Configurações → Sistema)."
                 : last
                   ? `Último backup ${ago(backupDate(last))}. A nuvem guarda os 5 mais recentes.`
                   : list

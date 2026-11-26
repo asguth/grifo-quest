@@ -66,7 +66,7 @@ fn storage_error(status: u16, body: &str) -> AppError {
     let text = if lower.contains("row-level security") || lower.contains("unauthorized") || status == 403 {
         "O backup na nuvem é para quem tem plano ativo.".to_string()
     } else if status == 413 || lower.contains("too large") || lower.contains("maximum allowed size") {
-        "O backup ficou grande demais para a nuvem. Use o backup no PC (Config → Sistema).".to_string()
+        "O backup ficou grande demais para a nuvem. Use o backup no PC (Configurações → Sistema).".to_string()
     } else if status == 404 || lower.contains("not found") {
         "Backup não encontrado na nuvem.".to_string()
     } else {
@@ -153,6 +153,18 @@ pub async fn upload(pool: &SqlitePool, account: &AccountState) -> AppResult<Clou
 /// Deixa só os `KEEP` mais novos.
 async fn prune(account: &AccountState) -> AppResult<()> {
     let old: Vec<String> = list(account).await?.into_iter().skip(KEEP).map(|b| b.name).collect();
+    remove(account, &old).await
+}
+
+/// Apaga um backup da nuvem.
+pub async fn delete(account: &AccountState, name: &str) -> AppResult<()> {
+    if !valid_name(name) {
+        return Err(AppError::Invalid("Backup inválido".into()));
+    }
+    remove(account, &[name.to_string()]).await
+}
+
+async fn remove(account: &AccountState, old: &[String]) -> AppResult<()> {
     if old.is_empty() {
         return Ok(());
     }
@@ -230,7 +242,7 @@ async fn auto(app: &AppHandle) -> AppResult<()> {
     Ok(())
 }
 
-/// Backup automático diário para quem tem conta com plano ativo (Config → Conta desliga).
+/// Backup automático diário para quem tem conta com plano ativo (Configurações → Conta desliga).
 pub fn spawn_auto(app: AppHandle) {
     if !account::ENABLED {
         return;

@@ -1,3 +1,4 @@
+import { openLink } from "@/components/ExternalLink";
 import { useCallback, useEffect, useState } from "react";
 import { ExternalLink, KeyRound, Loader2, Trash2 } from "lucide-react";
 import { toast, toastError } from "@/components/toast";
@@ -124,7 +125,7 @@ function CloudRow({ c, onChange }: { c: CloudStatus; onChange: () => void }) {
             <Button size="sm" type="submit" disabled={busy || !key.trim()}>
               {busy ? <Loader2 className="animate-spin" /> : <KeyRound />} Salvar
             </Button>
-            <Button size="sm" type="button" variant="ghost" onClick={() => commands.openLink(c.key_page).catch(toastError)} title="Criar uma chave no site">
+            <Button size="sm" type="button" variant="ghost" onClick={() => openLink(c.key_page)} title="Criar uma chave no site">
               <ExternalLink />
             </Button>
           </form>

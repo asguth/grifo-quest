@@ -1,3 +1,4 @@
+import { openLink } from "@/components/ExternalLink";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { motion } from "motion/react";
 import { Check, ChevronDown, Cpu, ExternalLink, KeyRound, Loader2, LogOut, Mic, Plug, RefreshCw } from "lucide-react";
@@ -10,6 +11,7 @@ import { useTauriEvent } from "@/lib/hooks";
 import { itemIn, listIn } from "@/lib/motion";
 import { useHasPtVoice } from "@/lib/speech";
 import { cn } from "@/lib/utils";
+import { ClaudeMark, OpenAIMark } from "@/components/BrandIcons";
 import { CloudKeys } from "./CloudKeys";
 
 type Tone = "ok" | "warn" | "off";
@@ -60,8 +62,8 @@ const gb = (mb: number) => `${Math.round(mb / 1024)} GB`;
 const PLAN: Record<string, string> = { pro: "Pro", max: "Max", team: "Team", enterprise: "Enterprise", free: "Grátis" };
 
 /** Marca de cada IA (letra no quadrado colorido: sem logotipo de terceiros). */
-function Badge({ letter, className }: { letter: string; className: string }) {
-  return <span className={cn("grid size-12 shrink-0 place-items-center rounded-2xl text-xl font-bold text-white shadow-soft", className)}>{letter}</span>;
+function Badge({ children, className }: { children: ReactNode; className: string }) {
+  return <span className={cn("grid size-12 shrink-0 place-items-center rounded-2xl text-white shadow-soft", className)}>{children}</span>;
 }
 
 type AccountProps = {
@@ -122,7 +124,7 @@ function AccountCard(p: AccountProps) {
       {p.busy && p.loginUrl && (
         <p className="text-xs text-muted-foreground">
           O navegador não abriu?{" "}
-          <button className="font-medium text-primary underline-offset-2 hover:underline" onClick={() => commands.openLink(p.loginUrl ?? "").catch(toastError)}>
+          <button className="font-medium text-primary underline-offset-2 hover:underline" onClick={() => openLink(p.loginUrl ?? "")}>
             Abrir a página de login <ExternalLink className="inline size-3" />
           </button>
         </p>
@@ -242,7 +244,7 @@ export function Integrations({ setup = false }: { setup?: boolean }) {
             <h2 className="text-lg font-semibold">{anyAi ? "Sua IA está conectada" : "Conecte uma IA"}</h2>
             <p className="text-sm text-muted-foreground">
               Use a assinatura que você já tem. Sem chave, sem terminal: o navegador abre, você entra com a sua conta e pronto. Uma basta;
-              com as duas, você escolhe quem faz cada tarefa em Config → IA.
+              com as duas, você escolhe quem faz cada tarefa em Configurações → IA.
             </p>
           </div>
           <Button size="sm" variant="ghost" onClick={() => void check()} disabled={checking} aria-label="Verificar de novo">
@@ -252,7 +254,11 @@ export function Integrations({ setup = false }: { setup?: boolean }) {
 
         <motion.div variants={listIn} initial="hidden" animate="show" className="grid gap-3 @2xl:grid-cols-2">
           <AccountCard
-            badge={<Badge letter="C" className="bg-[#d97757]" />}
+            badge={
+              <Badge className="bg-[#d97757]">
+                <ClaudeMark className="size-7" />
+              </Badge>
+            }
             name="Claude"
             who="Para quem assina o Claude Pro ou Max."
             connected={claudeOn}
@@ -275,7 +281,11 @@ export function Integrations({ setup = false }: { setup?: boolean }) {
             }
           />
           <AccountCard
-            badge={<Badge letter="G" className="bg-[#10a37f]" />}
+            badge={
+              <Badge className="bg-black ring-1 ring-white/15">
+                <OpenAIMark className="size-7" />
+              </Badge>
+            }
             name="ChatGPT"
             who="Para quem assina o ChatGPT Plus, Pro ou Business."
             connected={s.chatgpt_logged_in}
@@ -354,7 +364,7 @@ export function Integrations({ setup = false }: { setup?: boolean }) {
             </Button>
           )}
           {!hasPtVoice && (
-            <Button variant="secondary" onClick={() => commands.openLink("ms-settings:speech").catch(toastError)} title="Configurações → Hora e idioma → Fala → Adicionar vozes → Português (Brasil)">
+            <Button variant="secondary" onClick={() => openLink("ms-settings:speech")} title="Configurações → Hora e idioma → Fala → Adicionar vozes → Português (Brasil)">
               Instalar vozes pt-BR do Windows
             </Button>
           )}
@@ -390,7 +400,7 @@ export function Integrations({ setup = false }: { setup?: boolean }) {
             <div className="space-y-5 border-t border-border p-4">
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">
-                  Cole a chave e escolha em Config → IA quem faz cada tarefa. A chave fica no Cofre de Credenciais do Windows.
+                  Cole a chave e escolha em Configurações → IA quem faz cada tarefa. A chave fica no Cofre de Credenciais do Windows.
                 </p>
                 <CloudKeys onChange={() => void check()} />
               </div>

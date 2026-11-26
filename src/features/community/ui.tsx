@@ -1,3 +1,4 @@
+import { cropImage, type CropShape } from "@/components/ImageCropper";
 import { useCallback, useEffect, useRef, useState, type DependencyList, type ReactNode } from "react";
 import { Camera, Flag, Users } from "lucide-react";
 import { toast, toastError } from "@/components/toast";
@@ -25,7 +26,7 @@ export function CommunityPhoto({ c, size = 48, className }: { c: { photo_url: st
 }
 
 /** Botão que abre o seletor de imagem. `onPick` recebe o arquivo. */
-export function PhotoButton({ label, onPick, busy, className }: { label: string; onPick: (f: File) => void; busy?: boolean; className?: string }) {
+export function PhotoButton({ label, onPick, busy, className, shape = "square" }: { label: string; onPick: (f: File) => void; busy?: boolean; className?: string; shape?: CropShape }) {
   const input = useRef<HTMLInputElement>(null);
   return (
     <>
@@ -37,7 +38,7 @@ export function PhotoButton({ label, onPick, busy, className }: { label: string;
         onChange={(e) => {
           const f = e.target.files?.[0];
           e.target.value = "";
-          if (f) onPick(f);
+          if (f) cropImage(f, shape, label).then((c) => c && onPick(c), toastError);
         }}
       />
       <Button type="button" variant="outline" size="sm" disabled={busy} className={className} onClick={() => input.current?.click()}>
@@ -143,24 +144,77 @@ export function useAction() {
 }
 
 /** Caixa de texto com botão de enviar (recado, resposta, comentário). Limpa ao enviar. */
-export function Composer({ placeholder, max, label, onSend, compact }: { placeholder: string; max: number; label: string; onSend: (text: string) => Promise<boolean>; compact?: boolean }) {
+export function Composer({
+  placeholder,
+  max,
+  label,
+  onSend,
+  compact,
+  autoFocus,
+  onCancel,
+}: {
+  placeholder: string;
+  max: number;
+  label: string;
+  onSend: (text: string) => Promise<boolean>;
+  compact?: boolean;
+  autoFocus?: boolean;
+  /** Com ele, vira a caixa de comentário: texto em cima, Cancelar e enviar embaixo. */
+  onCancel?: () => void;
+}) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const left = max - text.length;
+  const send = () => {
+    if (!text.trim() || busy) return;
+    setBusy(true);
+    void onSend(text.trim()).then((ok) => {
+      setBusy(false);
+      if (ok) setText("");
+    });
+  };
+  if (onCancel) {
+    return (
+      <form
+        className="space-y-1"
+        onSubmit={(e) => {
+          e.preventDefault();
+          send();
+        }}
+      >
+        <Textarea
+          value={text}
+          maxLength={max}
+          autoFocus={autoFocus}
+          placeholder={placeholder}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) send();
+            if (e.key === "Escape" && !text) onCancel();
+          }}
+          className="min-h-20 resize-y border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
+        />
+        <div className="flex items-center justify-end gap-2">
+          {left < 100 && <span className="tabular mr-auto text-xs text-muted-foreground">{left}</span>}
+          <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
+            Cancelar
+          </Button>
+          <Button type="submit" size="sm" className="rounded-full" disabled={busy || !text.trim()}>
+            {label}
+          </Button>
+        </div>
+      </form>
+    );
+  }
   return (
     <form
       className={cn(compact ? "flex items-end gap-2" : "space-y-2")}
       onSubmit={(e) => {
         e.preventDefault();
-        if (!text.trim() || busy) return;
-        setBusy(true);
-        void onSend(text.trim()).then((ok) => {
-          setBusy(false);
-          if (ok) setText("");
-        });
+        send();
       }}
     >
-      <Textarea value={text} maxLength={max} placeholder={placeholder} onChange={(e) => setText(e.target.value)} className={compact ? "min-h-9 flex-1 py-1.5" : "min-h-20"} />
+      <Textarea value={text} maxLength={max} autoFocus={autoFocus} placeholder={placeholder} onChange={(e) => setText(e.target.value)} className={compact ? "min-h-9 flex-1 py-1.5" : "min-h-20"} />
       <div className={cn("flex items-center justify-end gap-3", compact && "shrink-0")}>
         {!compact && left < 100 && <span className="tabular text-xs text-muted-foreground">{left}</span>}
         <Button type="submit" size="sm" disabled={busy || !text.trim()}>

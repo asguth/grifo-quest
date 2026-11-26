@@ -75,3 +75,9 @@ pub async fn cloud_restore(app: tauri::AppHandle, state: State<'_, AccountState>
 pub async fn announcements() -> AppResult<Vec<Announcement>> {
     account::announcements().await
 }
+
+#[tauri::command]
+#[specta::specta]
+pub async fn cloud_delete_backup(state: State<'_, AccountState>, name: String) -> AppResult<()> {
+    cloud_backup::delete(&state, &name).await
+}

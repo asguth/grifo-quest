@@ -21,7 +21,7 @@ pub struct GpuInfo {
     /// Modelo do Ollama que cabe, e o tamanho do download.
     pub model: Option<String>,
     pub model_size: Option<String>,
-    /// Catálogo para o seletor de Config → IA, com o que cabe nesta placa.
+    /// Catálogo para o seletor de Configurações → IA, com o que cabe nesta placa.
     pub options: Vec<ModelOption>,
 }
 

@@ -132,7 +132,7 @@ export function MaterialPanel({ topicId, topicName }: { topicId: number; topicNa
               );
             })}
           </motion.div>
-          <p className="text-[11px] text-muted-foreground">Rápido e grátis pelo Ollama (ou o que estiver em Config → IA).</p>
+          <p className="text-[11px] text-muted-foreground">Rápido e grátis pelo Ollama (ou o que estiver em Configurações → IA).</p>
         </section>
 
         <section className="space-y-2 rounded-lg border border-dashed border-border p-3">

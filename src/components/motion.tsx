@@ -4,7 +4,7 @@ import { ease } from "@/lib/motion";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
-/** Liga/desliga as animações de toda a janela conforme Config → Aparência (só a chave do app decide; ver index.css). */
+/** Liga/desliga as animações de toda a janela conforme Configurações → Aparência (só a chave do app decide; ver index.css). */
 export function MotionRoot({ children }: { children: ReactNode }) {
   const { motion: on } = useTheme();
   return <MotionConfig reducedMotion={on ? "never" : "always"}>{children}</MotionConfig>;

@@ -103,7 +103,7 @@ export function ErrorsTab({ start, starting, onChange }: { start: Start; startin
                           <span>
                             {e.subject} · {e.topic}
                           </span>
-                          {e.banca && <span>· {e.banca}</span>}
+                          <span>· {e.format === "ce" ? "certo ou errado" : "A a E"}</span>
                           <span>· errou {e.misses}×</span>
                         </span>
                       </span>

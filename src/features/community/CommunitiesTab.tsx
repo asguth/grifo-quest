@@ -1,3 +1,4 @@
+import { cropImage } from "@/components/ImageCropper";
 import { useEffect, useState } from "react";
 import { ImagePlus, Plus } from "lucide-react";
 import { NativeSelect, SearchInput } from "@/components/fields";
@@ -136,7 +137,7 @@ function NewCommunity({ onCreated }: { onCreated: (id: string) => void }) {
             onChange={(e) => {
               const f = e.target.files?.[0];
               e.target.value = "";
-              if (f) setPhoto(f);
+              if (f) cropImage(f, "square", "Foto da comunidade").then((c) => c && setPhoto(c), toastError);
             }}
           />
           {preview ? (

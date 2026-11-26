@@ -338,30 +338,51 @@ pub async fn delete_contest(pool: State<'_, SqlitePool>, id: i32) -> AppResult<(
     world::delete_contest(&pool, id).await
 }
 
-/// Pede ao Claude (CLI headless + WebSearch) concursos da área configurada. Devolve quantos novos.
+/// Resultado da busca do rastreador: quantos novos e qual IA pesquisou.
+#[derive(Debug, serde::Serialize, specta::Type)]
+pub struct ContestSearch {
+    pub new: i32,
+    /// "Claude" ou "ChatGPT"
+    pub by: String,
+}
+
+/// Pede a uma IA com busca na web (Claude pela conta; sem ele, ChatGPT pelo Codex) concursos da área
+/// configurada. Devolve quantos novos.
 #[tauri::command]
 #[specta::specta]
-pub async fn search_contests_with_claude(app: AppHandle, pool: State<'_, SqlitePool>) -> AppResult<i32> {
+pub async fn search_contests(app: AppHandle, pool: State<'_, SqlitePool>) -> AppResult<ContestSearch> {
     let cfg: AppConfig = settings::load(&pool).await?;
     if cfg.interest_area.trim().is_empty() {
-        return Err(AppError::Invalid("Defina sua área de interesse em Config → Concursos".into()));
+        return Err(AppError::Invalid("Defina sua área de interesse em Configurações → Concursos".into()));
     }
     let prompt = format!(
-        "Pesquise na web concursos públicos no Brasil com edital aberto, publicado recentemente, \
+        "Hoje é {today}. Pesquise na web concursos públicos no Brasil com edital aberto, publicado recentemente, \
          previsto ou autorizado para a área: {area}. Palavras-chave extras: {kw}. \
+         NÃO inclua concursos cuja prova já foi aplicada (antes de hoje), nem aditivos, convocações ou resultados \
+         de concursos antigos: só o que ainda dá para se inscrever ou que ainda vai abrir. \
          Use fontes confiáveis (sites das bancas, diários oficiais, PCI Concursos, portais de concursos). \
          Responda SOMENTE com um array JSON (sem markdown), no máximo 15 itens, cada um com os campos: \
          title, org, banca, status (autorizado|banca definida|edital publicado|inscrições abertas|previsto), \
-         vacancies, salary, deadline (AAAA-MM-DD se souber), url (link da fonte), summary (1 frase). \
+         vacancies, salary, deadline (fim das inscrições, AAAA-MM-DD se souber), \
+         exam_date (data da prova, AAAA-MM-DD se souber), url (link da fonte), summary (1 frase). \
          Use null quando não souber.",
         area = cfg.interest_area,
         kw = cfg.keywords.join(", "),
+        today = crate::domain::news::today(),
     );
     let cwd = app.path().app_data_dir()?;
-    let text = claude::run(&cfg.claude_cli, &prompt, &cwd, &["WebSearch", "WebFetch"]).await?;
-    let json = ai::json_array(&text).ok_or_else(|| AppError::Invalid("Claude não devolveu uma lista".into()))?;
+    // Claude primeiro (WebSearch é o mais confiável); sem conta no Claude, o ChatGPT pesquisa.
+    let claude_ready = crate::commands::integrations::claude_account(&cfg.claude_cli).await.is_some();
+    let (text, by) = if claude_ready {
+        (claude::run(&cfg.claude_cli, &prompt, &cwd, &["WebSearch", "WebFetch"]).await?, "Claude")
+    } else if crate::codex::logged_in(&app).await {
+        (crate::codex::run_with_web(&app, &prompt).await?, "ChatGPT")
+    } else {
+        return Err(AppError::Invalid("Conecte o Claude ou o ChatGPT em Configurações → Integrações para pesquisar concursos.".into()));
+    };
+    let json = ai::json_array(&text).ok_or_else(|| AppError::Invalid(format!("{by} não devolveu uma lista")))?;
     let found: Vec<FoundContest> =
-        serde_json::from_str(json).map_err(|e| AppError::Invalid(format!("JSON do Claude inválido: {e}")))?;
+        serde_json::from_str(json).map_err(|e| AppError::Invalid(format!("JSON do {by} inválido: {e}")))?;
 
     let mut new = 0;
     for c in found.iter().filter(|c| c.url.starts_with("http") && !c.title.trim().is_empty()) {
@@ -369,5 +390,5 @@ pub async fn search_contests_with_claude(app: AppHandle, pool: State<'_, SqliteP
             new += 1;
         }
     }
-    Ok(new)
+    Ok(ContestSearch { new, by: by.into() })
 }

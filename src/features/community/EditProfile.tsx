@@ -1,3 +1,5 @@
+import { toastError } from "@/components/toast";
+import { cropImage, type CropShape } from "@/components/ImageCropper";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Camera, ImageOff, Trash2 } from "lucide-react";
 import { PersonPhoto } from "@/components/PersonPhoto";
@@ -33,7 +35,7 @@ function usePreview(pick: ImagePick): string | null {
   return url;
 }
 
-function FilePicker({ onPick, children, className, label }: { onPick: (f: File) => void; children: ReactNode; className?: string; label: string }) {
+function FilePicker({ onPick, children, className, label, shape }: { onPick: (f: File) => void; children: ReactNode; className?: string; label: string; shape: CropShape }) {
   const input = useRef<HTMLInputElement>(null);
   return (
     <>
@@ -45,7 +47,7 @@ function FilePicker({ onPick, children, className, label }: { onPick: (f: File) 
         onChange={(e) => {
           const f = e.target.files?.[0];
           e.target.value = "";
-          if (f) onPick(f);
+          if (f) cropImage(f, shape, label).then((c) => c && onPick(c), toastError);
         }}
       />
       <button type="button" aria-label={label} title={label} onClick={() => input.current?.click()} className={className}>
@@ -68,6 +70,8 @@ export function EditProfile({ profile, onSaved, onCancel }: { profile: Profile; 
   const [photo, setPhoto] = useState<ImagePick>(profile.photo_url);
   const [cover, setCover] = useState<ImagePick>(profile.cover_url);
   const [showStats, setShowStats] = useState(profile.show_stats);
+  const [showFriends, setShowFriends] = useState(profile.show_friends ?? true);
+  const [showCommunities, setShowCommunities] = useState(profile.show_communities ?? true);
   const [shareActivity, setShareActivity] = useState(profile.share_activity);
   const [shareExam, setShareExam] = useState(profile.share_exam);
   const { busy, act } = useAction();
@@ -88,6 +92,8 @@ export function EditProfile({ profile, onSaved, onCancel }: { profile: Profile; 
         photo_url,
         cover_url,
         show_stats: showStats,
+        show_friends: showFriends,
+        show_communities: showCommunities,
         share_activity: shareActivity,
         share_exam: shareExam,
         ...(shareExam ? {} : { exam_name: null, exam_date: null }),
@@ -109,7 +115,7 @@ export function EditProfile({ profile, onSaved, onCancel }: { profile: Profile; 
       {/* capa + foto = prévia do topo do perfil */}
       <div className="group relative h-40 bg-cover bg-center sm:h-48" style={coverUrl ? { backgroundImage: `url("${coverUrl}")` } : { background: `linear-gradient(120deg, oklch(0.72 0.1 ${hue}), oklch(0.6 0.12 ${(hue + 60) % 360}))` }}>
         <div className="absolute top-3 right-3 flex gap-2">
-          <FilePicker onPick={setCover} label="Trocar a capa" className="flex items-center gap-1.5 rounded-lg bg-black/55 px-3 py-1.5 text-xs font-medium text-white backdrop-blur hover:bg-black/70">
+          <FilePicker onPick={setCover} shape="cover" label="Trocar a capa" className="flex items-center gap-1.5 rounded-lg bg-black/55 px-3 py-1.5 text-xs font-medium text-white backdrop-blur hover:bg-black/70">
             <Camera className="size-4" /> {coverUrl ? "Trocar capa" : "Pôr capa"}
           </FilePicker>
           {coverUrl && (
@@ -124,6 +130,7 @@ export function EditProfile({ profile, onSaved, onCancel }: { profile: Profile; 
           <PersonPhoto p={{ id: profile.id, display_name: name || profile.display_name, photo_url: photoUrl }} size={112} className="ring-4 ring-card" />
           <FilePicker
             onPick={setPhoto}
+            shape="round"
             label="Trocar a foto"
             className="absolute right-0 bottom-0 grid size-9 place-items-center rounded-full bg-primary text-primary-foreground shadow-lift ring-4 ring-card hover:brightness-110"
           >
@@ -163,6 +170,13 @@ export function EditProfile({ profile, onSaved, onCancel }: { profile: Profile; 
         <section className="space-y-3 rounded-xl border border-border p-4">
           <p className="text-sm font-semibold">Privacidade</p>
           <Toggle checked={showStats} onChange={setShowStats} title="Mostrar nível, XP e dias seguidos" />
+          <Toggle checked={showFriends} onChange={setShowFriends} title="Mostrar meus amigos" text="Desligado, ninguém vê sua lista de amigos (a liga e o mural com os amigos continuam)." />
+          <Toggle
+            checked={showCommunities}
+            onChange={setShowCommunities}
+            title="Mostrar minhas comunidades"
+            text="Desligado, só quem está na mesma comunidade vê que você participa."
+          />
           <Toggle
             checked={shareActivity}
             onChange={setShareActivity}

@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { commands, type AppConfig_Serialize as AppConfig } from "@/lib/bindings";
 
 /**
- * Área de interesse e palavras-chave do rastreador. Aparece em Config → Concursos e no próprio
+ * Área de interesse e palavras-chave do rastreador. Aparece em Configurações → Concursos e no próprio
  * Mundo → Concursos (para ajustar sem sair da tela). `onSaved`: a tela de concursos recarrega.
  */
 export function TrackerSettings({ onSaved }: { onSaved?: () => void }) {

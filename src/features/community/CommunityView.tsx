@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ago, formatDate, plural } from "@/lib/format";
 import { toneOf } from "@/lib/image";
+import { PersonPhoto } from "@/components/PersonPhoto";
 import { cn } from "@/lib/utils";
 import {
   CATEGORIES,
@@ -73,12 +74,12 @@ export function CommunityView({ id, me, open, back }: { id: string; me: string; 
         >
           {mod && (
             <div className="absolute right-3 bottom-3">
-              <PhotoButton label="Trocar capa" busy={uploading === "cover"} onPick={(f) => upload("cover", f)} className="bg-card/80 backdrop-blur" />
+              <PhotoButton shape="cover" label="Trocar capa" busy={uploading === "cover"} onPick={(f) => upload("cover", f)} className="bg-card/80 backdrop-blur" />
             </div>
           )}
         </div>
         <div className="flex flex-wrap items-end gap-4 px-5 pb-5">
-          <CommunityPhoto c={info} size={112} className="-mt-14 rounded-2xl ring-4 ring-card" />
+          <CommunityPhoto c={info} size={112} className="relative z-10 -mt-14 rounded-2xl ring-4 ring-card" />
           <div className="min-w-0 flex-1 space-y-1 pt-2">
             <span className="inline-block rounded-full bg-primary/15 px-2.5 py-0.5 text-[11px] font-medium tracking-wide text-primary uppercase">{CATEGORIES[info.category]}</span>
             <h2 className="truncate text-2xl font-semibold">{info.name}</h2>
@@ -105,7 +106,7 @@ export function CommunityView({ id, me, open, back }: { id: string; me: string; 
                 {mine.role === "owner" ? "Você é o dono" : mine.role === "mod" ? "Você modera" : "Você participa"}
               </span>
             )}
-            {mod && <PhotoButton label="Foto" busy={uploading === "photo"} onPick={(f) => upload("photo", f)} />}
+            {mod && <PhotoButton label="Foto da comunidade" busy={uploading === "photo"} onPick={(f) => upload("photo", f)} />}
             {mod && (
               <Button variant="outline" size="sm" onClick={() => setEditing((e) => !e)}>
                 <Pencil /> Editar
@@ -192,10 +193,12 @@ export function CommunityView({ id, me, open, back }: { id: string; me: string; 
           <Box title="Moderação" count={mods.length}>
             <ul className="space-y-2">
               {mods.map((x) => (
-                <li key={x.user.id} className="flex items-center gap-2 text-sm">
-                  {x.role === "owner" ? <Crown className="size-4 text-primary" /> : <ShieldCheck className="size-4 text-muted-foreground" />}
-                  <PersonLink p={x.user} open={open} />
-                  <span className="ml-auto text-xs text-muted-foreground">{x.role === "owner" ? "dono" : "moderador"}</span>
+                <li key={x.user.id} className="flex items-center gap-3 text-sm">
+                  <RolePhoto m={x} size={36} />
+                  <span className="min-w-0 flex-1">
+                    <PersonLink p={x.user} open={open} className="block truncate text-left" />
+                    <span className={cn("block text-xs", x.role === "owner" ? "text-red-400" : "text-blue-400")}>{ROLE_LABEL[x.role]}</span>
+                  </span>
                 </li>
               ))}
             </ul>
@@ -252,9 +255,37 @@ function EditCommunity({ c, onDone }: { c: Community; onDone: (saved: boolean) =
   );
 }
 
-const ROLE_LABEL: Record<Member["role"], string> = { owner: "dono", mod: "moderador", member: "membro" };
+const ROLE_LABEL: Record<Member["role"], string> = { owner: "Dono", mod: "Moderador", member: "Membro" };
+/** Anel da foto: vermelho = dono, azul = moderador. */
+const ROLE_RING: Record<Member["role"], string> = {
+  owner: "bg-gradient-to-br from-red-500 via-rose-500 to-orange-400",
+  mod: "bg-gradient-to-br from-sky-400 via-blue-500 to-indigo-500",
+  member: "bg-border",
+};
 
-/** Lista de membros; moderador promove membro e o dono tira da moderação. */
+/** Foto redonda com anel do papel e selo (coroa / escudo). */
+function RolePhoto({ m, size = 72 }: { m: Member; size?: number }) {
+  return (
+    <span className="relative inline-block">
+      <span className={cn("block rounded-full p-[3px]", ROLE_RING[m.role], m.role !== "member" && "shadow-lift")}>
+        <PersonPhoto p={m.user} size={size} className="ring-2 ring-card" />
+      </span>
+      {m.role !== "member" && (
+        <span
+          className={cn(
+            "absolute -right-0.5 -bottom-0.5 grid size-6 place-items-center rounded-full text-white ring-2 ring-card",
+            m.role === "owner" ? "bg-red-500" : "bg-blue-500",
+          )}
+          title={ROLE_LABEL[m.role]}
+        >
+          {m.role === "owner" ? <Crown className="size-3.5" /> : <ShieldCheck className="size-3.5" />}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** Membros em cartões com foto; moderador promove membro e o dono tira da moderação. */
 function Members({
   id,
   me,
@@ -277,31 +308,55 @@ function Members({
   if (!list) return <Skeleton className="h-40 rounded-2xl" />;
   const order = { owner: 0, mod: 1, member: 2 } as const;
   const shown = list
-    .filter((x) => !q || x.user.display_name.toLowerCase().includes(q.toLowerCase()))
+    .filter((x) => !q || x.user.display_name.toLowerCase().includes(q.toLowerCase()) || x.user.handle.toLowerCase().includes(q.toLowerCase()))
     .sort((a, b) => order[a.role] - order[b.role]);
+  const count = (r: Member["role"]) => list.filter((x) => x.role === r).length;
   return (
     <Box title="Membros" count={list.length} action={<Input className="h-8 w-44" placeholder="Procurar…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Procurar membro" />}>
-      {viewerMod && <p className="text-xs text-muted-foreground">Moderadores podem nomear outros moderadores. Só o dono tira alguém da moderação.</p>}
-      <ul className="divide-y divide-border">
+      <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <span className="size-2.5 rounded-full bg-red-500" /> Dono
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="size-2.5 rounded-full bg-blue-500" /> {plural(count("mod"), "moderador", "moderadores")}
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="size-2.5 rounded-full bg-border" /> {plural(count("member"), "membro", "membros")}
+        </span>
+        {viewerMod && <span className="ml-auto">Moderadores nomeiam moderadores; só o dono tira alguém da moderação.</span>}
+      </div>
+      {shown.length === 0 && <p className="text-sm text-muted-foreground">Ninguém com esse nome.</p>}
+      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
         {shown.map((x) => (
-          <li key={x.user.id} className="flex items-center gap-3 py-2 text-sm">
-            <PersonLink p={x.user} open={open} />
+          <li
+            key={x.user.id}
+            className={cn(
+              "group flex flex-col items-center gap-2 rounded-2xl border p-4 text-center transition-colors",
+              x.role === "owner" ? "border-red-500/40 bg-red-500/5" : x.role === "mod" ? "border-blue-500/40 bg-blue-500/5" : "border-border hover:bg-secondary/40",
+            )}
+          >
+            <button onClick={() => open({ kind: "profile", id: x.user.id })} aria-label={`Ver o perfil de ${x.user.display_name}`}>
+              <RolePhoto m={x} />
+            </button>
+            <span className="w-full min-w-0">
+              <PersonLink p={x.user} open={open} className="block w-full truncate" />
+              <span className="block truncate text-xs text-muted-foreground">@{x.user.handle}</span>
+            </span>
             <span
               className={cn(
-                "rounded-full px-2 py-0.5 text-[11px]",
-                x.role === "owner" ? "bg-primary/15 text-primary" : x.role === "mod" ? "bg-secondary text-foreground" : "text-muted-foreground",
+                "rounded-full px-2.5 py-0.5 text-[11px] font-medium",
+                x.role === "owner" ? "bg-red-500/15 text-red-400" : x.role === "mod" ? "bg-blue-500/15 text-blue-400" : "bg-secondary text-muted-foreground",
               )}
             >
-              {ROLE_LABEL[x.role]}
+              {x.user.id === me ? `${ROLE_LABEL[x.role]} · você` : ROLE_LABEL[x.role]}
             </span>
-            <span className="flex-1" />
             {viewerMod && x.role === "member" && (
-              <Button size="sm" variant="outline" disabled={busy} onClick={() => void act(() => setMemberRole(id, x.user.id, "mod"), `${x.user.display_name} agora modera`).then((ok) => ok && reload())}>
+              <Button size="xs" variant="outline" disabled={busy} onClick={() => void act(() => setMemberRole(id, x.user.id, "mod"), `${x.user.display_name} agora modera`).then((ok) => ok && reload())}>
                 <ShieldCheck /> Tornar moderador
               </Button>
             )}
             {x.role === "mod" && (viewerOwner || x.user.id === me) && (
-              <Button size="sm" variant="ghost" disabled={busy} onClick={() => void act(() => setMemberRole(id, x.user.id, "member"), "Moderação removida").then((ok) => ok && reload())}>
+              <Button size="xs" variant="ghost" disabled={busy} onClick={() => void act(() => setMemberRole(id, x.user.id, "member"), "Moderação removida").then((ok) => ok && reload())}>
                 <ShieldOff /> {x.user.id === me ? "Deixar de moderar" : "Tirar moderação"}
               </Button>
             )}

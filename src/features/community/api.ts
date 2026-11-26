@@ -14,6 +14,10 @@ export type Profile = {
   xp: number;
   streak: number;
   show_stats: boolean;
+  /** Mostrar a lista de amigos no perfil (o servidor esconde de terceiros). */
+  show_friends?: boolean;
+  /** Mostrar as comunidades no perfil. */
+  show_communities?: boolean;
   photo_url: string | null;
   cover_url: string | null;
   /** Plano ativo (selo), calculado pelo servidor. */
@@ -84,7 +88,7 @@ export async function profileById(id: string): Promise<Profile | null> {
 }
 
 export type ProfilePatch = Partial<
-  Pick<Profile, "handle" | "display_name" | "bio" | "target" | "avatar" | "show_stats" | "level" | "xp" | "streak" | "photo_url" | "cover_url" | "share_activity" | "share_exam" | "exam_name" | "exam_date">
+  Pick<Profile, "handle" | "display_name" | "bio" | "target" | "avatar" | "show_stats" | "show_friends" | "show_communities" | "level" | "xp" | "streak" | "photo_url" | "cover_url" | "share_activity" | "share_exam" | "exam_name" | "exam_date">
 >;
 
 export async function updateMyProfile(patch: ProfilePatch): Promise<Profile | null> {
@@ -276,8 +280,9 @@ export function updateCommunity(id: string, patch: Partial<Pick<Community, "name
 
 // ---- mural --------------------------------------------------------------------------------
 
-export type FeedKind = "post" | "question" | "activity";
-export type Activity = { minutes?: number; questions?: number; correct?: number; xp?: number; subject?: string };
+export type FeedKind = "post" | "question" | "activity" | "poll";
+export type Activity = { minutes?: number; questions?: number; correct?: number; xp?: number; subject?: string; options?: string[] };
+export type PollResult = { votes: number[]; mine: number | null };
 
 export type FeedItem = {
   id: string;
@@ -295,7 +300,7 @@ export type FeedItem = {
   community: Pick<Community, "id" | "name" | "photo_url"> | null;
 };
 
-export type FeedComment = { id: string; item_id: string; author_id: string; body: string; created_at: string; author: Mini };
+export type FeedComment = { id: string; item_id: string; author_id: string; body: string; created_at: string; author: Mini; parent_id?: string | null; score?: number };
 
 const ITEM = `*,author:profiles!author_id(${MINI}),community:communities(id,name,photo_url)`;
 
@@ -332,6 +337,17 @@ export async function publish(item: { kind: FeedKind; body: string; community_id
   return one(await rest<FeedItem[]>(`feed_items?select=${ITEM}`, { method: "POST", body: item, prefer: RETURN }));
 }
 
+/** Votos de cada opção e o meu (o servidor não diz quem votou em quê). */
+export function pollResult(item: string): Promise<PollResult | null> {
+  return rest<PollResult | null>(`rpc/poll_result`, { method: "POST", body: { item } });
+}
+
+/** Vota (ou troca o voto); `null` tira o voto. */
+export async function votePoll(item: string, choice: number | null) {
+  if (choice === null) return rest(`poll_votes?item_id=eq.${enc(item)}&user_id=eq.${await myUserId()}`, { method: "DELETE" });
+  return rest(`poll_votes?on_conflict=item_id,user_id`, { method: "POST", body: { item_id: item, choice }, prefer: "resolution=merge-duplicates" });
+}
+
 export function deleteItem(id: string) {
   return rest(`feed_items?id=eq.${enc(id)}`, { method: "DELETE" });
 }
@@ -360,8 +376,23 @@ export function commentsOf(item: string): Promise<FeedComment[]> {
   return rest<FeedComment[]>(`feed_comments?item_id=eq.${enc(item)}&select=*,author:profiles!author_id(${MINI})&order=created_at&limit=200`);
 }
 
-export function comment(item: string, body: string) {
-  return rest(`feed_comments`, { method: "POST", body: { item_id: item, body } });
+export function comment(item: string, body: string, parent: string | null = null) {
+  return rest(`feed_comments`, { method: "POST", body: parent ? { item_id: item, body, parent_id: parent } : { item_id: item, body } });
+}
+
+/** Meus votos nos comentários de uma publicação: id → 1 ou -1. */
+export async function myCommentVotes(item: string): Promise<Record<string, number>> {
+  const rows = await rest<{ comment_id: string; value: number }[]>(
+    `comment_votes?user_id=eq.${await myUserId()}&select=comment_id,value,feed_comments!inner(item_id)&feed_comments.item_id=eq.${enc(item)}`,
+  );
+  return Object.fromEntries(rows.map((r) => [r.comment_id, r.value]));
+}
+
+/** Vota (1/-1) ou tira o voto (0). */
+export async function voteComment(id: string, value: -1 | 0 | 1) {
+  const me = await myUserId();
+  if (value === 0) return rest(`comment_votes?comment_id=eq.${enc(id)}&user_id=eq.${me}`, { method: "DELETE" });
+  return rest(`comment_votes?on_conflict=comment_id,user_id`, { method: "POST", body: { comment_id: id, value }, prefer: "resolution=merge-duplicates" });
 }
 
 export function deleteComment(id: string) {

@@ -111,7 +111,7 @@ pub fn cancel_material(jobs: State<'_, GrifoJobs>, topic_id: i32) {
     }
 }
 
-/// Gera um material. `full = false`: rápido, pelo roteador (Config → IA). `full = true`: apostila do Claude.
+/// Gera um material. `full = false`: rápido, pelo roteador (Configurações → IA). `full = true`: apostila do Claude.
 #[tauri::command]
 #[specta::specta]
 pub async fn generate_material(

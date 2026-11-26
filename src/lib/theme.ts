@@ -3,7 +3,7 @@ import { emit, on } from "@/lib/bus";
 import { getPref, setPref } from "@/lib/prefs";
 import { warn } from "@/lib/utils";
 
-/** Cores editáveis em Config → Aparência. Cada uma vira uma variável CSS (`--background` etc.). */
+/** Cores editáveis em Configurações → Aparência. Cada uma vira uma variável CSS (`--background` etc.). */
 export const COLOR_TOKENS = {
   background: "Fundo",
   card: "Superfície",
@@ -191,7 +191,7 @@ export const PRESETS: Record<string, { label: string; colors: Palette }> = {
   },
 };
 
-/** Tema criado em Config → Aparência e salvo com nome: vira um card ao lado dos prontos. */
+/** Tema criado em Configurações → Aparência e salvo com nome: vira um card ao lado dos prontos. */
 export type CustomTheme = { id: string; label: string; colors: Palette };
 
 /** `preset` de um tema salvo pela pessoa. */
@@ -249,7 +249,7 @@ export function applyTheme(t: Theme) {
   emit("theme", t);
 }
 
-/** Tema atual, atualizado quando Config → Aparência muda. */
+/** Tema atual, atualizado quando Configurações → Aparência muda. */
 export function useTheme(): Theme {
   const [t, setT] = useState(current);
   useEffect(() => {

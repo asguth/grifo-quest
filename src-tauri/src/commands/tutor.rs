@@ -1,6 +1,6 @@
 //! Tira-dúvidas ("Pergunte ao Grifo"): chat com a IA sobre uma matéria ou um tópico do edital.
 //! A pessoa escolhe a IA na própria conversa (`tutor_models`); no Automático vale a rota de tarefas de
-//! Config → IA. Pelo Ollama a resposta vem escrevendo (streaming); nas outras chega de uma vez.
+//! Configurações → IA. Pelo Ollama a resposta vem escrevendo (streaming); nas outras chega de uma vez.
 
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
@@ -86,7 +86,7 @@ pub async fn tutor_models(app: AppHandle, pool: State<'_, SqlitePool>) -> AppRes
     let cfg: AppConfig = settings::load(&pool).await?;
     let (local, claude, gpt) = tokio::join!(ollama::list_models(&cfg.ollama_url), integrations::claude_account(&cfg.claude_cli), codex::logged_in(&app));
     let model = |id: String, label: &str, group: &str, detail: &str| TutorModel { id, label: label.into(), group: group.into(), detail: detail.into() };
-    let mut out = vec![model(AUTO.into(), "Automático", "", "segue Config → IA")];
+    let mut out = vec![model(AUTO.into(), "Automático", "", "segue Configurações → IA")];
     for m in local.unwrap_or_default() {
         out.push(model(format!("{OLLAMA}{m}"), &m, "No seu PC (Ollama)", "grátis, escreve ao vivo"));
     }
@@ -111,7 +111,7 @@ const CLAUDE: &str = "claude";
 const CHATGPT: &str = "chatgpt";
 const CLOUD: &str = "cloud:";
 
-/// Quem responde: o escolhido na conversa ou, no automático, a rota de tarefas de Config → IA.
+/// Quem responde: o escolhido na conversa ou, no automático, a rota de tarefas de Configurações → IA.
 enum Choice {
     Ollama(String),
     Claude,

@@ -10,7 +10,7 @@ use crate::error::AppResult;
 use crate::settings::AppConfig;
 use crate::{claude, codex, ollama};
 
-/// Escolha do usuário em Config → IA. `Auto` = Ollama, e Claude se o Ollama estiver fora do ar.
+/// Escolha do usuário em Configurações → IA. `Auto` = Ollama, e Claude se o Ollama estiver fora do ar.
 /// Gemini/GPT/Grok usam a chave de API da pessoa.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]

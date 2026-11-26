@@ -1,10 +1,11 @@
+import { openLink } from "@/components/ExternalLink";
+import { DatePicker } from "@/components/DatePicker";
 import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { CalendarPlus, ChevronDown, ExternalLink, Loader2, Search, SlidersHorizontal, Star, Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/motion";
 import { toast, toastError } from "@/components/toast";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { commands, type Contest_Serialize as Contest } from "@/lib/bindings";
 import { formatDate } from "@/lib/format";
 import { itemIn, listIn, spring } from "@/lib/motion";
@@ -26,13 +27,13 @@ export function ContestTracker() {
         <div className="flex flex-wrap items-center gap-3 p-4">
           <div className="min-w-60 flex-1">
             <p className="font-medium">Rastreador de concursos</p>
-            <p className="text-xs text-muted-foreground">O Claude pesquisa na web pela sua área (1–3 min). Notícias com suas palavras-chave também entram aqui, e o mesmo concurso vindo de fontes diferentes vira um só.</p>
+            <p className="text-xs text-muted-foreground">A IA (Claude ou ChatGPT, a que estiver conectada) pesquisa na web pela sua área (1–3 min) e deixa de fora prova já aplicada. Notícias com suas palavras-chave também entram aqui, e o mesmo concurso vindo de fontes diferentes vira um só.</p>
           </div>
           <Button variant="ghost" aria-expanded={tuning} onClick={() => setTuning((t) => !t)}>
             <SlidersHorizontal /> Área e palavras-chave <ChevronDown className={cn("transition-transform", tuning && "rotate-180")} />
           </Button>
           <Button disabled={busy} onClick={() => void search()}>
-            {busy ? <Loader2 className="animate-spin" /> : <Search />} {busy ? "Pesquisando…" : "Buscar com Claude"}
+            {busy ? <Loader2 className="animate-spin" /> : <Search />} {busy ? "Pesquisando…" : "Buscar com IA"}
           </Button>
         </div>
         <AnimatePresence initial={false}>
@@ -109,7 +110,7 @@ function ContestCard({ c, reload }: { c: Contest; reload: () => void }) {
   return (
     <motion.li variants={itemIn} className={cn("space-y-3 rounded-2xl border bg-card p-4 shadow-soft", c.followed ? "border-primary/50" : "border-border")}>
       <div className="flex items-start gap-2">
-        <button className="min-w-0 flex-1 text-left font-semibold leading-snug hover:text-primary" onClick={() => commands.openLink(c.url).catch(toastError)}>
+        <button className="min-w-0 flex-1 text-left font-semibold leading-snug hover:text-primary" onClick={() => openLink(c.url)}>
           {c.title}
         </button>
         <motion.button
@@ -157,7 +158,7 @@ function ContestCard({ c, reload }: { c: Contest; reload: () => void }) {
             onSubmit={(e) => (e.preventDefault(), void toExam())}
             className="flex items-center gap-2 overflow-hidden"
           >
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-8 w-44" aria-label="Data da prova" autoFocus />
+            <DatePicker value={date} onChange={setDate} className="w-44" aria-label="Data da prova" autoFocus />
             <Button size="sm" type="submit" disabled={date.length !== 10}>
               Salvar
             </Button>
@@ -174,7 +175,7 @@ function ContestCard({ c, reload }: { c: Contest; reload: () => void }) {
             <CalendarPlus /> Marcar prova
           </Button>
         )}
-        <Button size="sm" variant="ghost" onClick={() => commands.openLink(c.url).catch(toastError)}>
+        <Button size="sm" variant="ghost" onClick={() => openLink(c.url)}>
           <ExternalLink /> Fonte
         </Button>
         <span className="flex-1" />

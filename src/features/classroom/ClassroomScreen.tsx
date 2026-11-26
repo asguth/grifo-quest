@@ -254,7 +254,7 @@ function Prep({ topic, onStart }: { topic: TopicRef; onStart: () => void }) {
 
       {error && (
         <p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
-          {error} <span className="text-muted-foreground">Confira a IA em Config → Integrações, ou cole seu material em “Editar”.</span>
+          {error} <span className="text-muted-foreground">Confira a IA em Configurações → Integrações, ou cole seu material em “Editar”.</span>
         </p>
       )}
 

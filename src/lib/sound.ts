@@ -35,6 +35,10 @@ type Note = { f: number; d: number; w?: OscillatorType; to?: number; gap?: numbe
 const SFX = {
   /** Trocar de tela / abrir painel: blip curto e baixo. */
   nav: [{ f: 880, d: 0.035, w: "triangle" }],
+  /** Tique-taque do pomodoro: clique bem curto e baixo. */
+  tick: [{ f: 1400, d: 0.012, w: "triangle" }],
+  /** Fim da fase do pomodoro: sino em três toques. */
+  bell: [{ f: 1047, d: 0.12, w: "triangle" }, { f: 784, d: 0.12, w: "triangle", gap: 0.05 }, { f: 1047, d: 0.25, w: "triangle", gap: 0.05 }],
   open: [{ f: 523, d: 0.05, w: "triangle", to: 784 }],
   /** Virar cartão. */
   flip: [{ f: 330, d: 0.07, w: "square", to: 660 }],

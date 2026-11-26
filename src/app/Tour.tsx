@@ -19,7 +19,7 @@ export const TOUR: Step[] = [
   { slot: "sala", title: "Sala de aula", text: "Você explica o tópico e os alunos virtuais perguntam justamente onde você ficou raso. Ensinar fixa." },
   { slot: "materias", title: "Matérias", text: "Seu edital verticalizado: teoria, questões e 3 revisões por tópico, e os materiais do Grifo." },
   { slot: "mundo", title: "Mundo", text: "Notícias de concursos, o rastreador da sua área e a contagem regressiva das suas provas." },
-  { slot: "config", title: "Config", text: "Temas, IA, integrações e notícias. Achou um problema? Config → Sistema → Reportar." },
+  { slot: "config", title: "Configurações", text: "Temas, IA, integrações, conta e backup. Achou um problema? Configurações → Sistema → Ajuda." },
   { title: "Uma última dica", text: `${QUICK_LOG_SHORTCUT} lança questões feitas fora do app, de qualquer lugar do Windows. Bons estudos!` },
 ];
 

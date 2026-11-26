@@ -3,9 +3,9 @@ import type { Theme } from "@/lib/theme";
 
 /** Avisos entre partes do front da mesma janela (os do backend chegam por `events` dos bindings). */
 type AppEvents = {
-  /** Reabrir o assistente de primeira abertura (Config → Sistema). */
+  /** Reabrir o assistente de primeira abertura (Configurações → Sistema). */
   onboarding: undefined;
-  /** Rever o tutorial do menu (Config → Sistema). */
+  /** Rever o tutorial do menu (Configurações → Sistema). */
   tour: undefined;
   /** Trocar a aba do Estudo (o mini-timer do menu pede "foco"). */
   studyTab: string;
@@ -21,6 +21,8 @@ type AppEvents = {
   account: undefined;
   /** Trocar a aba da Config (o menu pede "conta"). */
   settingsTab: string;
+  /** Aviso do time publicado agora (quem publicou vê na hora). */
+  announcements: undefined;
 };
 
 type Name = keyof AppEvents;

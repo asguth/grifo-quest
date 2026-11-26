@@ -16,12 +16,41 @@ pub enum Phase {
     Break,
 }
 
-/// Tempos em segundos Unix. `paused_at`: pausado desde então (o relógio "congela" ali).
+/// Como o ciclo anda (vem da configuração do pomodoro; durações em segundos).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Plan {
+    pub focus: i64,
+    pub short_break: i64,
+    pub long_break: i64,
+    /// Pausa longa a cada N focos (0 = nunca).
+    pub long_every: i32,
+    /// A pausa começa sozinha quando o foco acaba (senão espera "Continuar").
+    pub auto_break: bool,
+    /// O próximo foco começa sozinho quando a pausa acaba (senão espera).
+    pub auto_focus: bool,
+}
+
+impl Default for Plan {
+    fn default() -> Self {
+        Self { focus: 1500, short_break: 300, long_break: 900, long_every: 4, auto_break: true, auto_focus: false }
+    }
+}
+
+impl Plan {
+    /// Pausa que vem depois do `done`-ésimo foco.
+    fn break_after(&self, done: i32) -> (i64, bool) {
+        let long = self.long_every > 0 && done > 0 && done % self.long_every == 0;
+        (if long { self.long_break } else { self.short_break }, long)
+    }
+}
+
+/// Tempos em segundos Unix. `paused_at`: pausado desde então (o relógio "congela" ali). Uma fase
+/// que espera começar fica pausada no próprio início. `done`: focos concluídos nesta sequência.
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub enum Timer {
     #[default]
     Idle,
-    Pomodoro { phase: Phase, subject_id: Option<i32>, started: i64, len: i64, break_len: i64, paused_at: Option<i64> },
+    Pomodoro { phase: Phase, subject_id: Option<i32>, started: i64, len: i64, plan: Plan, done: i32, long: bool, paused_at: Option<i64> },
     Stopwatch { kind: TimerKind, subject_id: Option<i32>, started: i64, paused_at: Option<i64> },
 }
 
@@ -37,7 +66,8 @@ pub struct Partial {
 
 #[derive(Debug, PartialEq)]
 pub enum Transition {
-    FocusDone { subject_id: Option<i32>, started: i64, ended: i64 },
+    /// `long`: a pausa que vem é a longa. `cycle`: focos concluídos na sequência.
+    FocusDone { subject_id: Option<i32>, started: i64, ended: i64, long: bool, cycle: i32 },
     BreakDone,
 }
 
@@ -83,9 +113,15 @@ impl Timer {
         }
     }
 
-    /// Avança o pomodoro se a fase venceu. Foco → pausa → parado.
+    /// Pomodoro novo, já contando.
+    pub fn pomodoro(plan: Plan, subject_id: Option<i32>, now: i64) -> Timer {
+        Timer::Pomodoro { phase: Phase::Focus, subject_id, started: now, len: plan.focus, plan, done: 0, long: false, paused_at: None }
+    }
+
+    /// Avança o pomodoro se a fase venceu: foco → pausa (curta ou longa) → foco → … até parar.
+    /// Sem início automático, a fase seguinte fica esperando (pausada no próprio começo).
     pub fn tick(&mut self, now: i64) -> Option<Transition> {
-        let Timer::Pomodoro { phase, subject_id, started, len, break_len, paused_at: None } = *self else {
+        let Timer::Pomodoro { phase, subject_id, started, len, plan, done, paused_at: None, .. } = *self else {
             return None;
         };
         let end = started + len;
@@ -94,14 +130,37 @@ impl Timer {
         }
         match phase {
             Phase::Focus => {
-                *self = Timer::Pomodoro { phase: Phase::Break, subject_id, started: end, len: break_len, break_len, paused_at: None };
-                Some(Transition::FocusDone { subject_id, started, ended: end })
+                let done = done + 1;
+                let (blen, long) = plan.break_after(done);
+                let paused_at = (!plan.auto_break).then_some(end);
+                *self = Timer::Pomodoro { phase: Phase::Break, subject_id, started: end, len: blen, plan, done, long, paused_at };
+                Some(Transition::FocusDone { subject_id, started, ended: end, long, cycle: done })
             }
             Phase::Break => {
-                *self = Timer::Idle;
+                let paused_at = (!plan.auto_focus).then_some(end);
+                *self = Timer::Pomodoro { phase: Phase::Focus, subject_id, started: end, len: plan.focus, plan, done, long: false, paused_at };
                 Some(Transition::BreakDone)
             }
         }
+    }
+
+    /// Pula a fase atual e já começa a próxima. Pular o foco guarda o que foi estudado (sem o XP
+    /// do pomodoro, como parar no meio) e não conta como foco concluído.
+    pub fn skip(&mut self, now: i64) -> Option<Partial> {
+        let Timer::Pomodoro { phase, subject_id, plan, done, .. } = *self else {
+            return None;
+        };
+        let partial = if phase == Phase::Focus { self.stop(now) } else { None };
+        *self = match phase {
+            Phase::Focus => Timer::Pomodoro { phase: Phase::Break, subject_id, started: now, len: plan.short_break, plan, done, long: false, paused_at: None },
+            Phase::Break => Timer::Pomodoro { phase: Phase::Focus, subject_id, started: now, len: plan.focus, plan, done, long: false, paused_at: None },
+        };
+        partial
+    }
+
+    /// Fase esperando o "Continuar" (ainda não começou a contar).
+    pub fn waiting(&self) -> bool {
+        matches!(*self, Timer::Pomodoro { started, paused_at: Some(p), .. } if p == started)
     }
 
     /// Texto curto para o tooltip da bandeja.
@@ -110,8 +169,12 @@ impl Timer {
         let mark = if self.paused() { " (pausado)" } else { "" };
         match *self {
             Timer::Idle => None,
-            Timer::Pomodoro { phase, started, len, .. } => {
-                let name = if phase == Phase::Focus { "Foco" } else { "Pausa" };
+            Timer::Pomodoro { phase, started, len, long, .. } => {
+                let name = match (phase, long) {
+                    (Phase::Focus, _) => "Foco",
+                    (Phase::Break, true) => "Pausa longa",
+                    (Phase::Break, false) => "Pausa",
+                };
                 Some(format!("{name} {}{mark}", clock(started + len - at)))
             }
             Timer::Stopwatch { kind, started, .. } => {
@@ -144,25 +207,62 @@ mod tests {
     use super::*;
 
     fn pomodoro() -> Timer {
-        Timer::Pomodoro { phase: Phase::Focus, subject_id: Some(7), started: 1000, len: 1500, break_len: 300, paused_at: None }
+        Timer::pomodoro(Plan::default(), Some(7), 1000)
     }
 
     #[test]
-    fn focus_then_break_then_idle() {
+    fn focus_then_break_then_waits_for_next_focus() {
         let mut t = pomodoro();
         assert_eq!(t.tick(2499), None);
-        assert_eq!(t.tick(2500), Some(Transition::FocusDone { subject_id: Some(7), started: 1000, ended: 2500 }));
+        assert_eq!(t.tick(2500), Some(Transition::FocusDone { subject_id: Some(7), started: 1000, ended: 2500, long: false, cycle: 1 }));
         assert_eq!(t.label(2500).as_deref(), Some("Pausa 05:00"));
         assert_eq!(t.tick(2799), None);
         assert_eq!(t.tick(2800), Some(Transition::BreakDone));
-        assert_eq!(t, Timer::Idle);
+        // sem início automático do foco: espera, pausado no começo
+        assert!(t.waiting());
+        assert_eq!(t.tick(99_999), None);
+        assert_eq!(t.seconds(99_999), 1500);
+        t.resume(5000);
+        assert!(!t.waiting());
+        assert!(matches!(t.tick(6500), Some(Transition::FocusDone { cycle: 2, .. })));
+    }
+
+    #[test]
+    fn long_break_every_n_focus() {
+        let plan = Plan { long_every: 2, auto_focus: true, ..Plan::default() };
+        let mut t = Timer::pomodoro(plan, None, 0);
+        assert!(matches!(t.tick(1500), Some(Transition::FocusDone { long: false, cycle: 1, .. })));
+        assert_eq!(t.tick(1800), Some(Transition::BreakDone));
+        assert!(matches!(t.tick(3300), Some(Transition::FocusDone { long: true, cycle: 2, .. })));
+        assert_eq!(t.label(3300).as_deref(), Some("Pausa longa 15:00"));
+        assert_eq!(t.tick(4199), None);
+        assert_eq!(t.tick(4200), Some(Transition::BreakDone));
+    }
+
+    #[test]
+    fn break_can_wait_to_start() {
+        let plan = Plan { auto_break: false, ..Plan::default() };
+        let mut t = Timer::pomodoro(plan, None, 0);
+        assert!(t.tick(1500).is_some());
+        assert!(t.waiting());
+        assert_eq!(t.tick(9999), None, "pausa esperando não vence");
+    }
+
+    #[test]
+    fn skip_focus_keeps_partial_and_starts_break() {
+        let mut t = pomodoro();
+        let p = t.skip(1600).unwrap();
+        assert_eq!((p.started, p.ended), (1000, 1600));
+        assert!(matches!(t, Timer::Pomodoro { phase: Phase::Break, started: 1600, len: 300, done: 0, .. }));
+        assert_eq!(t.skip(1700), None);
+        assert!(matches!(t, Timer::Pomodoro { phase: Phase::Focus, started: 1700, len: 1500, paused_at: None, .. }));
     }
 
     #[test]
     fn late_tick_records_planned_end() {
         // PC dormiu: o foco termina no horário previsto, não quando acordou.
         let mut t = pomodoro();
-        assert_eq!(t.tick(9999), Some(Transition::FocusDone { subject_id: Some(7), started: 1000, ended: 2500 }));
+        assert!(matches!(t.tick(9999), Some(Transition::FocusDone { started: 1000, ended: 2500, .. })));
         assert_eq!(t.tick(9999), Some(Transition::BreakDone));
     }
 

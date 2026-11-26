@@ -125,11 +125,24 @@ pub async fn logout(app: &AppHandle) -> AppResult<()> {
 
 /// Uma resposta: prompt pelo stdin, só leitura, sem guardar sessão; o texto final vem do `-o`.
 pub async fn run(app: &AppHandle, prompt: &str) -> AppResult<String> {
+    exec(app, prompt, false).await
+}
+
+/// Igual a [`run`], com a busca na web do Codex ligada (rastreador de concursos).
+pub async fn run_with_web(app: &AppHandle, prompt: &str) -> AppResult<String> {
+    exec(app, prompt, true).await
+}
+
+async fn exec(app: &AppHandle, prompt: &str, web: bool) -> AppResult<String> {
     let work = dir(app)?.join("work");
     std::fs::create_dir_all(&work)?;
     let out_file = work.join(format!("resposta-{}.txt", std::process::id() ^ rand_suffix()));
     let mut cmd = command(app);
-    cmd.args(["exec", "--skip-git-repo-check", "--ephemeral", "--color", "never", "-s", "read-only", "-o"])
+    cmd.arg("exec");
+    if web {
+        cmd.args(["-c", "tools.web_search=true"]);
+    }
+    cmd.args(["--skip-git-repo-check", "--ephemeral", "--color", "never", "-s", "read-only", "-o"])
         .arg(&out_file)
         .arg("-")
         .current_dir(&work)
@@ -167,7 +180,7 @@ fn rand_suffix() -> u32 {
 fn failure(stderr: &str) -> String {
     let low = stderr.to_lowercase();
     if low.contains("login") || low.contains("401") || low.contains("unauthorized") || low.contains("not logged") {
-        return "ChatGPT desconectado: entre de novo em Config → Integrações".into();
+        return "ChatGPT desconectado: entre de novo em Configurações → Integrações".into();
     }
     if low.contains("usage limit") || low.contains("rate limit") || low.contains("429") {
         return "ChatGPT: limite de uso da sua assinatura atingido. Tente mais tarde.".into();

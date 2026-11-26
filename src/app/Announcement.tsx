@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Megaphone, Sparkles, TriangleAlert, X } from "lucide-react";
 import { Mascot } from "@/components/Mascot";
-import { Button } from "@/components/ui/button";
 import { commands, type Announcement } from "@/lib/bindings";
+import { useAppEvent } from "@/lib/bus";
 import { getPref, setPref } from "@/lib/prefs";
 import { spring } from "@/lib/motion";
 import { cn, warn } from "@/lib/utils";
@@ -13,6 +13,9 @@ const LABEL: Record<string, [string, typeof Megaphone, string]> = {
   update: ["Atualização", Megaphone, "text-success bg-success/15"],
   warning: ["Importante", TriangleAlert, "text-destructive bg-destructive/15"],
 };
+
+/** Confere avisos novos de tempos em tempos (o app fica aberto o dia todo na bandeja). */
+const POLL_MS = 15 * 60 * 1000;
 
 async function seen(): Promise<string[]> {
   const raw = await getPref("seen_announcements");
@@ -24,20 +27,38 @@ async function seen(): Promise<string[]> {
   }
 }
 
-/** Aviso do dev para todos: aparece uma vez por pessoa, ao abrir o app (sem conta também). */
+/**
+ * Aviso do time para todos (com ou sem conta): faixa no topo, centralizada, com X. Cada aviso
+ * aparece uma vez só por pessoa. Quem publica vê na hora (evento `announcements`).
+ */
 export function AnnouncementPopup() {
   const [queue, setQueue] = useState<Announcement[]>([]);
+  const [tick, setTick] = useState(0);
+  useAppEvent("announcements", () => setTick((t) => t + 1));
 
   useEffect(() => {
-    // espera o app assentar (a janela acabou de abrir)
-    const t = setTimeout(() => {
+    let live = true;
+    const check = () =>
       Promise.all([commands.announcements(), seen()]).then(
-        ([list, done]) => setQueue(list.filter((a) => !done.includes(a.id)).reverse()),
+        ([list, done]) => {
+          if (!live) return;
+          setQueue((q) => {
+            const known = new Set(q.map((a) => a.id));
+            const fresh = list.filter((a) => !done.includes(a.id) && !known.has(a.id)).reverse();
+            return [...q, ...fresh];
+          });
+        },
         (e) => warn("ler os avisos", e),
       );
-    }, 1500);
-    return () => clearTimeout(t);
-  }, []);
+    // espera o app assentar (a janela acabou de abrir)
+    const first = setTimeout(() => void check(), tick ? 300 : 1500);
+    const every = setInterval(() => void check(), POLL_MS);
+    return () => {
+      live = false;
+      clearTimeout(first);
+      clearInterval(every);
+    };
+  }, [tick]);
 
   const current = queue[0];
   function close() {
@@ -50,51 +71,36 @@ export function AnnouncementPopup() {
 
   const [label, Icon, tone] = LABEL[current?.kind ?? "info"] ?? LABEL.info;
   return (
-    <AnimatePresence>
-      {current && (
-        <motion.div
-          key={current.id}
-          className="fixed inset-0 z-[90] grid place-items-center bg-black/60 p-6 backdrop-blur-sm"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={close}
-        >
+    <div className="pointer-events-none fixed inset-x-0 top-4 z-[90] flex justify-center px-4">
+      <AnimatePresence mode="wait">
+        {current && (
           <motion.div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="announcement-title"
-            initial={{ y: 24, scale: 0.95 }}
-            animate={{ y: 0, scale: 1 }}
-            exit={{ y: 12, scale: 0.97, opacity: 0 }}
+            key={current.id}
+            role="status"
+            aria-live="polite"
+            initial={{ y: -80, opacity: 0, scale: 0.96 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: -40, opacity: 0, transition: { duration: 0.15 } }}
             transition={spring.bouncy}
-            onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-lg space-y-4 rounded-3xl border border-border bg-card p-7 shadow-lift"
+            className="pointer-events-auto relative flex w-full max-w-xl items-start gap-3 rounded-2xl border border-border bg-card/95 p-4 pr-11 shadow-lift backdrop-blur-xl"
           >
-            <button onClick={close} aria-label="Fechar" className="absolute right-4 top-4 text-muted-foreground hover:text-foreground">
+            <Mascot look="cap" scale={3} />
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium", tone)}>
+                  <Icon className="size-3" /> {label}
+                </span>
+                {queue.length > 1 && <span className="text-[11px] text-muted-foreground">+{queue.length - 1}</span>}
+              </div>
+              <p className="font-semibold leading-snug">{current.title}</p>
+              {current.body && <p className="max-h-40 overflow-y-auto text-sm whitespace-pre-wrap text-muted-foreground">{current.body}</p>}
+            </div>
+            <button onClick={close} aria-label="Fechar aviso" className="absolute top-3 right-3 grid size-7 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground">
               <X className="size-4" />
             </button>
-            <div className="flex items-center gap-4">
-              <Mascot look="cap" scale={4} />
-              <div className="space-y-1.5">
-                <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium", tone)}>
-                  <Icon className="size-3.5" /> {label}
-                </span>
-                <h2 id="announcement-title" className="text-lg font-semibold leading-snug">
-                  {current.title}
-                </h2>
-              </div>
-            </div>
-            {current.body && <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">{current.body}</p>}
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-xs text-muted-foreground">{queue.length > 1 ? `+${queue.length - 1} aviso(s)` : "Recado do time do Grifo Quest"}</span>
-              <Button autoFocus onClick={close}>
-                Entendi
-              </Button>
-            </div>
           </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

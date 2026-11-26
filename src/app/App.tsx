@@ -2,6 +2,8 @@ import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from "
 import { AnimatePresence, motion } from "motion/react";
 import { LevelUpOverlay } from "@/components/LevelUp";
 import { AnnouncementPopup } from "./Announcement";
+import { CropHost } from "@/components/ImageCropper";
+import { ExternalLinkHost } from "@/components/ExternalLink";
 import Scenery from "@/components/Scenery";
 import { Toaster } from "@/components/toast";
 import { commands, events } from "@/lib/bindings";
@@ -161,6 +163,8 @@ export default function App() {
       <Toaster />
       <LevelUpOverlay />
       <AnnouncementPopup />
+      <CropHost />
+      <ExternalLinkHost />
       {tour && (
         <Tour
           go={setSlot}

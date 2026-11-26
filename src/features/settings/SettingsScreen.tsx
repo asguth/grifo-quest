@@ -1,7 +1,7 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
-import { Bot, Check, Cloud, Cog, DatabaseBackup, Newspaper, Paintbrush, Plug, RotateCcw, Save, Timer, Trash2 } from "lucide-react";
+import { Bot, Check, Cloud, Cog, DatabaseBackup, FolderOpen, Newspaper, Paintbrush, Plug, RotateCcw, Save, Timer, Trash2 } from "lucide-react";
 import { SectionTabs } from "@/components/SectionTabs";
 import { NativeSelect } from "@/components/fields";
 import { Segmented } from "@/components/Segmented";
@@ -18,7 +18,6 @@ import {
   type CloudStatus,
   type GpuInfo,
   type Route,
-  type PomodoroConfig,
 } from "@/lib/bindings";
 import { emit, useAppEvent } from "@/lib/bus";
 import { getFlag, saveFlag } from "@/lib/prefs";
@@ -41,10 +40,12 @@ import {
   type Theme,
 } from "@/lib/theme";
 import { installUpdate, useUpdate } from "@/lib/update";
+import { ago } from "@/lib/format";
 import { cn, errorMessage, warn } from "@/lib/utils";
 import { Account, useCloudAvailable } from "./Account";
 import { TrackerSettings } from "@/features/world/TrackerSettings";
 import { HelpCard } from "./Help";
+import { PomodoroSettings } from "./PomodoroSettings";
 import { Integrations } from "./Integrations";
 import { getSettingsTab, setSettingsTab, type SettingsTab } from "./tabRequest";
 
@@ -63,7 +64,7 @@ export default function SettingsScreen() {
   const cloud = useCloudAvailable();
   return (
     <div className="mx-auto max-w-4xl space-y-5">
-      <h1 className="retro text-sm text-primary">Config</h1>
+      <h1 className="retro text-sm text-primary">Configurações</h1>
       <SectionTabs
         label="Seções da Config"
         value={tab}
@@ -80,7 +81,7 @@ export default function SettingsScreen() {
       />
       {tab === "integracoes" && <Integrations />}
       {tab === "aparencia" && <Appearance />}
-      {tab === "pomodoro" && <Pomodoro />}
+      {tab === "pomodoro" && <PomodoroSettings />}
       {tab === "concursos" && <ContestsAndNews />}
       {tab === "ia" && <Ai />}
       {tab === "sistema" && <System />}
@@ -361,41 +362,6 @@ function ThemePreview({ colors }: { colors: Palette }) {
         </span>
       </div>
     </div>
-  );
-}
-
-function Pomodoro() {
-  const [cfg, setCfg] = useState<PomodoroConfig>({ focus_min: 25, break_min: 5 });
-  const [status, show] = useStatus();
-  useEffect(() => void commands.getPomodoroConfig().then(setCfg, (e) => show(errorMessage(e))), [show]);
-
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
-    try {
-      await commands.setPomodoroConfig(cfg);
-      show("Salvo");
-    } catch (err) {
-      show(errorMessage(err));
-    }
-  }
-  const minutes = (k: keyof PomodoroConfig) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setCfg({ ...cfg, [k]: e.target.valueAsNumber || 0 });
-
-  return (
-    <Card>
-      <form onSubmit={save} className="flex flex-wrap items-end gap-4">
-        <div className="space-y-1">
-          <Label htmlFor="focus-min">Foco (min)</Label>
-          <Input id="focus-min" type="number" min={1} max={180} className="w-24" value={cfg.focus_min} onChange={minutes("focus_min")} />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="break-min">Pausa (min)</Label>
-          <Input id="break-min" type="number" min={1} max={60} className="w-24" value={cfg.break_min} onChange={minutes("break_min")} />
-        </div>
-        <Button type="submit">Salvar</Button>
-        <span className="text-sm text-accent">{status}</span>
-      </form>
-    </Card>
   );
 }
 
@@ -805,73 +771,157 @@ function ResetData() {
   );
 }
 
-/** Backup em um clique e restauração a partir da pasta de backups (confirma em dois cliques). */
+/** `grifo-2026-11-25-213223-antes-de-apagar.db` → data (UTC no nome) e o motivo. */
+function backupInfo(name: string): { date: Date | null; kind: "manual" | "apagar" | "restaurar" | "nuvem" } {
+  const m = /^grifo-(\d{4}-\d{2}-\d{2})-(\d{2})(\d{2})(\d{2})(?:-(.+))?\.db$/.exec(name);
+  const date = m ? new Date(`${m[1]}T${m[2]}:${m[3]}:${m[4]}Z`) : null;
+  const tag = m?.[5] ?? "";
+  const kind = tag === "antes-de-apagar" ? "apagar" : tag === "antes-de-restaurar" ? "restaurar" : tag === "nuvem" ? "nuvem" : "manual";
+  return { date, kind };
+}
+
+const BACKUP_KIND = {
+  manual: { label: "Backup manual", icon: DatabaseBackup, tone: "bg-primary/15 text-primary" },
+  apagar: { label: "Antes de apagar tudo", icon: Trash2, tone: "bg-destructive/15 text-destructive" },
+  restaurar: { label: "Antes de restaurar", icon: RotateCcw, tone: "bg-secondary text-foreground" },
+  nuvem: { label: "Baixado da nuvem", icon: Cloud, tone: "bg-sky-500/15 text-sky-400" },
+} as const;
+
+function sizeLabel(kb: number): string {
+  return kb >= 1024 ? `${(kb / 1024).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB` : `${kb} KB`;
+}
+
+/** Backups do PC: fazer, restaurar e excluir (cada ação perigosa confirma em dois cliques). */
 function Backups() {
   const [list, setList] = useState<BackupFile[]>([]);
-  const [confirm, setConfirm] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<{ name: string; action: "restore" | "delete" } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [showAll, setShowAll] = useState(false);
   const load = useCallback(() => void commands.listBackups().then(setList, (e) => warn("listar backups", e)), []);
   useEffect(load, [load]);
 
   async function backup() {
+    setBusy(true);
     try {
       const path = await commands.backupDatabase();
       toast(`Backup salvo: ${path.split(/[\\/]/).pop()}`, "success");
       load();
     } catch (e) {
       toastError(e);
+    } finally {
+      setBusy(false);
     }
   }
 
-  async function restore(name: string) {
+  async function run(name: string, action: "restore" | "delete") {
+    setBusy(true);
     try {
-      await commands.restoreBackup(name);
+      if (action === "restore") {
+        await commands.restoreBackup(name);
+      } else {
+        await commands.deleteBackup(name);
+        toast("Backup excluído", "success");
+        load();
+      }
     } catch (e) {
       toastError(e);
+    } finally {
+      setBusy(false);
       setConfirm(null);
     }
   }
 
+  const total = list.reduce((n, b) => n + b.kb, 0);
+  const shown = showAll ? list : list.slice(0, 4);
+  const newest = list[0] ? backupInfo(list[0].name).date : null;
+
   return (
-    <Card title="Seus dados">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="min-w-60 flex-1 text-sm text-muted-foreground">
-          Tudo fica num arquivo só no seu PC. O backup copia esse arquivo para Documentos › Grifo Quest › backups (pode fazer com o app aberto).
-        </p>
-        <Button size="sm" variant="secondary" onClick={() => void backup()}>
-          <DatabaseBackup /> Fazer backup agora
-        </Button>
+    <section className="space-y-4 rounded-lg border border-border bg-card p-4">
+      <div className="flex flex-wrap items-start gap-4">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary">
+          <DatabaseBackup className="size-5" />
+        </span>
+        <div className="min-w-60 flex-1">
+          <h2 className="font-semibold">Seus dados</h2>
+          <p className="text-sm text-muted-foreground">Tudo fica num arquivo só no seu PC. O backup copia esse arquivo para Documentos › Grifo Quest › backups, mesmo com o app aberto.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button size="sm" variant="ghost" onClick={() => void commands.openBackupFolder().catch(toastError)}>
+            <FolderOpen /> Abrir pasta
+          </Button>
+          <Button size="sm" disabled={busy} onClick={() => void backup()}>
+            <DatabaseBackup /> Fazer backup agora
+          </Button>
+        </div>
       </div>
+
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <div className="rounded-xl bg-secondary/50 p-3">
+          <p className="tabular text-lg font-semibold">{list.length}</p>
+          <p className="text-xs text-muted-foreground">{list.length === 1 ? "backup" : "backups"}</p>
+        </div>
+        <div className="rounded-xl bg-secondary/50 p-3">
+          <p className="tabular text-lg font-semibold">{sizeLabel(total)}</p>
+          <p className="text-xs text-muted-foreground">ocupados</p>
+        </div>
+        <div className="rounded-xl bg-secondary/50 p-3">
+          <p className="truncate text-lg font-semibold">{newest ? ago(newest.toISOString()) : "nunca"}</p>
+          <p className="text-xs text-muted-foreground">último backup</p>
+        </div>
+      </div>
+
       {list.length > 0 && (
-        <details className="text-sm">
-          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Restaurar um backup ({list.length})</summary>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Antes de restaurar, o app guarda o estado atual como “antes-de-restaurar” na mesma pasta. Depois reinicia.
-          </p>
-          <ul className="mt-2 space-y-1.5">
-            {list.map((b) => (
-              <li key={b.name} className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5">
-                <span className="min-w-0 flex-1 truncate font-mono text-xs">{b.name}</span>
-                <span className="text-xs text-muted-foreground">{b.kb} KB</span>
-                {confirm === b.name ? (
-                  <>
-                    <Button size="sm" variant="destructive" onClick={() => void restore(b.name)}>
-                      Confirmar (reinicia)
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setConfirm(null)}>
-                      Cancelar
-                    </Button>
-                  </>
-                ) : (
-                  <Button size="sm" variant="secondary" onClick={() => setConfirm(b.name)}>
-                    <RotateCcw /> Restaurar
-                  </Button>
-                )}
-              </li>
-            ))}
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">Restaurar guarda antes o estado atual (“antes de restaurar”) e reinicia o app. Excluir apaga o arquivo do backup, não os seus estudos.</p>
+          <ul className="space-y-1.5">
+            {shown.map((b) => {
+              const info = backupInfo(b.name);
+              const k = BACKUP_KIND[info.kind];
+              const Icon = k.icon;
+              const asking = confirm?.name === b.name ? confirm.action : null;
+              return (
+                <li key={b.name} className={cn("flex items-center gap-3 rounded-xl border px-3 py-2.5", asking === "delete" ? "border-destructive/50 bg-destructive/5" : "border-border")}>
+                  <span className={cn("grid size-9 shrink-0 place-items-center rounded-lg", k.tone)}>
+                    <Icon className="size-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{info.date ? info.date.toLocaleString("pt-BR", { dateStyle: "medium", timeStyle: "short" }) : b.name}</span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {k.label} · {sizeLabel(b.kb)}
+                      {info.date && ` · ${ago(info.date.toISOString())}`}
+                    </span>
+                  </span>
+                  {asking ? (
+                    <>
+                      <Button size="sm" variant="destructive" disabled={busy} onClick={() => void run(b.name, asking)}>
+                        {asking === "restore" ? "Confirmar (reinicia)" : "Excluir de vez"}
+                      </Button>
+                      <Button size="sm" variant="ghost" disabled={busy} onClick={() => setConfirm(null)}>
+                        Cancelar
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button size="sm" variant="secondary" disabled={busy} onClick={() => setConfirm({ name: b.name, action: "restore" })}>
+                        <RotateCcw /> Restaurar
+                      </Button>
+                      <Button size="icon-sm" variant="ghost" disabled={busy} aria-label="Excluir backup" title="Excluir backup" className="text-muted-foreground hover:text-destructive" onClick={() => setConfirm({ name: b.name, action: "delete" })}>
+                        <Trash2 />
+                      </Button>
+                    </>
+                  )}
+                </li>
+              );
+            })}
           </ul>
-        </details>
+          {list.length > 4 && (
+            <Button size="sm" variant="ghost" className="w-full" onClick={() => setShowAll((v) => !v)}>
+              {showAll ? "Mostrar menos" : `Ver todos (${list.length})`}
+            </Button>
+          )}
+        </div>
       )}
-    </Card>
+    </section>
   );
 }
 

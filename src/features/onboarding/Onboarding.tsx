@@ -321,7 +321,7 @@ function Exams({ area }: { area: string }) {
       )}
 
       <div className="flex items-center gap-3 rounded-xl border border-dashed border-border p-3">
-        <p className="flex-1 text-sm text-muted-foreground">Sem prova marcada? O Claude procura concursos abertos ou previstos{area ? ` em ${area}` : ""} (1–2 min).</p>
+        <p className="flex-1 text-sm text-muted-foreground">Sem prova marcada? A IA procura concursos abertos ou previstos{area ? ` em ${area}` : ""} (1–2 min).</p>
         <Button variant="secondary" disabled={searching} onClick={() => void search()}>
           {searching ? <Loader2 className="animate-spin" /> : <Search />} Procurar
         </Button>

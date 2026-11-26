@@ -93,6 +93,7 @@ mod tests {
                 xp: 10,
             };
             sessions::insert(&pool, s).await.unwrap();
+            assert_eq!(sessions::pomodoros_today(&pool).await.unwrap(), (1, 25));
 
             let acc = diary::accuracy(&pool, 30).await.unwrap();
             assert_eq!((acc[0].total, acc[0].correct), (20, 15));

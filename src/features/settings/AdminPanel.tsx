@@ -6,6 +6,7 @@ import { toast, toastError } from "@/components/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { emit } from "@/lib/bus";
 import { rest } from "@/lib/cloud";
 import { ago } from "@/lib/format";
 import { cn, warn } from "@/lib/utils";
@@ -32,7 +33,7 @@ export function useIsAdmin(signedIn: boolean): boolean {
   return admin;
 }
 
-/** Config → Conta, só para dev: avisos para todo mundo e caixa de entrada da Ajuda. */
+/** Configurações → Conta, só para dev: avisos para todo mundo e caixa de entrada da Ajuda. */
 export function AdminPanel() {
   return (
     <section className="space-y-5 rounded-2xl border border-primary/40 bg-card p-6 shadow-soft">
@@ -65,7 +66,8 @@ function Announcements() {
     setBusy(true);
     try {
       await rest("announcements", { method: "POST", body: { kind, title: title.trim(), body: body.trim() } });
-      toast("Aviso publicado: aparece para todos ao abrir o app", "success");
+      toast("Aviso publicado: aparece no topo para todos (uma vez para cada um)", "success");
+      emit("announcements");
       setTitle("");
       setBody("");
       load();

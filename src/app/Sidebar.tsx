@@ -188,7 +188,7 @@ export function Sidebar({ slot, go, account }: { slot: SlotId; go: Navigate; acc
   );
 }
 
-/** Quem está logado: nome, foto e plano. Leva à Config → Conta. */
+/** Quem está logado: nome, foto e plano. Leva à Configurações → Conta. */
 function AccountChip({ account, collapsed, go }: { account: Account; collapsed: boolean; go: Navigate }) {
   if (!account.available) return null;
   const tier = tierOf(account.plan);
@@ -196,7 +196,7 @@ function AccountChip({ account, collapsed, go }: { account: Account; collapsed: 
     requestSettingsTab("conta");
     go("config");
   };
-  // sem login, nada no menu: quem não assina não é incomodado (a conta fica em Config → Conta)
+  // sem login, nada no menu: quem não assina não é incomodado (a conta fica em Configurações → Conta)
   if (!account.signedIn) return null;
   return (
     <button

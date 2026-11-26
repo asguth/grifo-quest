@@ -221,7 +221,7 @@ pub async fn contests(pool: &SqlitePool) -> AppResult<Vec<Contest>> {
     let today = news::today();
     Ok(rows
         .into_iter()
-        .map(|c| Contest { status: news::contest_status(&c.title, c.summary.as_deref(), c.status.as_deref(), None, &today), ..c })
+        .map(|c| Contest { status: news::contest_status(&c.title, c.summary.as_deref(), c.status.as_deref(), None, c.deadline.as_deref(), &today), ..c })
         .collect())
 }
 
@@ -230,7 +230,7 @@ pub async fn contests(pool: &SqlitePool) -> AppResult<Vec<Contest>> {
 pub async fn upsert_contest(pool: &SqlitePool, c: &FoundContest, source: ContestSource) -> AppResult<bool> {
     let key = news::contest_key(c.org.as_deref(), &c.title);
     // A IA não decide sozinha que um concurso está aberto: prova passada vira "prova realizada".
-    let status = news::contest_status(&c.title, c.summary.as_deref(), c.status.as_deref(), c.exam_date.as_deref(), &news::today());
+    let status = news::contest_status(&c.title, c.summary.as_deref(), c.status.as_deref(), c.exam_date.as_deref(), c.deadline.as_deref(), &news::today());
     if let Some(k) = &key {
         let twin: Option<i32> = sqlx::query_scalar("SELECT id FROM contests WHERE dedupe_key = ? AND url <> ? LIMIT 1")
             .bind(k)

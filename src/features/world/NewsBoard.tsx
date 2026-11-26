@@ -1,3 +1,4 @@
+import { openLink } from "@/components/ExternalLink";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -598,7 +599,7 @@ function Reader({ n, onClose, onUnread, onUpdate }: { n: NewsItem | null; onClos
             )}
             {n.description && <p className="leading-relaxed text-muted-foreground">{n.description}</p>}
             <div className="flex flex-wrap gap-2 border-t border-border pt-4">
-              <Button onClick={() => commands.openLink(n.link).catch(toastError)}>
+              <Button onClick={() => openLink(n.link)}>
                 <ExternalLink /> Ler a notícia completa
               </Button>
               <Button variant="secondary" onClick={() => onUnread(n)}>

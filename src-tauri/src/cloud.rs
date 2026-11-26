@@ -97,7 +97,7 @@ pub fn set_key(c: Cloud, key: &str) -> AppResult<()> {
 }
 
 fn need_key(c: Cloud) -> AppResult<String> {
-    key(c)?.ok_or_else(|| AppError::Invalid(format!("Falta a chave de API do {} (Config → Integrações).", c.label())))
+    key(c)?.ok_or_else(|| AppError::Invalid(format!("Falta a chave de API do {} (Configurações → Integrações).", c.label())))
 }
 
 async fn error_of(c: Cloud, res: reqwest::Response) -> AppError {
@@ -146,7 +146,7 @@ pub fn chat_body(model: &str, messages: &[Msg<'_>], json_mode: bool) -> Value {
 fn need_base(c: Cloud, base: &str) -> AppResult<String> {
     let b = base.trim().trim_end_matches('/');
     if !b.starts_with("http") {
-        return Err(AppError::Invalid(format!("Falta o endereço da API do {} (Config → Integrações).", c.label())));
+        return Err(AppError::Invalid(format!("Falta o endereço da API do {} (Configurações → Integrações).", c.label())));
     }
     Ok(b.to_string())
 }

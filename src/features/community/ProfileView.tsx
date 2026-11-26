@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Ban, CalendarClock, Check, MessageCircle, Pencil, Target, UserMinus, UserPlus } from "lucide-react";
+import { Ban, CalendarClock, Check, EyeOff, MessageCircle, Pencil, Target, UserMinus, UserPlus } from "lucide-react";
 import { Skeleton } from "@/components/motion";
 import { TierBadge } from "@/components/TierBadge";
 import { Button } from "@/components/ui/button";
@@ -53,8 +53,12 @@ export function ProfileView({
       <div className="grid gap-5 md:grid-cols-[minmax(0,280px)_minmax(0,1fr)]">
         <aside className="space-y-4">
           <About p={p} />
-          <Friends id={p.id} open={open} />
-          <Communities id={p.id} open={open} />
+          {self || p.show_friends !== false ? <Friends id={p.id} open={open} hidden={self && p.show_friends === false} /> : <Hidden what="Os amigos" />}
+          {self || p.show_communities !== false ? (
+            <Communities id={p.id} open={open} hidden={self && p.show_communities === false} />
+          ) : (
+            <Hidden what="As comunidades" />
+          )}
         </aside>
         <main className="min-w-0">
           <FeedList
@@ -81,7 +85,7 @@ export function Header({ p, children }: { p: Pick<Profile, "id" | "display_name"
         style={p.cover_url ? { backgroundImage: `url("${p.cover_url}")` } : { background: `linear-gradient(120deg, oklch(0.72 0.1 ${hue}), oklch(0.6 0.12 ${(hue + 60) % 360}))` }}
       />
       <div className="flex flex-wrap items-end gap-4 px-5 pb-4">
-        <PersonPhoto p={p} size={112} className="-mt-14 ring-4 ring-card" />
+        <PersonPhoto p={p} size={112} className="relative z-10 -mt-14 ring-4 ring-card" />
         <div className="min-w-0 flex-1 pt-2">
           <p className="flex flex-wrap items-center gap-2 text-2xl font-semibold">
             <span className="truncate">{p.display_name}</span>
@@ -179,11 +183,31 @@ function Relationship({ other, blocked, onBlocksChanged, onMessage }: { other: P
   );
 }
 
-function Friends({ id, open }: { id: string; open: Open }) {
+/** Seção escondida pela pessoa (Privacidade em Editar perfil). */
+function Hidden({ what }: { what: string }) {
+  return (
+    <Box>
+      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+        <EyeOff className="size-4 shrink-0" /> {what} desta pessoa são privados.
+      </p>
+    </Box>
+  );
+}
+
+/** Aviso no próprio perfil: só você vê esta lista. */
+function OnlyYou() {
+  return (
+    <span className="flex items-center gap-1 text-[11px] font-normal text-muted-foreground" title="Escondido dos outros em Editar perfil → Privacidade">
+      <EyeOff className="size-3" /> só você vê
+    </span>
+  );
+}
+
+function Friends({ id, open, hidden }: { id: string; open: Open; hidden?: boolean }) {
   const list = useLoad(() => friendsOf(id), [id]);
   const n = list.data?.length ?? 0;
   return (
-    <Box title={list.data ? plural(n, "amigo", "amigos") : "Amigos"}>
+    <Box title={list.data ? plural(n, "amigo", "amigos") : "Amigos"} action={hidden && <OnlyYou />}>
       {!list.data && <Skeleton className="h-28 rounded-xl" />}
       {list.data?.length === 0 && <p className="text-sm text-muted-foreground">Ainda sem amigos.</p>}
       <ul className="grid grid-cols-3 gap-2">
@@ -200,11 +224,11 @@ function Friends({ id, open }: { id: string; open: Open }) {
   );
 }
 
-function Communities({ id, open }: { id: string; open: Open }) {
+function Communities({ id, open, hidden }: { id: string; open: Open; hidden?: boolean }) {
   const list = useLoad(() => communitiesOf(id), [id]);
   const n = list.data?.length ?? 0;
   return (
-    <Box title={list.data ? plural(n, "comunidade", "comunidades") : "Comunidades"}>
+    <Box title={list.data ? plural(n, "comunidade", "comunidades") : "Comunidades"} action={hidden && <OnlyYou />}>
       {!list.data && <Skeleton className="h-28 rounded-xl" />}
       {list.data?.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma comunidade ainda.</p>}
       <ul className="grid grid-cols-3 gap-2">

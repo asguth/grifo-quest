@@ -1,4 +1,4 @@
-//! Config → Integrações: diagnóstico e ações de um clique (Ollama, Claude, ChatGPT, MCP, voz).
+//! Configurações → Integrações: diagnóstico e ações de um clique (Ollama, Claude, ChatGPT, MCP, voz).
 
 use std::path::PathBuf;
 use std::process::Stdio;

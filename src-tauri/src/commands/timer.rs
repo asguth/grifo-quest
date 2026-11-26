@@ -34,7 +34,21 @@ impl TimerState {
 #[serde(tag = "mode", rename_all = "snake_case")]
 pub enum TimerView {
     Idle,
-    Pomodoro { phase: Phase, subject_id: Option<i32>, remaining: i32, total: i32, paused: bool },
+    Pomodoro {
+        phase: Phase,
+        subject_id: Option<i32>,
+        remaining: i32,
+        total: i32,
+        paused: bool,
+        /// Fase esperando "Continuar" (não começou a contar).
+        waiting: bool,
+        /// Focos concluídos nesta sequência.
+        cycle: i32,
+        /// Pausa longa a cada N focos (0 = nunca).
+        long_every: i32,
+        /// A pausa atual é a longa.
+        long_break: bool,
+    },
     Stopwatch { kind: TimerKind, subject_id: Option<i32>, elapsed: i32, paused: bool },
 }
 
@@ -54,9 +68,17 @@ fn view(t: Timer, now: i64) -> TimerView {
     let paused = t.paused();
     match t {
         Timer::Idle => TimerView::Idle,
-        Timer::Pomodoro { phase, subject_id, len, .. } => {
-            TimerView::Pomodoro { phase, subject_id, remaining: secs, total: len as i32, paused }
-        }
+        Timer::Pomodoro { phase, subject_id, len, plan, done, long, .. } => TimerView::Pomodoro {
+            phase,
+            subject_id,
+            remaining: secs,
+            total: len as i32,
+            paused,
+            waiting: t.waiting(),
+            cycle: done,
+            long_every: plan.long_every,
+            long_break: long,
+        },
         Timer::Stopwatch { kind, subject_id, .. } => TimerView::Stopwatch { kind, subject_id, elapsed: secs, paused },
     }
 }
@@ -83,14 +105,7 @@ pub async fn start_pomodoro(
 ) -> AppResult<TimerView> {
     ensure_idle(&state)?;
     let cfg: PomodoroConfig = settings::load(&pool).await?;
-    let t = Timer::Pomodoro {
-        phase: Phase::Focus,
-        subject_id,
-        started: now(),
-        len: i64::from(cfg.focus_min) * 60,
-        break_len: i64::from(cfg.break_min) * 60,
-        paused_at: None,
-    };
+    let t = Timer::pomodoro(cfg.plan(), subject_id, now());
     state.set(t);
     Ok(view(t, now()))
 }
@@ -120,6 +135,39 @@ pub async fn stop_timer(pool: State<'_, SqlitePool>, state: State<'_, TimerState
     }
     state.set(Timer::Idle);
     Ok(TimerView::Idle)
+}
+
+/// Pula a fase do pomodoro (foco pulado grava o tempo estudado, sem o XP do pomodoro).
+#[tauri::command]
+#[specta::specta]
+pub async fn skip_phase(pool: State<'_, SqlitePool>, state: State<'_, TimerState>) -> AppResult<TimerView> {
+    let now = now();
+    let (partial, after) = {
+        let mut t = state.lock();
+        (t.skip(now), *t)
+    };
+    if let Some(p) = partial
+        && p.ended - p.started >= MIN_SESSION_SECS
+    {
+        let session =
+            NewSession { kind: p.kind, subject_id: p.subject_id, started: p.started, ended: p.ended, source: SessionSource::Manual, xp: 0 };
+        db::player::award(&pool, async || db::sessions::insert(&pool, session).await).await?;
+    }
+    Ok(view(after, now))
+}
+
+/// Hoje no pomodoro: quantos focos completos e quantos minutos.
+#[derive(Debug, Serialize, specta::Type)]
+pub struct PomodoroToday {
+    pub done: i32,
+    pub minutes: i32,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn pomodoro_today(pool: State<'_, SqlitePool>) -> AppResult<PomodoroToday> {
+    let (done, minutes) = db::sessions::pomodoros_today(&pool).await?;
+    Ok(PomodoroToday { done, minutes })
 }
 
 /// Pausa ou retoma o timer que estiver rodando.
@@ -164,17 +212,25 @@ pub fn spawn_ticker(app: AppHandle) {
 }
 
 async fn on_transition(app: &AppHandle, tr: Transition) -> AppResult<()> {
+    let pool = app.state::<SqlitePool>();
+    let cfg: PomodoroConfig = settings::load(&pool).await.unwrap_or_default();
     match tr {
-        Transition::FocusDone { subject_id, started, ended } => {
-            let pool = app.state::<SqlitePool>();
+        Transition::FocusDone { subject_id, started, ended, long, cycle } => {
             let session =
                 NewSession { kind: TimerKind::Estudo, subject_id, started, ended, source: SessionSource::Pomodoro, xp: xp::POMODORO };
             let ((), outcome) = db::player::award(&pool, async || db::sessions::insert(&pool, session).await).await?;
             let mission_xp = outcome.mission_xp;
             let bonus = if mission_xp > 0 { format!(" Missão concluída: +{mission_xp} XP!") } else { String::new() };
-            notify(app, &format!("Pomodoro concluído! +{} XP", xp::POMODORO), &format!("Hora da pausa.{bonus}"));
+            if cfg.notify {
+                let pause = if long { "Hora da pausa longa: você merece." } else { "Hora da pausa." };
+                notify(app, &format!("Pomodoro {cycle} concluído! +{} XP", xp::POMODORO), &format!("{pause}{bonus}"));
+            }
         }
-        Transition::BreakDone => notify(app, "Pausa encerrada", "Bora para o próximo pomodoro?"),
+        Transition::BreakDone if cfg.notify => {
+            let body = if cfg.auto_start_focus { "O próximo foco já começou." } else { "Bora para o próximo pomodoro? Toque em Continuar." };
+            notify(app, "Pausa encerrada", body);
+        }
+        Transition::BreakDone => {}
     }
     Ok(())
 }

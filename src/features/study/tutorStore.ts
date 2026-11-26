@@ -21,7 +21,7 @@ export type TutorState = {
   busy: boolean;
   /** Quando a pergunta foi feita (para o "ainda pensando…"). */
   since: number | null;
-  /** IA escolhida (`id` de `tutor_models`); "auto" segue Config → IA. */
+  /** IA escolhida (`id` de `tutor_models`); "auto" segue Configurações → IA. */
   model: string;
   /** IAs prontas agora; `null` = carregando. */
   models: TutorModel[] | null;
